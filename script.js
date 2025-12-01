@@ -12,6 +12,7 @@ const dialogue = [
 ];
 
 let stage = 0;
+let isHintActive = false;
 const keys = new Set();
 const camera = { x: 0, y: 0 };
 
@@ -24,13 +25,14 @@ const levels = {
     door: { x: 340 - 32, y: 96 - 80, width: 64, height: 80, target: 'hallway' },
     spawn: { x: 340, y: 420 },
     furniture: [
-      { type: 'desk', x: 100, y: 200, width: 90, height: 50 },
-      { type: 'desk', x: 490, y: 200, width: 90, height: 50 },
-      { type: 'desk', x: 100, y: 340, width: 90, height: 50 },
-      { type: 'desk', x: 490, y: 340, width: 90, height: 50 },
-      // Cupboards
-      { type: 'cupboard', x: 50, y: 96 - 30, width: 60, height: 90 },
-      { type: 'cupboard', x: 680 - 110, y: 96 - 30, width: 60, height: 90 }
+      // Teacher desk
+      { type: 'desk', x: 100, y: 150, width: 120, height: 60 },
+      // Student desks
+      { type: 'desk', x: 100, y: 260, width: 90, height: 50 },
+      { type: 'desk', x: 490, y: 280, width: 90, height: 50 }, // Asymmetric
+      { type: 'desk', x: 150, y: 380, width: 90, height: 50 },
+      // Cupboard
+      { type: 'cupboard', x: 550, y: 96 - 30, width: 60, height: 90 }
     ]
   },
   hallway: {
@@ -38,7 +40,7 @@ const levels = {
     height: 520,
     wallHeight: 96,
     padding: 32,
-    door: null, // No exit door implemented yet
+    door: { x: 1250, y: 96 - 80, width: 64, height: 80, target: 'classroom' },
     spawn: { x: 1300, y: 420 },
     furniture: [
       // Lockers row 1
@@ -155,7 +157,7 @@ function handleMovement() {
     if (dx < 0) player.facing = "left";
     if (dx > 0) player.facing = "right";
 
-    player.walkFrame += 0.2;
+    player.walkFrame += 0.12;
 
     const length = Math.hypot(dx, dy) || 1;
     dx = (dx / length) * player.speed;
@@ -502,31 +504,34 @@ function drawHints() {
   ctx.font = "16px 'VT323', 'Courier New', monospace";
   ctx.textAlign = "center";
 
-  // Check door proximity
-  if (room.door) {
-      const dist = Math.hypot(player.x - (room.door.x + room.door.width/2), player.y - (room.door.y + room.door.height));
-      if (dist < 50) {
-          ctx.save();
-          // Reset transform to identity (screen space)
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-          // Calculate screen coordinates for the hint
-          const worldX = room.door.x + room.door.width/2;
-          const worldY = room.door.y - 10;
-          const screenX = worldX - camera.x;
-          const screenY = worldY - camera.y;
-
-          // Draw text
-          ctx.fillText("[SPACE] Open", screenX, screenY);
-          ctx.restore();
-      }
-  }
-
   if (stage >= 2 && currentLevelName === 'classroom') {
     ctx.fillStyle = "#9e9e9e";
     ctx.fillText("W A S D", canvas.width - 60, canvas.height - 40);
   }
   ctx.restore();
+
+  // DOM Hints logic
+  let showingHint = false;
+  if (room.door) {
+      const dist = Math.hypot(player.x - (room.door.x + room.door.width/2), player.y - (room.door.y + room.door.height));
+      if (dist < 50) {
+          showingHint = true;
+          if (!isHintActive) {
+             dialogueBox.hidden = false;
+             dialogueBox.classList.remove("dialogue--hidden");
+             dialogueBox.classList.add("dialogue--active");
+             dialogueLine.textContent = "Press [SPACE] to open";
+             dialogueLabel.classList.add("dialogue__label--hidden");
+             dialoguePrompt.textContent = "";
+             isHintActive = true;
+          }
+      }
+  }
+
+  if (!showingHint && isHintActive) {
+      isHintActive = false;
+      updateDialogue();
+  }
 }
 
 function loop() {
