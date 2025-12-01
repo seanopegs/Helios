@@ -12,6 +12,7 @@ const dialogue = [
 ];
 
 let stage = 0;
+let isHintActive = false;
 const keys = new Set();
 const camera = { x: 0, y: 0 };
 
@@ -21,16 +22,22 @@ const levels = {
     height: 520,
     wallHeight: 96,
     padding: 32,
-    door: { x: 340 - 32, y: 96 - 80, width: 64, height: 80, target: 'hallway' },
-    spawn: { x: 340, y: 420 },
+    door: { x: 340 - 32, y: 96 - 80, width: 64, height: 80, target: 'hallway', targetSpawn: { x: 1282, y: 440 } },
+    spawn: { x: 120, y: 240 },
     furniture: [
-      { type: 'desk', x: 100, y: 200, width: 90, height: 50 },
-      { type: 'desk', x: 490, y: 200, width: 90, height: 50 },
-      { type: 'desk', x: 100, y: 340, width: 90, height: 50 },
-      { type: 'desk', x: 490, y: 340, width: 90, height: 50 },
+      // Beds (Desks) on left wall (vertical)
+      { type: 'desk', x: 50, y: 200, width: 50, height: 90 },
+      { type: 'desk', x: 50, y: 340, width: 50, height: 90 },
+      // Beds on right wall (vertical)
+      { type: 'desk', x: 680 - 100, y: 200, width: 50, height: 90 },
+      { type: 'desk', x: 680 - 100, y: 340, width: 50, height: 90 },
+
+      // Common Table in center
+      { type: 'desk', x: 340 - 60, y: 240, width: 120, height: 60 },
+
       // Cupboards
-      { type: 'cupboard', x: 50, y: 96 - 30, width: 60, height: 90 },
-      { type: 'cupboard', x: 680 - 110, y: 96 - 30, width: 60, height: 90 }
+      { type: 'cupboard', x: 50, y: 96 - 30, width: 60, height: 90, facing: 'right' },
+      { type: 'cupboard', x: 680 - 110, y: 96 - 30, width: 60, height: 90, facing: 'left' }
     ]
   },
   hallway: {
@@ -38,8 +45,8 @@ const levels = {
     height: 520,
     wallHeight: 96,
     padding: 32,
-    door: null, // No exit door implemented yet
-    spawn: { x: 1300, y: 420 },
+    door: { x: 1250, y: 520 - 32, width: 64, height: 32, target: 'classroom', targetSpawn: { x: 340, y: 130 } },
+    spawn: { x: 1282, y: 520 - 80 },
     furniture: [
       // Lockers row 1
       { type: 'locker', x: 100, y: 96 - 60, width: 40, height: 80 },
@@ -76,13 +83,18 @@ const player = {
   walkFrame: 0
 };
 
-function loadLevel(name) {
+function loadLevel(name, spawnPos) {
   if (!levels[name]) return;
   currentLevelName = name;
   room = levels[name];
-  player.x = room.spawn.x;
-  player.y = room.spawn.y;
-  // Reset camera will happen in loop
+
+  if (spawnPos) {
+      player.x = spawnPos.x;
+      player.y = spawnPos.y;
+  } else {
+      player.x = room.spawn.x;
+      player.y = room.spawn.y;
+  }
 }
 
 function updateDialogue() {
@@ -155,7 +167,7 @@ function handleMovement() {
     if (dx < 0) player.facing = "left";
     if (dx > 0) player.facing = "right";
 
-    player.walkFrame += 0.2;
+    player.walkFrame += 0.1;
 
     const length = Math.hypot(dx, dy) || 1;
     dx = (dx / length) * player.speed;
@@ -222,25 +234,40 @@ function drawDoor() {
 
   const { x, y, width, height } = room.door;
 
-  // Frame
-  ctx.fillStyle = "#3e2723";
-  ctx.fillRect(x - 6, y - 6, width + 12, height + 6);
+  // Check if door is on bottom wall (simple check: y > room.height / 2)
+  const isBottom = y > room.height / 2;
 
-  // Door itself
-  ctx.fillStyle = "#ffca28";
-  ctx.fillRect(x, y, width, height);
+  if (isBottom) {
+      // Bottom Door (Exit mat style)
+      ctx.fillStyle = "#3e2723"; // Frame color
+      ctx.fillRect(x - 4, y, width + 8, height);
 
-  // Shadow/Depth
-  ctx.fillStyle = "rgba(0,0,0,0.2)";
-  ctx.fillRect(x, y, 6, height);
+      ctx.fillStyle = "#263238"; // Dark void/exit
+      ctx.fillRect(x, y + 4, width, height - 4);
 
-  // Knob
-  ctx.fillStyle = "#333";
-  ctx.beginPath();
-  ctx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
-  ctx.fill();
+      // Mat
+      ctx.fillStyle = "#5d4037"; // Slightly lighter than void
+      ctx.fillRect(x, y + height - 10, width, 10);
+  } else {
+      // Top Door (Standard)
+      // Frame
+      ctx.fillStyle = "#3e2723";
+      ctx.fillRect(x - 6, y - 6, width + 12, height + 6);
 
-  // No text!
+      // Door itself
+      ctx.fillStyle = "#ffca28";
+      ctx.fillRect(x, y, width, height);
+
+      // Shadow/Depth
+      ctx.fillStyle = "rgba(0,0,0,0.2)";
+      ctx.fillRect(x, y, 6, height);
+
+      // Knob
+      ctx.fillStyle = "#333";
+      ctx.beginPath();
+      ctx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
+      ctx.fill();
+  }
 }
 
 function drawDesk(item) {
@@ -263,27 +290,65 @@ function drawDesk(item) {
 }
 
 function drawCupboard(item) {
+    const facing = item.facing || 'down';
+
     // Body
     ctx.fillStyle = "#4e342e";
     ctx.fillRect(item.x, item.y, item.width, item.height);
 
-    // Doors outline
-    ctx.strokeStyle = "#3e2723";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
+    if (facing === 'down') {
+        // Front view
+        ctx.strokeStyle = "#3e2723";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
 
-    // Split
-    ctx.beginPath();
-    ctx.moveTo(item.x + item.width / 2, item.y + 2);
-    ctx.lineTo(item.x + item.width / 2, item.y + item.height - 2);
-    ctx.stroke();
+        // Split
+        ctx.beginPath();
+        ctx.moveTo(item.x + item.width / 2, item.y + 2);
+        ctx.lineTo(item.x + item.width / 2, item.y + item.height - 2);
+        ctx.stroke();
 
-    // Knobs
-    ctx.fillStyle = "#ffb74d";
-    ctx.beginPath();
-    ctx.arc(item.x + item.width/2 - 4, item.y + item.height/2, 2, 0, Math.PI*2);
-    ctx.arc(item.x + item.width/2 + 4, item.y + item.height/2, 2, 0, Math.PI*2);
-    ctx.fill();
+        // Knobs
+        ctx.fillStyle = "#ffb74d";
+        ctx.beginPath();
+        ctx.arc(item.x + item.width/2 - 4, item.y + item.height/2, 2, 0, Math.PI*2);
+        ctx.arc(item.x + item.width/2 + 4, item.y + item.height/2, 2, 0, Math.PI*2);
+        ctx.fill();
+    } else if (facing === 'right') {
+        // Side view facing right (doors on right edge)
+        ctx.strokeStyle = "#3e2723";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
+
+        // Detail lines (side panels)
+        ctx.beginPath();
+        ctx.moveTo(item.x + item.width - 10, item.y + 2);
+        ctx.lineTo(item.x + item.width - 10, item.y + item.height - 2);
+        ctx.stroke();
+
+        // Knob (on the side)
+        ctx.fillStyle = "#ffb74d";
+        ctx.beginPath();
+        ctx.arc(item.x + item.width - 4, item.y + item.height/2, 2, 0, Math.PI*2);
+        ctx.fill();
+    } else if (facing === 'left') {
+        // Side view facing left (doors on left edge)
+        ctx.strokeStyle = "#3e2723";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
+
+        // Detail lines
+        ctx.beginPath();
+        ctx.moveTo(item.x + 10, item.y + 2);
+        ctx.lineTo(item.x + 10, item.y + item.height - 2);
+        ctx.stroke();
+
+        // Knob
+        ctx.fillStyle = "#ffb74d";
+        ctx.beginPath();
+        ctx.arc(item.x + 4, item.y + item.height/2, 2, 0, Math.PI*2);
+        ctx.fill();
+    }
 }
 
 function drawLocker(item) {
@@ -502,31 +567,34 @@ function drawHints() {
   ctx.font = "16px 'VT323', 'Courier New', monospace";
   ctx.textAlign = "center";
 
-  // Check door proximity
-  if (room.door) {
-      const dist = Math.hypot(player.x - (room.door.x + room.door.width/2), player.y - (room.door.y + room.door.height));
-      if (dist < 50) {
-          ctx.save();
-          // Reset transform to identity (screen space)
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-          // Calculate screen coordinates for the hint
-          const worldX = room.door.x + room.door.width/2;
-          const worldY = room.door.y - 10;
-          const screenX = worldX - camera.x;
-          const screenY = worldY - camera.y;
-
-          // Draw text
-          ctx.fillText("[SPACE] Open", screenX, screenY);
-          ctx.restore();
-      }
-  }
-
   if (stage >= 2 && currentLevelName === 'classroom') {
     ctx.fillStyle = "#9e9e9e";
     ctx.fillText("W A S D", canvas.width - 60, canvas.height - 40);
   }
   ctx.restore();
+
+  // DOM Hints logic
+  let showingHint = false;
+  if (room.door) {
+      const dist = Math.hypot(player.x - (room.door.x + room.door.width/2), player.y - (room.door.y + room.door.height));
+      if (dist < 50) {
+          showingHint = true;
+          if (!isHintActive) {
+             dialogueBox.hidden = false;
+             dialogueBox.classList.remove("dialogue--hidden");
+             dialogueBox.classList.add("dialogue--active");
+             dialogueLine.textContent = "Press [SPACE] to open";
+             dialogueLabel.classList.add("dialogue__label--hidden");
+             dialoguePrompt.textContent = "";
+             isHintActive = true;
+          }
+      }
+  }
+
+  if (!showingHint && isHintActive) {
+      isHintActive = false;
+      updateDialogue();
+  }
 }
 
 function loop() {
@@ -551,7 +619,7 @@ function handleInteraction() {
     const dist = Math.hypot(player.x - (room.door.x + room.door.width/2), player.y - (room.door.y + room.door.height));
     if (dist < 50) {
         if (room.door.target) {
-            loadLevel(room.door.target);
+            loadLevel(room.door.target, room.door.targetSpawn);
         }
     }
 }
