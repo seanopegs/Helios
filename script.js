@@ -29,7 +29,9 @@ const player = {
   x: room.width / 2,
   y: room.height - 100,
   size: 24,
-  speed: 3
+  speed: 3,
+  facing: "down",
+  walkFrame: 0
 };
 
 const desks = [
@@ -100,6 +102,15 @@ function handleMovement() {
   if (keys.has("d")) dx += 1;
 
   if (dx !== 0 || dy !== 0) {
+    // Determine facing
+    if (dy < 0) player.facing = "up";
+    if (dy > 0) player.facing = "down";
+    if (dx < 0) player.facing = "left";
+    if (dx > 0) player.facing = "right";
+
+    // Animation
+    player.walkFrame += 0.2;
+
     const length = Math.hypot(dx, dy) || 1;
     dx = (dx / length) * player.speed;
     dy = (dy / length) * player.speed;
@@ -112,6 +123,9 @@ function handleMovement() {
     if (!checkCollision(player.x, player.y + dy)) {
       player.y += dy;
     }
+  } else {
+    // Reset to standing frame or idle loop
+    player.walkFrame = 0;
   }
 }
 
@@ -194,47 +208,117 @@ function drawDesk(desk) {
 }
 
 function drawPlayer(x, y) {
-  // Pixel art style character (approx 24x36 visual size)
-  // x, y is center of collision box (feet area)
-
   const w = 24;
   const h = 36;
-  const px = x - w/2;
-  const py = y - h + 8; // Draw upwards from feet
+  const px = x - w / 2;
+  const py = y - h + 8;
+
+  const animOffset = Math.sin(player.walkFrame) * 3; // For legs up/down
+  const walkCycle = Math.sin(player.walkFrame); // -1 to 1
 
   ctx.save();
 
   // Shadow
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath();
-  ctx.ellipse(x, y + 6, w/2, 4, 0, 0, Math.PI*2);
+  ctx.ellipse(x, y + 6, w / 2, 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Body (Shirt) - striped like Frisk/Chara
-  ctx.fillStyle = "#4caf50"; // Green
-  ctx.fillRect(px, py + 12, w, 14);
-  ctx.fillStyle = "#ffeb3b"; // Yellow stripe
-  ctx.fillRect(px, py + 18, w, 4);
+  // Color Palette
+  const skinColor = "#ffcc80";
+  const shirtColor = "#4caf50";
+  const stripeColor = "#ffeb3b";
+  const pantsColor = "#3e2723";
+  const hairColor = "#5d4037";
+  const eyeColor = "#333";
 
-  // Legs
-  ctx.fillStyle = "#3e2723";
-  ctx.fillRect(px + 4, py + 26, 6, 10);
-  ctx.fillRect(px + w - 10, py + 26, 6, 10);
+  if (player.facing === "down") {
+    // Legs
+    ctx.fillStyle = pantsColor;
+    ctx.fillRect(px + 4, py + 26 + animOffset, 6, 10);
+    ctx.fillRect(px + w - 10, py + 26 - animOffset, 6, 10);
 
-  // Head
-  ctx.fillStyle = "#ffcc80"; // Skin
-  ctx.fillRect(px + 2, py, w - 4, 12);
+    // Body
+    ctx.fillStyle = shirtColor;
+    ctx.fillRect(px, py + 12, w, 14);
+    ctx.fillStyle = stripeColor;
+    ctx.fillRect(px, py + 18, w, 4);
 
-  // Hair
-  ctx.fillStyle = "#5d4037"; // Brown
-  ctx.fillRect(px, py, w, 4);
-  ctx.fillRect(px, py, 4, 10);
-  ctx.fillRect(px + w - 4, py, 4, 10);
+    // Head
+    ctx.fillStyle = skinColor;
+    ctx.fillRect(px + 2, py, w - 4, 12);
 
-  // Face (Eyes)
-  ctx.fillStyle = "#333";
-  ctx.fillRect(px + 6, py + 6, 2, 2);
-  ctx.fillRect(px + w - 8, py + 6, 2, 2);
+    // Hair
+    ctx.fillStyle = hairColor;
+    ctx.fillRect(px, py, w, 4);
+    ctx.fillRect(px, py, 4, 10); // Sideburns
+    ctx.fillRect(px + w - 4, py, 4, 10);
+
+    // Face
+    ctx.fillStyle = eyeColor;
+    ctx.fillRect(px + 6, py + 6, 2, 2);
+    ctx.fillRect(px + w - 8, py + 6, 2, 2);
+
+  } else if (player.facing === "up") {
+    // Legs
+    ctx.fillStyle = pantsColor;
+    ctx.fillRect(px + 4, py + 26 + animOffset, 6, 10);
+    ctx.fillRect(px + w - 10, py + 26 - animOffset, 6, 10);
+
+    // Body
+    ctx.fillStyle = shirtColor;
+    ctx.fillRect(px, py + 12, w, 14);
+    ctx.fillStyle = stripeColor;
+    ctx.fillRect(px, py + 18, w, 4);
+
+    // Head (Back)
+    ctx.fillStyle = skinColor;
+    ctx.fillRect(px + 2, py, w - 4, 12);
+
+    // Hair (Full coverage on back)
+    ctx.fillStyle = hairColor;
+    ctx.fillRect(px, py, w, 8); // Top part
+    ctx.fillRect(px + 2, py + 8, w - 4, 4); // Lower part
+
+  } else if (player.facing === "left" || player.facing === "right") {
+    const isRight = player.facing === "right";
+
+    // Legs (swinging)
+    const legSwing = walkCycle * 4;
+
+    ctx.fillStyle = pantsColor;
+    // Leg 1
+    ctx.fillRect(px + w/2 - 3 + legSwing, py + 26, 6, 10);
+    // Leg 2
+    ctx.fillRect(px + w/2 - 3 - legSwing, py + 26, 6, 10);
+
+    // Body (Side view)
+    ctx.fillStyle = shirtColor;
+    ctx.fillRect(px + 4, py + 12, w - 8, 14);
+    ctx.fillStyle = stripeColor;
+    ctx.fillRect(px + 4, py + 18, w - 8, 4);
+
+    // Head (Side)
+    ctx.fillStyle = skinColor;
+    ctx.fillRect(px + 4, py, w - 8, 12);
+
+    // Hair
+    ctx.fillStyle = hairColor;
+    ctx.fillRect(px + 2, py, w - 4, 4); // Top
+    if (isRight) {
+       ctx.fillRect(px + 2, py, 4, 10); // Back of head hair
+    } else {
+       ctx.fillRect(px + w - 6, py, 4, 10); // Back of head hair
+    }
+
+    // Eye
+    ctx.fillStyle = eyeColor;
+    if (isRight) {
+       ctx.fillRect(px + w - 8, py + 6, 2, 2);
+    } else {
+       ctx.fillRect(px + 6, py + 6, 2, 2);
+    }
+  }
 
   ctx.restore();
 }
