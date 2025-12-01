@@ -13,33 +13,77 @@ const dialogue = [
 
 let stage = 0;
 const keys = new Set();
+const camera = { x: 0, y: 0 };
 
-const room = {
-  width: canvas.width,
-  height: canvas.height,
-  padding: 32,
-  wallHeight: 96,
-  door: {
-    width: 64,
-    height: 80
+const levels = {
+  classroom: {
+    width: 680,
+    height: 520,
+    wallHeight: 96,
+    padding: 32,
+    door: { x: 340 - 32, y: 96 - 80, width: 64, height: 80, target: 'hallway' },
+    spawn: { x: 340, y: 420 },
+    furniture: [
+      { type: 'desk', x: 100, y: 200, width: 90, height: 50 },
+      { type: 'desk', x: 490, y: 200, width: 90, height: 50 },
+      { type: 'desk', x: 100, y: 340, width: 90, height: 50 },
+      { type: 'desk', x: 490, y: 340, width: 90, height: 50 },
+      // Cupboards
+      { type: 'cupboard', x: 50, y: 96 - 30, width: 60, height: 90 },
+      { type: 'cupboard', x: 680 - 110, y: 96 - 30, width: 60, height: 90 }
+    ]
+  },
+  hallway: {
+    width: 1400,
+    height: 520,
+    wallHeight: 96,
+    padding: 32,
+    door: null, // No exit door implemented yet
+    spawn: { x: 1300, y: 420 },
+    furniture: [
+      // Lockers row 1
+      { type: 'locker', x: 100, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 140, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 180, y: 96 - 60, width: 40, height: 80 },
+
+      // Lockers row 2
+      { type: 'locker', x: 500, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 540, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 580, y: 96 - 60, width: 40, height: 80 },
+
+      // Lockers row 3
+      { type: 'locker', x: 900, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 940, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 980, y: 96 - 60, width: 40, height: 80 },
+
+      // Windows
+      { type: 'window', x: 300, y: 20, width: 100, height: 50 },
+      { type: 'window', x: 700, y: 20, width: 100, height: 50 },
+      { type: 'window', x: 1100, y: 20, width: 100, height: 50 }
+    ]
   }
 };
 
+let currentLevelName = 'classroom';
+let room = levels[currentLevelName];
+
 const player = {
-  x: room.width / 2,
-  y: room.height - 100,
+  x: room.spawn.x,
+  y: room.spawn.y,
   size: 24,
   speed: 3,
   facing: "down",
   walkFrame: 0
 };
 
-const desks = [
-  { x: 100, y: 200, width: 90, height: 50 },
-  { x: 490, y: 200, width: 90, height: 50 },
-  { x: 100, y: 340, width: 90, height: 50 },
-  { x: 490, y: 340, width: 90, height: 50 }
-];
+function loadLevel(name) {
+  if (!levels[name]) return;
+  currentLevelName = name;
+  room = levels[name];
+  player.x = room.spawn.x;
+  player.y = room.spawn.y;
+  // Reset camera will happen in loop
+}
 
 function updateDialogue() {
   const entry = dialogue[stage];
@@ -75,13 +119,17 @@ function checkCollision(x, y) {
   if (y + half > room.height - room.padding) return true;
 
   // Furniture collision
-  for (const desk of desks) {
-    // Shrink desk hitbox slightly for "2.5D" feel (legs area)
-    const dLeft = desk.x;
-    const dRight = desk.x + desk.width;
-    const dTop = desk.y;
-    const dBottom = desk.y + desk.height;
+  for (const item of room.furniture) {
+    // Windows don't block movement if they are high up, but let's assume they are wall deco only
+    if (item.type === 'window') continue;
 
+    const dLeft = item.x;
+    const dRight = item.x + item.width;
+    const dTop = item.y;
+    // Basic depth for furniture (collision at base)
+    const dBottom = item.y + item.height;
+
+    // A bit of padding for movement feel
     if (x + half > dLeft && x - half < dRight &&
         y + half > dTop && y - half < dBottom) {
       return true;
@@ -102,51 +150,63 @@ function handleMovement() {
   if (keys.has("d")) dx += 1;
 
   if (dx !== 0 || dy !== 0) {
-    // Determine facing
     if (dy < 0) player.facing = "up";
     if (dy > 0) player.facing = "down";
     if (dx < 0) player.facing = "left";
     if (dx > 0) player.facing = "right";
 
-    // Animation
     player.walkFrame += 0.2;
 
     const length = Math.hypot(dx, dy) || 1;
     dx = (dx / length) * player.speed;
     dy = (dy / length) * player.speed;
 
-    // Try X movement
     if (!checkCollision(player.x + dx, player.y)) {
       player.x += dx;
     }
-    // Try Y movement
     if (!checkCollision(player.x, player.y + dy)) {
       player.y += dy;
     }
   } else {
-    // Reset to standing frame or idle loop
     player.walkFrame = 0;
   }
+
+  // Camera update
+  const camTargetX = player.x - canvas.width / 2;
+  // Clamp
+  const maxCamX = room.width - canvas.width;
+  camera.x = Math.max(0, Math.min(camTargetX, maxCamX));
 }
 
 function drawRoom() {
   // Back Wall
-  ctx.fillStyle = "#333";
+  ctx.fillStyle = currentLevelName === 'hallway' ? "#455a64" : "#333";
   ctx.fillRect(0, 0, room.width, room.wallHeight);
 
   // Floor
-  ctx.fillStyle = "#5d4037"; // Wood
+  ctx.fillStyle = currentLevelName === 'hallway' ? "#cfd8dc" : "#5d4037"; // Tile vs Wood
   ctx.fillRect(0, room.wallHeight, room.width, room.height - room.wallHeight);
 
-  // Floor details (planks)
+  // Floor details
   ctx.save();
   ctx.fillStyle = "rgba(0,0,0,0.1)";
-  for (let i = room.wallHeight; i < room.height; i += 32) {
-    ctx.fillRect(0, i, room.width, 2);
+  if (currentLevelName === 'hallway') {
+      // Tile grid
+      for (let i = room.wallHeight; i < room.height; i += 64) {
+          ctx.fillRect(0, i, room.width, 2);
+      }
+      for (let i = 0; i < room.width; i += 64) {
+          ctx.fillRect(i, room.wallHeight, 2, room.height - room.wallHeight);
+      }
+  } else {
+      // Wood planks
+      for (let i = room.wallHeight; i < room.height; i += 32) {
+        ctx.fillRect(0, i, room.width, 2);
+      }
   }
   ctx.restore();
 
-  // Side Borders (blacked out or walls)
+  // Side Borders
   ctx.fillStyle = "#111";
   ctx.fillRect(0, 0, room.padding, room.height);
   ctx.fillRect(room.width - room.padding, 0, room.padding, room.height);
@@ -158,73 +218,148 @@ function drawRoom() {
 }
 
 function drawDoor() {
-  const dx = room.width / 2 - room.door.width / 2;
-  const dy = room.wallHeight - room.door.height;
+  if (!room.door) return;
+
+  const { x, y, width, height } = room.door;
 
   // Frame
   ctx.fillStyle = "#3e2723";
-  ctx.fillRect(dx - 6, dy - 6, room.door.width + 12, room.door.height + 6);
+  ctx.fillRect(x - 6, y - 6, width + 12, height + 6);
 
   // Door itself
   ctx.fillStyle = "#ffca28";
-  ctx.fillRect(dx, dy, room.door.width, room.door.height);
+  ctx.fillRect(x, y, width, height);
 
   // Shadow/Depth
   ctx.fillStyle = "rgba(0,0,0,0.2)";
-  ctx.fillRect(dx, dy, 6, room.door.height);
+  ctx.fillRect(x, y, 6, height);
 
   // Knob
   ctx.fillStyle = "#333";
   ctx.beginPath();
-  ctx.arc(dx + room.door.width - 12, dy + room.door.height / 2, 4, 0, Math.PI * 2);
+  ctx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
   ctx.fill();
+
+  // No text!
 }
 
-function drawDesk(desk) {
-  // Desk is drawn as a box with depth
-  // Top surface
-  const topHeight = 10;
-
+function drawDesk(item) {
   // Legs
   ctx.fillStyle = "#3e2723";
-  ctx.fillRect(desk.x + 4, desk.y + 10, 6, desk.height - 10);
-  ctx.fillRect(desk.x + desk.width - 10, desk.y + 10, 6, desk.height - 10);
+  ctx.fillRect(item.x + 4, item.y + 10, 6, item.height - 10);
+  ctx.fillRect(item.x + item.width - 10, item.y + 10, 6, item.height - 10);
 
-  // Shadow underneath
+  // Shadow
   ctx.fillStyle = "rgba(0,0,0,0.3)";
-  ctx.fillRect(desk.x + 4, desk.y + desk.height - 4, desk.width - 8, 4);
+  ctx.fillRect(item.x + 4, item.y + item.height - 4, item.width - 8, 4);
 
-  // Table Top
-  ctx.fillStyle = "#8d6e63"; // Lighter wood
-  ctx.fillRect(desk.x, desk.y, desk.width, desk.height - 15);
+  // Top
+  ctx.fillStyle = "#8d6e63";
+  ctx.fillRect(item.x, item.y, item.width, item.height - 15);
 
-  // Front edge
+  // Edge
   ctx.fillStyle = "#6d4c41";
-  ctx.fillRect(desk.x, desk.y + desk.height - 15, desk.width, 5);
+  ctx.fillRect(item.x, item.y + item.height - 15, item.width, 5);
+}
 
-  // Papers on desk
-  ctx.fillStyle = "#eee";
-  ctx.fillRect(desk.x + 15, desk.y + 10, 20, 14);
+function drawCupboard(item) {
+    // Body
+    ctx.fillStyle = "#4e342e";
+    ctx.fillRect(item.x, item.y, item.width, item.height);
+
+    // Doors outline
+    ctx.strokeStyle = "#3e2723";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
+
+    // Split
+    ctx.beginPath();
+    ctx.moveTo(item.x + item.width / 2, item.y + 2);
+    ctx.lineTo(item.x + item.width / 2, item.y + item.height - 2);
+    ctx.stroke();
+
+    // Knobs
+    ctx.fillStyle = "#ffb74d";
+    ctx.beginPath();
+    ctx.arc(item.x + item.width/2 - 4, item.y + item.height/2, 2, 0, Math.PI*2);
+    ctx.arc(item.x + item.width/2 + 4, item.y + item.height/2, 2, 0, Math.PI*2);
+    ctx.fill();
+}
+
+function drawLocker(item) {
+    ctx.fillStyle = "#607d8b";
+    ctx.fillRect(item.x, item.y, item.width, item.height);
+
+    // Detail
+    ctx.fillStyle = "#546e7a";
+    ctx.fillRect(item.x + 4, item.y + 10, item.width - 8, 4); // Vents
+    ctx.fillRect(item.x + 4, item.y + 16, item.width - 8, 4);
+    ctx.fillRect(item.x + 4, item.y + 22, item.width - 8, 4);
+
+    // Handle
+    ctx.fillStyle = "#cfd8dc";
+    ctx.fillRect(item.x + item.width - 8, item.y + item.height/2, 4, 10);
+}
+
+function drawWindow(item) {
+    ctx.fillStyle = "#81d4fa";
+    ctx.fillRect(item.x, item.y, item.width, item.height);
+
+    // Frame
+    ctx.strokeStyle = "#eceff1";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(item.x, item.y, item.width, item.height);
+
+    // Cross
+    ctx.beginPath();
+    ctx.moveTo(item.x + item.width/2, item.y);
+    ctx.lineTo(item.x + item.width/2, item.y + item.height);
+    ctx.moveTo(item.x, item.y + item.height/2);
+    ctx.lineTo(item.x + item.width, item.y + item.height/2);
+    ctx.stroke();
+
+    // Shine
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.beginPath();
+    ctx.moveTo(item.x + 10, item.y + item.height);
+    ctx.lineTo(item.x + 30, item.y);
+    ctx.lineTo(item.x + 50, item.y);
+    ctx.lineTo(item.x + 30, item.y + item.height);
+    ctx.fill();
+}
+
+function drawFurnitureItem(item) {
+    if (item.type === 'desk') drawDesk(item);
+    else if (item.type === 'cupboard') drawCupboard(item);
+    else if (item.type === 'locker') drawLocker(item);
+    else if (item.type === 'window') drawWindow(item);
 }
 
 function drawPlayer(x, y) {
   const w = 24;
   const h = 36;
-  const px = x - w / 2;
-  const py = y - h + 8;
 
-  const animOffset = Math.sin(player.walkFrame) * 3; // For legs up/down
-  const walkCycle = Math.sin(player.walkFrame); // -1 to 1
+  // Animation calculation
+  const isMoving = player.walkFrame !== 0;
+
+  // Stronger leg movement (amplitude 5)
+  const animOffset = Math.sin(player.walkFrame) * 5;
+  // Side leg swing
+  const walkCycle = Math.sin(player.walkFrame);
+  // Body bobbing (up and down)
+  const bob = isMoving ? Math.abs(Math.sin(player.walkFrame * 2)) * 2 : 0;
+
+  const px = x - w / 2;
+  const py = y - h + 8 - bob; // Apply bob to entire body y
 
   ctx.save();
 
-  // Shadow
+  // Shadow (stays on ground, doesn't bob)
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath();
   ctx.ellipse(x, y + 6, w / 2, 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Color Palette
   const skinColor = "#ffcc80";
   const shirtColor = "#4caf50";
   const stripeColor = "#ffeb3b";
@@ -233,7 +368,8 @@ function drawPlayer(x, y) {
   const eyeColor = "#333";
 
   if (player.facing === "down") {
-    // Legs
+    // Legs (independent of bob, connected to ground/body)
+    // To make them look like walking, one goes up, one down relative to hip
     ctx.fillStyle = pantsColor;
     ctx.fillRect(px + 4, py + 26 + animOffset, 6, 10);
     ctx.fillRect(px + w - 10, py + 26 - animOffset, 6, 10);
@@ -251,7 +387,7 @@ function drawPlayer(x, y) {
     // Hair
     ctx.fillStyle = hairColor;
     ctx.fillRect(px, py, w, 4);
-    ctx.fillRect(px, py, 4, 10); // Sideburns
+    ctx.fillRect(px, py, 4, 10);
     ctx.fillRect(px + w - 4, py, 4, 10);
 
     // Face
@@ -275,16 +411,14 @@ function drawPlayer(x, y) {
     ctx.fillStyle = skinColor;
     ctx.fillRect(px + 2, py, w - 4, 12);
 
-    // Hair (Full coverage on back)
+    // Hair
     ctx.fillStyle = hairColor;
-    ctx.fillRect(px, py, w, 8); // Top part
-    ctx.fillRect(px + 2, py + 8, w - 4, 4); // Lower part
+    ctx.fillRect(px, py, w, 8);
+    ctx.fillRect(px + 2, py + 8, w - 4, 4);
 
   } else if (player.facing === "left" || player.facing === "right") {
     const isRight = player.facing === "right";
-
-    // Legs (swinging)
-    const legSwing = walkCycle * 4;
+    const legSwing = walkCycle * 6; // Increased swing
 
     ctx.fillStyle = pantsColor;
     // Leg 1
@@ -295,6 +429,10 @@ function drawPlayer(x, y) {
     // Body (Side view)
     ctx.fillStyle = shirtColor;
     ctx.fillRect(px + 4, py + 12, w - 8, 14);
+
+    // Arm (simple box for side view, maybe swing it?)
+    const armSwing = -walkCycle * 4;
+
     ctx.fillStyle = stripeColor;
     ctx.fillRect(px + 4, py + 18, w - 8, 4);
 
@@ -304,11 +442,11 @@ function drawPlayer(x, y) {
 
     // Hair
     ctx.fillStyle = hairColor;
-    ctx.fillRect(px + 2, py, w - 4, 4); // Top
+    ctx.fillRect(px + 2, py, w - 4, 4);
     if (isRight) {
-       ctx.fillRect(px + 2, py, 4, 10); // Back of head hair
+       ctx.fillRect(px + 2, py, 4, 10);
     } else {
-       ctx.fillRect(px + w - 6, py, 4, 10); // Back of head hair
+       ctx.fillRect(px + w - 6, py, 4, 10);
     }
 
     // Eye
@@ -324,53 +462,69 @@ function drawPlayer(x, y) {
 }
 
 function draw() {
-  ctx.clearRect(0, 0, room.width, room.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear screen
+
+  ctx.save();
+  ctx.translate(-camera.x, -camera.y);
+
   drawRoom();
   drawDoor();
 
-  // Depth sorting
-  // Create a list of objects to render
   const renderList = [];
-
-  // Player
   renderList.push({
-    y: player.y, // Sort by feet Y
+    y: player.y,
     draw: () => drawPlayer(player.x, player.y)
   });
 
-  // Furniture
-  desks.forEach(desk => {
+  room.furniture.forEach(item => {
+    // Windows are on wall, draw first? Or just z-sort by bottom?
+    // Windows usually have high Y (bottom), but they are on wall.
+    // If y is small (near ceiling), they will be drawn first anyway.
+    // Let's use bottom of object.
     renderList.push({
-      y: desk.y + desk.height, // Bottom of desk
-      draw: () => drawDesk(desk)
+      y: item.y + item.height,
+      draw: () => drawFurnitureItem(item)
     });
   });
 
-  // Sort by Y
   renderList.sort((a, b) => a.y - b.y);
-
-  // Draw
   renderList.forEach(obj => obj.draw());
 
-  // Hints (on top)
+  ctx.restore();
+
+  // HUD
   drawHints();
 }
 
 function drawHints() {
   ctx.save();
   ctx.fillStyle = "rgba(255,255,255,0.7)";
-  ctx.font = "14px 'VT323', 'Courier New', monospace";
+  ctx.font = "16px 'VT323', 'Courier New', monospace";
   ctx.textAlign = "center";
 
-  // Hint near door
-  if (player.y < room.wallHeight + 60) {
-      // Only show if close?
-  }
-  ctx.fillText("Door", room.width / 2, room.wallHeight - 10);
+  // Check door proximity
+  if (room.door) {
+      const dist = Math.hypot(player.x - (room.door.x + room.door.width/2), player.y - (room.door.y + room.door.height));
+      if (dist < 50) {
+          ctx.save();
+          // Reset transform to identity (screen space)
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-  if (stage >= 2) {
+          // Calculate screen coordinates for the hint
+          const worldX = room.door.x + room.door.width/2;
+          const worldY = room.door.y - 10;
+          const screenX = worldX - camera.x;
+          const screenY = worldY - camera.y;
+
+          // Draw text
+          ctx.fillText("[SPACE] Open", screenX, screenY);
+          ctx.restore();
+      }
+  }
+
+  if (stage >= 2 && currentLevelName === 'classroom') {
     ctx.fillStyle = "#9e9e9e";
-    ctx.fillText("W A S D", room.width - room.padding - 20, room.height - room.padding + 20);
+    ctx.fillText("W A S D", canvas.width - 60, canvas.height - 40);
   }
   ctx.restore();
 }
@@ -391,10 +545,24 @@ function advanceDialogue() {
   }
 }
 
+// Interaction Handler
+function handleInteraction() {
+    if (!room.door) return;
+    const dist = Math.hypot(player.x - (room.door.x + room.door.width/2), player.y - (room.door.y + room.door.height));
+    if (dist < 50) {
+        if (room.door.target) {
+            loadLevel(room.door.target);
+        }
+    }
+}
+
 document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if (["w", "a", "s", "d"].includes(key)) {
     keys.add(key);
+  }
+  if (key === " ") {
+      handleInteraction();
   }
 });
 
