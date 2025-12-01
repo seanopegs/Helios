@@ -1,0 +1,81 @@
+:root {
+  --frame-border: #f2f2f2;
+  --floor: #0d0d0d;
+  --floor-grid: rgba(255, 255, 255, 0.04);
+  --player: #ffffff;
+  --door: #f4c542;
+  --door-shadow: #d2a62f;
+  --text: #f6f6f6;
+  --muted: #c6c6c6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 30% 30%, #161616, #060606 60%);
+  color: var(--text);
+  font-family: "VT323", "Courier New", monospace;
+}
+
+.frame {
+  position: relative;
+  padding: 16px;
+  background: #020202;
+  border: 2px solid var(--frame-border);
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.8), inset 0 0 8px rgba(255, 255, 255, 0.08);
+}
+
+#scene {
+  display: block;
+  background: linear-gradient(180deg, #151515 0%, #0b0b0b 40%, #050505 100%);
+  border: 2px solid var(--frame-border);
+  image-rendering: pixelated;
+}
+
+.dialogue {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 2px solid var(--frame-border);
+  background: rgba(0, 0, 0, 0.85);
+  color: var(--text);
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  min-height: 68px;
+}
+
+.dialogue__label {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.12em;
+}
+
+.dialogue__line {
+  min-height: 24px;
+  line-height: 1.4;
+}
+
+.dialogue__prompt {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.dialogue--hidden {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease-out;
+}
+
+.dialogue--active {
+  opacity: 1;
+  transition: opacity 160ms ease-in;
+}
