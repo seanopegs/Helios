@@ -1,13 +1,14 @@
 const canvas = document.getElementById("scene");
 const ctx = canvas.getContext("2d");
 const dialogueBox = document.getElementById("dialogue");
+const dialogueLabel = document.getElementById("dialogue-label");
 const dialogueLine = document.getElementById("dialogue-line");
 const dialoguePrompt = document.getElementById("dialogue-prompt");
 
 const dialogue = [
-  "okay Luke",
-  "this is your final chance",
-  "Use WASD to reach the door above."
+  { text: "okay Luke", speaker: "LUKE" },
+  { text: "this is your final chance", speaker: "LUKE" },
+  { text: "Use WASD to reach the door above.", speaker: "" }
 ];
 
 let stage = 0;
@@ -39,14 +40,26 @@ const desks = [
 ];
 
 function updateDialogue() {
-  dialogueLine.textContent = dialogue[stage] || "";
-  if (stage < 2) {
-    dialoguePrompt.textContent = "Click anywhere";
+  const entry = dialogue[stage];
+
+  if (entry) {
+    dialogueBox.hidden = false;
+    dialogueLine.textContent = entry.text;
+
+    const hasSpeaker = Boolean(entry.speaker);
+    dialogueLabel.textContent = entry.speaker || "";
+    dialogueLabel.classList.toggle("dialogue__label--hidden", !hasSpeaker);
+
+    dialoguePrompt.textContent = stage < dialogue.length - 1 ? "Click anywhere" : "";
     dialogueBox.classList.add("dialogue--active");
     dialogueBox.classList.remove("dialogue--hidden");
   } else {
+    dialogueBox.hidden = true;
+    dialogueLine.textContent = "";
     dialoguePrompt.textContent = "";
-    dialogueBox.classList.add("dialogue--active");
+    dialogueLabel.textContent = "";
+    dialogueLabel.classList.add("dialogue__label--hidden");
+    dialogueBox.classList.add("dialogue--hidden");
   }
 }
 
@@ -290,10 +303,7 @@ function advanceDialogue() {
     updateDialogue();
   } else if (stage === dialogue.length - 1) {
     stage += 1;
-    dialogueBox.classList.remove("dialogue--active");
-    dialogueBox.classList.add("dialogue--hidden");
-    dialogueLine.textContent = "";
-    dialoguePrompt.textContent = "";
+    updateDialogue();
   }
 }
 
