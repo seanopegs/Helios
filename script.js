@@ -13,36 +13,31 @@ const dialogue = [
 
 let stage = 0;
 let isHintActive = false;
-let isTransientActive = false;
-let transientTimeout = null;
 const keys = new Set();
 const camera = { x: 0, y: 0 };
-let tick = 0;
 
 const levels = {
-  dorm: {
+  classroom: {
     width: 680,
     height: 520,
     wallHeight: 96,
     padding: 32,
-    doors: [
-      { x: 340 - 32, y: 96 - 80, width: 64, height: 80, target: "hallway", targetSpawn: { x: 260, y: 440 } }
-    ],
+    door: { x: 340 - 32, y: 96 - 80, width: 64, height: 80, target: 'hallway', targetSpawn: { x: 1282, y: 440 } },
     spawn: { x: 120, y: 240 },
     furniture: [
-      // Beds on left wall (vertical)
-      { type: "bed", x: 42, y: 200, width: 68, height: 90 },
-      { type: "bed", x: 42, y: 340, width: 68, height: 90 },
+      // Beds (Desks) on left wall (vertical)
+      { type: 'desk', x: 50, y: 200, width: 50, height: 90 },
+      { type: 'desk', x: 50, y: 340, width: 50, height: 90 },
       // Beds on right wall (vertical)
-      { type: "bed", x: 680 - 110, y: 200, width: 68, height: 90 },
-      { type: "bed", x: 680 - 110, y: 340, width: 68, height: 90 },
+      { type: 'desk', x: 680 - 100, y: 200, width: 50, height: 90 },
+      { type: 'desk', x: 680 - 100, y: 340, width: 50, height: 90 },
 
       // Common Table in center
-      { type: "table", x: 340 - 60, y: 240, width: 120, height: 60 },
+      { type: 'desk', x: 340 - 60, y: 240, width: 120, height: 60 },
 
       // Cupboards
-      { type: "cupboard", x: 50, y: 96 - 30, width: 60, height: 90, facing: "right" },
-      { type: "cupboard", x: 680 - 110, y: 96 - 30, width: 60, height: 90, facing: "left" }
+      { type: 'cupboard', x: 50, y: 96 - 30, width: 60, height: 90, facing: 'right' },
+      { type: 'cupboard', x: 680 - 110, y: 96 - 30, width: 60, height: 90, facing: 'left' }
     ]
   },
   hallway: {
@@ -50,68 +45,33 @@ const levels = {
     height: 520,
     wallHeight: 96,
     padding: 32,
-    doors: [
-      { x: 1250, y: 520 - 36, width: 72, height: 36, target: "dorm", targetSpawn: { x: 340, y: 130 } },
-      { x: 32, y: 96 - 84, width: 72, height: 84, target: "classroom", targetSpawn: { x: 120, y: 440 } }
-    ],
+    door: { x: 1250, y: 520 - 32, width: 64, height: 32, target: 'classroom', targetSpawn: { x: 340, y: 130 } },
     spawn: { x: 1282, y: 520 - 80 },
     furniture: [
       // Lockers row 1
-      { type: "locker", x: 100, y: 96 - 60, width: 40, height: 80 },
-      { type: "locker", x: 140, y: 96 - 60, width: 40, height: 80 },
-      { type: "locker", x: 180, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 100, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 140, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 180, y: 96 - 60, width: 40, height: 80 },
 
       // Lockers row 2
-      { type: "locker", x: 500, y: 96 - 60, width: 40, height: 80 },
-      { type: "locker", x: 540, y: 96 - 60, width: 40, height: 80 },
-      { type: "locker", x: 580, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 500, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 540, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 580, y: 96 - 60, width: 40, height: 80 },
 
       // Lockers row 3
-      { type: "locker", x: 900, y: 96 - 60, width: 40, height: 80 },
-      { type: "locker", x: 940, y: 96 - 60, width: 40, height: 80 },
-      { type: "locker", x: 980, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 900, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 940, y: 96 - 60, width: 40, height: 80 },
+      { type: 'locker', x: 980, y: 96 - 60, width: 40, height: 80 },
 
       // Windows
-      { type: "window", x: 300, y: 20, width: 100, height: 50 },
-      { type: "window", x: 700, y: 20, width: 100, height: 50 },
-      { type: "window", x: 1100, y: 20, width: 100, height: 50 }
-    ]
-  },
-  classroom: {
-    width: 960,
-    height: 600,
-    wallHeight: 96,
-    padding: 32,
-    doors: [
-      { x: 960 / 2 - 36, y: 600 - 36, width: 72, height: 36, target: "hallway", targetSpawn: { x: 70, y: 200 } }
-    ],
-    spawn: { x: 120, y: 440 },
-    furniture: [
-      // Teacher desk
-      { type: "table", x: 960 / 2 - 50, y: 140, width: 100, height: 60 },
-      // Rows of student desks with seated students
-      { type: "classDesk", x: 140, y: 210, width: 64, height: 70, student: { hue: "#4caf50", bobOffset: 0 } },
-      { type: "classDesk", x: 260, y: 210, width: 64, height: 70, student: { hue: "#f06292", bobOffset: 0.5 } },
-      { type: "classDesk", x: 380, y: 210, width: 64, height: 70, student: { hue: "#29b6f6", bobOffset: 1 } },
-      { type: "classDesk", x: 500, y: 210, width: 64, height: 70, student: { hue: "#ffca28", bobOffset: 1.4 } },
-      { type: "classDesk", x: 620, y: 210, width: 64, height: 70, student: { hue: "#ab47bc", bobOffset: 0.2 } },
-
-      { type: "classDesk", x: 140, y: 310, width: 64, height: 70, student: { hue: "#ff8a65", bobOffset: 0.8 } },
-      { type: "classDesk", x: 260, y: 310, width: 64, height: 70, student: { hue: "#81c784", bobOffset: 1.6 } },
-      { type: "classDesk", x: 380, y: 310, width: 64, height: 70, student: { hue: "#9575cd", bobOffset: 1.1 } },
-      { type: "classDesk", x: 500, y: 310, width: 64, height: 70, student: { hue: "#ba68c8", bobOffset: 0.3 } },
-      { type: "classDesk", x: 620, y: 310, width: 64, height: 70, student: { hue: "#aed581", bobOffset: 1.9 } },
-
-      { type: "classDesk", x: 140, y: 410, width: 64, height: 70, student: { hue: "#7986cb", bobOffset: 0.6 } },
-      { type: "classDesk", x: 260, y: 410, width: 64, height: 70, student: { hue: "#ffb74d", bobOffset: 1.2 } },
-      { type: "classDesk", x: 380, y: 410, width: 64, height: 70, student: { hue: "#4dd0e1", bobOffset: 0.1 } },
-      { type: "classDesk", x: 500, y: 410, width: 64, height: 70, student: { hue: "#f48fb1", bobOffset: 0.9 } },
-      { type: "classDesk", x: 620, y: 410, width: 64, height: 70, student: { hue: "#ff7043", bobOffset: 1.5 } }
+      { type: 'window', x: 300, y: 20, width: 100, height: 50 },
+      { type: 'window', x: 700, y: 20, width: 100, height: 50 },
+      { type: 'window', x: 1100, y: 20, width: 100, height: 50 }
     ]
   }
 };
 
-let currentLevelName = "dorm";
+let currentLevelName = 'classroom';
 let room = levels[currentLevelName];
 
 const player = {
@@ -128,13 +88,6 @@ function loadLevel(name, spawnPos) {
   currentLevelName = name;
   room = levels[name];
 
-  isHintActive = false;
-  isTransientActive = false;
-  if (transientTimeout) {
-    clearTimeout(transientTimeout);
-    transientTimeout = null;
-  }
-
   if (spawnPos) {
       player.x = spawnPos.x;
       player.y = spawnPos.y;
@@ -142,9 +95,6 @@ function loadLevel(name, spawnPos) {
       player.x = room.spawn.x;
       player.y = room.spawn.y;
   }
-
-  camera.x = 0;
-  camera.y = 0;
 }
 
 function updateDialogue() {
@@ -169,25 +119,6 @@ function updateDialogue() {
     dialogueLabel.classList.add("dialogue__label--hidden");
     dialogueBox.classList.add("dialogue--hidden");
   }
-}
-
-function showTransientLine(text) {
-  if (transientTimeout) {
-    clearTimeout(transientTimeout);
-  }
-  isTransientActive = true;
-  dialogueBox.hidden = false;
-  dialogueBox.classList.remove("dialogue--hidden");
-  dialogueBox.classList.add("dialogue--active");
-  dialogueLine.textContent = text;
-  dialogueLabel.textContent = "";
-  dialogueLabel.classList.add("dialogue__label--hidden");
-  dialoguePrompt.textContent = "";
-
-  transientTimeout = setTimeout(() => {
-    isTransientActive = false;
-    updateDialogue();
-  }, 1500);
 }
 
 function checkCollision(x, y) {
@@ -218,20 +149,6 @@ function checkCollision(x, y) {
   }
 
   return false;
-}
-
-function findNearbyFurniture(types, radius = 60) {
-  const searchTypes = Array.isArray(types) ? types : [types];
-  for (const item of room.furniture) {
-    if (!searchTypes.includes(item.type)) continue;
-    const centerX = item.x + item.width / 2;
-    const centerY = item.y + item.height;
-    const dist = Math.hypot(player.x - centerX, player.y - centerY);
-    if (dist < radius) {
-      return item;
-    }
-  }
-  return null;
 }
 
 function handleMovement() {
@@ -271,27 +188,21 @@ function handleMovement() {
   // Clamp
   const maxCamX = room.width - canvas.width;
   camera.x = Math.max(0, Math.min(camTargetX, maxCamX));
-
-  const camTargetY = player.y - canvas.height / 2;
-  const maxCamY = room.height - canvas.height;
-  camera.y = Math.max(0, Math.min(camTargetY, Math.max(0, maxCamY)));
 }
 
 function drawRoom() {
   // Back Wall
-  const isHallway = currentLevelName === 'hallway';
-  const isClassroom = currentLevelName === 'classroom';
-  ctx.fillStyle = isHallway ? "#455a64" : isClassroom ? "#4a4a4a" : "#333";
+  ctx.fillStyle = currentLevelName === 'hallway' ? "#455a64" : "#333";
   ctx.fillRect(0, 0, room.width, room.wallHeight);
 
   // Floor
-  ctx.fillStyle = isHallway ? "#cfd8dc" : isClassroom ? "#b39c82" : "#5d4037"; // Tile vs Wood
+  ctx.fillStyle = currentLevelName === 'hallway' ? "#cfd8dc" : "#5d4037"; // Tile vs Wood
   ctx.fillRect(0, room.wallHeight, room.width, room.height - room.wallHeight);
 
   // Floor details
   ctx.save();
   ctx.fillStyle = "rgba(0,0,0,0.1)";
-  if (isHallway) {
+  if (currentLevelName === 'hallway') {
       // Tile grid
       for (let i = room.wallHeight; i < room.height; i += 64) {
           ctx.fillRect(0, i, room.width, 2);
@@ -301,8 +212,7 @@ function drawRoom() {
       }
   } else {
       // Wood planks
-      const spacing = isClassroom ? 28 : 32;
-      for (let i = room.wallHeight; i < room.height; i += spacing) {
+      for (let i = room.wallHeight; i < room.height; i += 32) {
         ctx.fillRect(0, i, room.width, 2);
       }
   }
@@ -319,70 +229,45 @@ function drawRoom() {
   ctx.fillRect(room.padding, room.wallHeight - 12, room.width - room.padding * 2, 12);
 }
 
-function drawDoor(door) {
-  const { x, y, width, height } = door;
+function drawDoor() {
+  if (!room.door) return;
+
+  const { x, y, width, height } = room.door;
 
   // Check if door is on bottom wall (simple check: y > room.height / 2)
   const isBottom = y > room.height / 2;
 
-  ctx.save();
-
   if (isBottom) {
       // Bottom Door (Exit mat style)
-      ctx.fillStyle = "#2f1f1a"; // Frame color
-      ctx.fillRect(x - 6, y - 2, width + 12, height + 4);
+      ctx.fillStyle = "#3e2723"; // Frame color
+      ctx.fillRect(x - 4, y, width + 8, height);
 
-      // Inner recess
-      const grad = ctx.createLinearGradient(x, y, x, y + height);
-      grad.addColorStop(0, "#1c1b1b");
-      grad.addColorStop(1, "#090909");
-      ctx.fillStyle = grad;
-      ctx.fillRect(x - 2, y + 2, width + 4, height - 4);
+      ctx.fillStyle = "#263238"; // Dark void/exit
+      ctx.fillRect(x, y + 4, width, height - 4);
 
       // Mat
-      ctx.fillStyle = "#4e342e";
-      ctx.fillRect(x - 6, y + height - 10, width + 12, 10);
-      ctx.fillStyle = "#6d4c41";
-      ctx.fillRect(x - 4, y + height - 8, width + 8, 6);
+      ctx.fillStyle = "#5d4037"; // Slightly lighter than void
+      ctx.fillRect(x, y + height - 10, width, 10);
   } else {
       // Top Door (Standard)
       // Frame
-      const frameGrad = ctx.createLinearGradient(x, y - 6, x, y + height);
-      frameGrad.addColorStop(0, "#5d4037");
-      frameGrad.addColorStop(1, "#3e2723");
-      ctx.fillStyle = frameGrad;
-      ctx.fillRect(x - 6, y - 6, width + 12, height + 8);
+      ctx.fillStyle = "#3e2723";
+      ctx.fillRect(x - 6, y - 6, width + 12, height + 6);
 
       // Door itself
-      const doorGrad = ctx.createLinearGradient(x, y, x, y + height);
-      doorGrad.addColorStop(0, "#ffe082");
-      doorGrad.addColorStop(1, "#ffca28");
-      ctx.fillStyle = doorGrad;
+      ctx.fillStyle = "#ffca28";
       ctx.fillRect(x, y, width, height);
 
-      // Panels
-      ctx.strokeStyle = "#6d4c41";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x + 6, y + 6, width - 12, (height / 2) - 8);
-      ctx.strokeRect(x + 6, y + height / 2, width - 12, (height / 2) - 10);
-
       // Shadow/Depth
-      ctx.fillStyle = "rgba(0,0,0,0.15)";
+      ctx.fillStyle = "rgba(0,0,0,0.2)";
       ctx.fillRect(x, y, 6, height);
 
       // Knob
-      ctx.fillStyle = "#2f2f2f";
+      ctx.fillStyle = "#333";
       ctx.beginPath();
-      ctx.arc(x + width - 14, y + height / 2, 4, 0, Math.PI * 2);
+      ctx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
       ctx.fill();
   }
-
-  ctx.restore();
-}
-
-function drawDoors() {
-  if (!room.doors) return;
-  room.doors.forEach(drawDoor);
 }
 
 function drawDesk(item) {
@@ -508,114 +393,11 @@ function drawWindow(item) {
     ctx.fill();
 }
 
-function drawTable(item) {
-    // Legs
-    ctx.fillStyle = "#4e342e";
-    ctx.fillRect(item.x + 6, item.y + item.height - 12, 8, 12);
-    ctx.fillRect(item.x + item.width - 14, item.y + item.height - 12, 8, 12);
-
-    // Top
-    ctx.fillStyle = "#a1887f";
-    ctx.fillRect(item.x, item.y, item.width, item.height - 8);
-
-    // Outline
-    ctx.strokeStyle = "#6d4c41";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(item.x + 1, item.y + 1, item.width - 2, item.height - 10);
-
-    // Shadow accent
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
-    ctx.fillRect(item.x, item.y + item.height - 12, item.width, 6);
-}
-
-function drawBed(item) {
-    ctx.save();
-    // Base
-    ctx.fillStyle = "#795548";
-    ctx.fillRect(item.x, item.y, item.width, item.height);
-
-    // Mattress
-    ctx.fillStyle = "#d7ccc8";
-    ctx.fillRect(item.x + 4, item.y + 6, item.width - 8, item.height - 16);
-
-    // Blanket fold
-    ctx.fillStyle = "#b39ddb";
-    ctx.fillRect(item.x + 4, item.y + item.height / 2, item.width - 8, item.height / 2 - 10);
-    ctx.fillStyle = "#9575cd";
-    ctx.fillRect(item.x + 4, item.y + item.height / 2 + 6, item.width - 8, item.height / 2 - 16);
-
-    // Pillow
-    ctx.fillStyle = "#fff8e1";
-    ctx.fillRect(item.x + item.width / 2 - 18, item.y + 10, 36, 18);
-    ctx.strokeStyle = "#d7ccc8";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(item.x + item.width / 2 - 18, item.y + 10, 36, 18);
-
-    ctx.restore();
-}
-
-function drawSittingStudent(item, bobOffset) {
-    const hue = item.student?.hue || "#4caf50";
-    const phase = tick * 0.08 + (item.student?.bobOffset || bobOffset || 0);
-    const bob = Math.sin(phase) * 2;
-
-    const seatX = item.x + item.width / 2;
-    const seatY = item.y + item.height - 20;
-
-    // Body
-    ctx.fillStyle = hue;
-    ctx.fillRect(seatX - 8, seatY - 18 - bob, 16, 18);
-
-    // Head
-    ctx.fillStyle = "#ffcc80";
-    ctx.fillRect(seatX - 9, seatY - 34 - bob, 18, 16);
-
-    // Hair band
-    ctx.fillStyle = "#5d4037";
-    ctx.fillRect(seatX - 9, seatY - 34 - bob, 18, 6);
-
-    // Legs
-    ctx.fillStyle = "#3e2723";
-    ctx.fillRect(seatX - 10, seatY - 4, 8, 10);
-    ctx.fillRect(seatX + 2, seatY - 4, 8, 10);
-}
-
-function drawClassDesk(item) {
-    // Chair
-    ctx.fillStyle = "#37474f";
-    ctx.fillRect(item.x + item.width / 2 - 10, item.y + item.height - 28, 20, 6);
-    ctx.fillRect(item.x + item.width / 2 - 8, item.y + item.height - 22, 16, 12);
-
-    // Desk surface
-    ctx.fillStyle = "#a1887f";
-    ctx.fillRect(item.x, item.y, item.width, item.height - 26);
-    ctx.fillStyle = "#8d6e63";
-    ctx.fillRect(item.x, item.y + item.height - 34, item.width, 6);
-
-    // Desk legs
-    ctx.fillStyle = "#5d4037";
-    ctx.fillRect(item.x + 6, item.y + item.height - 26, 6, 26);
-    ctx.fillRect(item.x + item.width - 12, item.y + item.height - 26, 6, 26);
-
-    // Books
-    ctx.fillStyle = "#4fc3f7";
-    ctx.fillRect(item.x + 10, item.y + 10, 20, 8);
-    ctx.fillStyle = "#ffb74d";
-    ctx.fillRect(item.x + 34, item.y + 12, 18, 6);
-
-    if (item.student) {
-        drawSittingStudent(item);
-    }
-}
-
 function drawFurnitureItem(item) {
     if (item.type === 'desk') drawDesk(item);
-    else if (item.type === 'table') drawTable(item);
-    else if (item.type === 'bed') drawBed(item);
     else if (item.type === 'cupboard') drawCupboard(item);
     else if (item.type === 'locker') drawLocker(item);
     else if (item.type === 'window') drawWindow(item);
-    else if (item.type === 'classDesk') drawClassDesk(item);
 }
 
 function drawPlayer(x, y) {
@@ -751,7 +533,7 @@ function draw() {
   ctx.translate(-camera.x, -camera.y);
 
   drawRoom();
-  drawDoors();
+  drawDoor();
 
   const renderList = [];
   renderList.push({
@@ -793,33 +575,29 @@ function drawHints() {
 
   // DOM Hints logic
   let showingHint = false;
-  if (!isTransientActive && room.doors) {
-      for (const door of room.doors) {
-        const dist = Math.hypot(player.x - (door.x + door.width / 2), player.y - (door.y + door.height));
-        if (dist < 60) {
-            showingHint = true;
-            if (!isHintActive) {
-               dialogueBox.hidden = false;
-               dialogueBox.classList.remove("dialogue--hidden");
-               dialogueBox.classList.add("dialogue--active");
-               dialogueLine.textContent = "Press [SPACE] to open";
-               dialogueLabel.classList.add("dialogue__label--hidden");
-               dialoguePrompt.textContent = "";
-               isHintActive = true;
-            }
-            break;
-        }
+  if (room.door) {
+      const dist = Math.hypot(player.x - (room.door.x + room.door.width/2), player.y - (room.door.y + room.door.height));
+      if (dist < 50) {
+          showingHint = true;
+          if (!isHintActive) {
+             dialogueBox.hidden = false;
+             dialogueBox.classList.remove("dialogue--hidden");
+             dialogueBox.classList.add("dialogue--active");
+             dialogueLine.textContent = "Press [SPACE] to open";
+             dialogueLabel.classList.add("dialogue__label--hidden");
+             dialoguePrompt.textContent = "";
+             isHintActive = true;
+          }
       }
   }
 
-  if (!showingHint && isHintActive && !isTransientActive) {
+  if (!showingHint && isHintActive) {
       isHintActive = false;
       updateDialogue();
   }
 }
 
 function loop() {
-  tick += 1;
   handleMovement();
   draw();
   requestAnimationFrame(loop);
@@ -837,26 +615,11 @@ function advanceDialogue() {
 
 // Interaction Handler
 function handleInteraction() {
-    const nearBed = findNearbyFurniture("bed", 70);
-    if (nearBed) {
-        showTransientLine("it's not the right time to sleep.");
-        return;
-    }
-
-    const nearCupboard = findNearbyFurniture("cupboard", 70);
-    if (nearCupboard) {
-        showTransientLine("why?");
-        return;
-    }
-
-    if (!room.doors) return;
-    for (const door of room.doors) {
-        const dist = Math.hypot(player.x - (door.x + door.width / 2), player.y - (door.y + door.height));
-        if (dist < 60) {
-            if (door.target) {
-                loadLevel(door.target, door.targetSpawn);
-            }
-            return;
+    if (!room.door) return;
+    const dist = Math.hypot(player.x - (room.door.x + room.door.width/2), player.y - (room.door.y + room.door.height));
+    if (dist < 50) {
+        if (room.door.target) {
+            loadLevel(room.door.target, room.door.targetSpawn);
         }
     }
 }
