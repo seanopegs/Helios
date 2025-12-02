@@ -8,7 +8,7 @@ const dialoguePrompt = document.getElementById("dialogue-prompt");
 const dialogue = [
   { text: "okay Luke", speaker: "LUKE" },
   { text: "this is your final chance", speaker: "LUKE" },
-  { text: "Use WASD to reach the door above.", speaker: "" }
+  { text: "Use WASD to reach the door on the left.", speaker: "" }
 ];
 
 let stage = 0;
@@ -24,7 +24,7 @@ const levels = {
     padding: 32,
     theme: 'dorm',
     doors: [
-      { x: 340 - 32, y: 96 - 78, width: 64, height: 80, orientation: 'top', target: 'hallway', targetSpawn: { x: 1282, y: 440 } }
+      { x: 32, y: 144, width: 72, height: 120, orientation: 'left', target: 'hallway', targetSpawn: { x: 1284, y: 468 } }
     ],
     spawn: { x: 120, y: 240 },
     furniture: [
@@ -50,8 +50,8 @@ const levels = {
     padding: 32,
     theme: 'hall',
     doors: [
-      { x: 1250, y: 520 - 40, width: 68, height: 40, orientation: 'bottom', target: 'classroom', targetSpawn: { x: 340, y: 130 } },
-      { x: 40, y: 96 - 84, width: 70, height: 84, orientation: 'top', target: 'lecture', targetSpawn: { x: 440, y: 460 } }
+      { x: 1250, y: 520 - 40, width: 68, height: 40, orientation: 'bottom', target: 'classroom', targetSpawn: { x: 116, y: 204 } },
+      { x: 24, y: 200, width: 70, height: 110, orientation: 'left', target: 'lecture', targetSpawn: { x: 852, y: 315 } }
     ],
     spawn: { x: 1282, y: 520 - 80 },
     furniture: [
@@ -83,13 +83,13 @@ const levels = {
     padding: 32,
     theme: 'classroom',
     doors: [
-      { x: 460 - 32, y: 110 - 88, width: 64, height: 88, orientation: 'top', target: 'hallway', targetSpawn: { x: 140, y: 440 } }
+      { x: 864, y: 260, width: 68, height: 110, orientation: 'right', target: 'hallway', targetSpawn: { x: 106, y: 255 } }
     ],
     spawn: { x: 460, y: 520 },
     furniture: [
       // Teacher desk
       { type: 'table', x: 400, y: 150, width: 120, height: 60 },
-      { type: 'cupboard', x: 680, y: 150, width: 60, height: 90, facing: 'left' },
+      { type: 'cupboard', x: 120, y: 150, width: 60, height: 90, facing: 'left' },
 
       // Rows of classroom desks with students
       { type: 'desk', variant: 'study', x: 180, y: 240, width: 70, height: 60 },
@@ -166,10 +166,22 @@ function getDoors() {
 }
 
 function doorAttachmentPoint(door) {
-  if ((door.orientation || 'top') === 'bottom') {
-    return { x: door.x + door.width / 2, y: door.y + door.height };
+  const orientation = door.orientation || 'top';
+
+  if (orientation === 'bottom') {
+    return { x: door.x + door.width / 2, y: door.y - 12 };
   }
-  return { x: door.x + door.width / 2, y: door.y + door.height / 2 };
+
+  if (orientation === 'left') {
+    return { x: door.x + door.width + 12, y: door.y + door.height / 2 };
+  }
+
+  if (orientation === 'right') {
+    return { x: door.x - 12, y: door.y + door.height / 2 };
+  }
+
+  // Top
+  return { x: door.x + door.width / 2, y: door.y + door.height + 12 };
 }
 
 function getNearestDoor(threshold = Infinity) {
@@ -369,6 +381,37 @@ function drawDoor(door) {
       // Mat
       ctx.fillStyle = "#6d4c41";
       ctx.fillRect(x - 4, y + height - 8, width + 8, 10);
+  } else if (orientation === 'left' || orientation === 'right') {
+      // Side doors
+      const isRight = orientation === 'right';
+      const frameX = isRight ? x - 6 : x - 6;
+      ctx.fillStyle = "#3a271f";
+      ctx.fillRect(frameX, y - 6, width + 12, height + 12);
+
+      const gradient = ctx.createLinearGradient(x, 0, x + width, 0);
+      if (isRight) {
+        gradient.addColorStop(0, "#d89c27");
+        gradient.addColorStop(1, "#f6c453");
+      } else {
+        gradient.addColorStop(0, "#f6c453");
+        gradient.addColorStop(1, "#d89c27");
+      }
+      ctx.fillStyle = gradient;
+      ctx.fillRect(x, y, width, height);
+
+      ctx.fillStyle = "rgba(0,0,0,0.2)";
+      ctx.fillRect(x, y, width, 6);
+
+      // Window panel
+      ctx.fillStyle = "#90caf9";
+      ctx.fillRect(x + 10, y + 12, width - 20, 26);
+
+      // Knob
+      ctx.fillStyle = "#333";
+      ctx.beginPath();
+      const knobX = isRight ? x + 12 : x + width - 12;
+      ctx.arc(knobX, y + height / 2, 4, 0, Math.PI * 2);
+      ctx.fill();
   } else {
       // Top Door (Standard)
       // Frame
