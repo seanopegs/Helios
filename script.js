@@ -34,15 +34,27 @@ const player = {
 
 let tempDialogueTimeout = null;
 
-function loadLevel(name, spawnPos) {
+function loadLevel(name, targetDoorId) {
   if (!levels[name]) return;
   currentLevelName = name;
   room = levels[name];
 
-  if (spawnPos) {
-      player.x = spawnPos.x;
-      player.y = spawnPos.y;
-  } else {
+  let spawned = false;
+  if (targetDoorId) {
+      const targetDoor = (room.doors || []).find(d => d.id === targetDoorId);
+      if (targetDoor) {
+          const spawn = doorAttachmentPoint(targetDoor);
+          // Offset slightly so player isn't inside door
+          player.x = spawn.x;
+          player.y = spawn.y + 10;
+          if (targetDoor.orientation === 'bottom') player.y = targetDoor.y - 24;
+          else if (targetDoor.orientation === 'left') player.x = targetDoor.x + targetDoor.width + 12;
+          else if (targetDoor.orientation === 'right') player.x = targetDoor.x - 12;
+          spawned = true;
+      }
+  }
+
+  if (!spawned) {
       player.x = room.spawn.x;
       player.y = room.spawn.y;
   }
@@ -1067,7 +1079,17 @@ function handleInteraction() {
 
     const door = getNearestDoor(60);
     if (door && door.target) {
-        loadLevel(door.target, door.targetSpawn);
+        // Prefer ID-based targeting, fall back to spawn coords if legacy
+        if (door.targetDoorId) {
+            loadLevel(door.target, door.targetDoorId);
+        } else {
+            // Legacy/Manual override
+            loadLevel(door.target, null);
+            if (door.targetSpawn) {
+                player.x = door.targetSpawn.x;
+                player.y = door.targetSpawn.y;
+            }
+        }
     }
 }
 
@@ -1247,7 +1269,10 @@ function updatePropPanel() {
         addPropInput(extra, "Shirt", selectedObject.shirt || '#000', v => selectedObject.shirt = v);
         addPropInput(extra, "Text", selectedObject.text || '', v => selectedObject.text = v);
     } else if (selectedObject.type === 'door') {
+        addPropInput(extra, "ID", selectedObject.id || '', v => selectedObject.id = v);
         addPropInput(extra, "Target Room", selectedObject.target || '', v => selectedObject.target = v);
+        addPropInput(extra, "Target Door ID", selectedObject.targetDoorId || '', v => selectedObject.targetDoorId = v);
+
         // Orientation dropdown
         const div = document.createElement("div");
         div.className = "dev-prop-row";
@@ -1262,10 +1287,10 @@ function updatePropPanel() {
         sel.value = selectedObject.orientation || 'top';
         sel.onchange = (e) => selectedObject.orientation = e.target.value;
 
-        // Spawn setter
+        // Spawn setter (Manual Override)
         const btn = document.createElement("button");
         btn.className = "dev-btn-small";
-        btn.textContent = "Set Target Spawn";
+        btn.textContent = "Set Manual Spawn";
         btn.onclick = () => startSetSpawn(selectedObject);
         extra.appendChild(btn);
     } else if (selectedObject.type === 'rug') {
@@ -1410,12 +1435,40 @@ document.getElementById("btn-dev").addEventListener("click", () => {
 });
 
 // Save JSON
-document.getElementById("dev-save").addEventListener("click", () => {
+document.getElementById("dev-save").addEventListener("click", async () => {
   const data = {
     levels: levels,
     dialogue: dialogue
   };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const jsonString = JSON.stringify(data, null, 2);
+
+  // Try File System Access API
+  if (window.showSaveFilePicker) {
+      try {
+          const handle = await window.showSaveFilePicker({
+              suggestedName: 'game-data.json',
+              types: [{
+                  description: 'JSON File',
+                  accept: {'application/json': ['.json']},
+              }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(jsonString);
+          await writable.close();
+          alert("Saved successfully!");
+          return;
+      } catch (err) {
+          if (err.name !== 'AbortError') {
+              console.error(err);
+              alert("Error saving file via API. Falling back to download.");
+          } else {
+              return; // User cancelled
+          }
+      }
+  }
+
+  // Fallback
+  const blob = new Blob([jsonString], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
