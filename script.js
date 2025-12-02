@@ -8,7 +8,7 @@ const dialoguePrompt = document.getElementById("dialogue-prompt");
 const dialogue = [
   { text: "okay Luke", speaker: "LUKE" },
   { text: "this is your final chance", speaker: "LUKE" },
-  { text: "Use WASD to reach the door on the left.", speaker: "" }
+  { text: "Use WASD to reach the door at the top.", speaker: "" }
 ];
 
 let stage = 0;
