@@ -26,21 +26,35 @@ const levels = {
     doors: [
       { x: 340 - 32, y: 96 - 78, width: 64, height: 80, orientation: 'top', target: 'hallway', targetSpawn: { x: 1282, y: 440 } }
     ],
-    spawn: { x: 120, y: 240 },
+    spawn: { x: 340, y: 400 },
     furniture: [
-      // Beds on left wall (vertical)
-      { type: 'bed', x: 50, y: 200, width: 50, height: 90 },
-      { type: 'bed', x: 50, y: 340, width: 50, height: 90 },
-      // Beds on right wall (vertical)
-      { type: 'bed', x: 680 - 100, y: 200, width: 50, height: 90 },
-      { type: 'bed', x: 680 - 100, y: 340, width: 50, height: 90 },
+      // Rugs (Floor layer)
+      { type: 'rug', x: 150, y: 220, width: 80, height: 120, color: "#a1887f" },
+      { type: 'rug', x: 450, y: 220, width: 80, height: 120, color: "#a1887f" },
 
-      // Common Table in center
-      { type: 'table', x: 340 - 70, y: 240, width: 140, height: 68 },
+      // Wardrobes (Corners)
+      { type: 'cupboard', x: 40, y: 50, width: 60, height: 90 },
+      { type: 'cupboard', x: 580, y: 50, width: 60, height: 90 },
 
-      // Cupboards
-      { type: 'cupboard', x: 50, y: 96 - 30, width: 60, height: 90, facing: 'right' },
-      { type: 'cupboard', x: 680 - 110, y: 96 - 30, width: 60, height: 90, facing: 'left' }
+      // Main Desk (Top Right area)
+      { type: 'desk', x: 460, y: 140, width: 90, height: 50, hasLaptop: true, hasLamp: true },
+
+      // Shelves (Back wall)
+      { type: 'shelf', x: 130, y: 40, width: 60, height: 30 },
+      { type: 'shelf', x: 490, y: 40, width: 60, height: 30 },
+
+      // Left Wall (Bed - Desk - Bed)
+      { type: 'bed', x: 40, y: 180, width: 60, height: 100 },
+      { type: 'desk', x: 40, y: 290, width: 60, height: 60, hasLaptop: true, hasLamp: true },
+      { type: 'bed', x: 40, y: 360, width: 60, height: 100 },
+
+      // Right Wall (Bed - Desk - Bed)
+      { type: 'bed', x: 580, y: 180, width: 60, height: 100 },
+      { type: 'desk', x: 580, y: 290, width: 60, height: 60, hasLaptop: true, hasLamp: true },
+      { type: 'bed', x: 580, y: 360, width: 60, height: 100 },
+
+      // Center Chest
+      { type: 'chest', x: 270, y: 250, width: 140, height: 70 }
     ]
   },
   hallway: {
@@ -248,8 +262,8 @@ function checkCollision(x, y) {
 
   // Furniture collision
   for (const item of room.furniture) {
-    // Windows don't block movement if they are high up, but let's assume they are wall deco only
-    if (item.type === 'window') continue;
+    // Windows and Rugs don't block movement
+    if (item.type === 'window' || item.type === 'rug' || item.type === 'shelf') continue;
 
     const dLeft = item.x;
     const dRight = item.x + item.width;
@@ -309,7 +323,7 @@ function handleMovement() {
 function drawRoom() {
   const themes = {
     hall: { wall: "#3f5765", floor: "#cfd8dc", baseboard: "#1c262f", detail: "#b0bec5", pattern: 64, vertical: true },
-    dorm: { wall: "#2f2a2a", floor: "#5d4037", baseboard: "#4e342e", detail: "rgba(0,0,0,0.15)", pattern: 32, vertical: false },
+    dorm: { wall: "#8d6e63", floor: "#3e2723", baseboard: "#281915", detail: "rgba(0,0,0,0.2)", pattern: 32, vertical: true },
     classroom: { wall: "#2c3e50", floor: "#e9e4d5", baseboard: "#1f2d3a", detail: "rgba(0,0,0,0.12)", pattern: 54, vertical: true }
   };
 
@@ -319,6 +333,13 @@ function drawRoom() {
   // Back Wall
   ctx.fillStyle = palette.wall;
   ctx.fillRect(0, 0, room.width, room.wallHeight);
+
+  if (themeName === 'dorm') {
+     ctx.fillStyle = "rgba(0,0,0,0.1)";
+     for(let i=0; i<room.width; i+=24) {
+         ctx.fillRect(i, 0, 1, room.wallHeight);
+     }
+  }
 
   // Floor
   ctx.fillStyle = palette.floor;
@@ -451,25 +472,44 @@ function drawDoors() {
 }
 
 function drawDesk(item) {
-  const topColor = item.variant === 'study' ? "#c7a17a" : "#8d6e63";
-  const legColor = item.variant === 'study' ? "#6d4c41" : "#3e2723";
+    // Legs
+    ctx.fillStyle = "#3e2723";
+    ctx.fillRect(item.x + 4, item.y + 10, 4, item.height - 10);
+    ctx.fillRect(item.x + item.width - 8, item.y + 10, 4, item.height - 10);
 
-  // Legs
-  ctx.fillStyle = legColor;
-  ctx.fillRect(item.x + 4, item.y + 10, 6, item.height - 10);
-  ctx.fillRect(item.x + item.width - 10, item.y + 10, 6, item.height - 10);
+    // Top
+    ctx.fillStyle = "#6d4c41"; // Medium wood
+    ctx.fillRect(item.x, item.y, item.width, item.height - 10);
 
-  // Shadow
-  ctx.fillStyle = "rgba(0,0,0,0.3)";
-  ctx.fillRect(item.x + 4, item.y + item.height - 4, item.width - 8, 4);
+    // Drawers on right side if wide enough
+    if (item.width > 50) {
+        ctx.fillStyle = "#5d4037";
+        ctx.fillRect(item.x + item.width - 20, item.y + 10, 18, 20);
+        ctx.fillStyle = "#3e2723"; // Knob
+        ctx.fillRect(item.x + item.width - 12, item.y + 18, 4, 4);
+    }
 
-  // Top
-  ctx.fillStyle = topColor;
-  ctx.fillRect(item.x, item.y, item.width, item.height - 15);
+    // Laptop
+    if (item.hasLaptop) {
+        ctx.fillStyle = "#cfd8dc"; // Silver
+        ctx.fillRect(item.x + item.width/2 - 10, item.y + 5, 20, 12); // Screen
+        ctx.fillStyle = "#b0bec5";
+        ctx.fillRect(item.x + item.width/2 - 10, item.y + 17, 20, 8); // Base
+        ctx.fillStyle = "#81d4fa"; // Screen glow
+        ctx.fillRect(item.x + item.width/2 - 8, item.y + 7, 16, 8);
+    }
 
-  // Edge
-  ctx.fillStyle = "#6d4c41";
-  ctx.fillRect(item.x, item.y + item.height - 15, item.width, 5);
+    // Lamp
+    if (item.hasLamp) {
+         ctx.fillStyle = "#fff59d"; // Shade
+         ctx.beginPath();
+         ctx.moveTo(item.x + 10, item.y + 15);
+         ctx.lineTo(item.x + 20, item.y + 15);
+         ctx.lineTo(item.x + 15, item.y + 5);
+         ctx.fill();
+         ctx.fillStyle = "#3e2723"; // Stand
+         ctx.fillRect(item.x + 14, item.y + 15, 2, 5);
+    }
 }
 
 function drawTable(item) {
@@ -496,89 +536,127 @@ function drawTable(item) {
 }
 
 function drawBed(item) {
-  // Bed frame
-  ctx.fillStyle = "#d7ccc8";
-  ctx.fillRect(item.x, item.y, item.width, item.height);
+  // Headboard (Wood)
+  ctx.fillStyle = "#5d4037"; // Dark wood
+  ctx.fillRect(item.x, item.y, item.width, 12);
+
+  // Footboard
+  ctx.fillRect(item.x, item.y + item.height - 8, item.width, 8);
 
   // Mattress
-  ctx.fillStyle = "#f5f0e9";
+  ctx.fillStyle = "#eceff1";
   ctx.fillRect(item.x + 4, item.y + 8, item.width - 8, item.height - 16);
 
-  // Blanket
-  const blanketHeight = item.height - 36;
-  ctx.fillStyle = "#90caf9";
-  ctx.fillRect(item.x + 6, item.y + item.height - blanketHeight - 10, item.width - 12, blanketHeight);
+  // Quilt (Blue Pattern)
+  ctx.fillStyle = "#5c6bc0"; // Indigo/Blue
+  ctx.fillRect(item.x + 4, item.y + 30, item.width - 8, item.height - 38);
 
-  ctx.fillStyle = "#64b5f6";
-  ctx.fillRect(item.x + 6, item.y + item.height - blanketHeight - 4, item.width - 12, 6);
+  // Pattern on quilt (Diamonds/Checks)
+  ctx.fillStyle = "rgba(255,255,255,0.1)";
+  for(let i=0; i<item.width-8; i+=10) {
+      for(let j=0; j<item.height-38; j+=10) {
+          if ((i+j)%20 === 0) ctx.fillRect(item.x + 4 + i, item.y + 30 + j, 5, 5);
+      }
+  }
 
   // Pillow
-  ctx.fillStyle = "#fffde7";
-  ctx.fillRect(item.x + 10, item.y + 12, item.width - 20, 18);
-  ctx.fillStyle = "rgba(0,0,0,0.08)";
-  ctx.fillRect(item.x + 12, item.y + 14, item.width - 24, 4);
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(item.x + 8, item.y + 12, item.width - 16, 15);
 }
 
 function drawCupboard(item) {
-    const facing = item.facing || 'down';
-
-    // Body
+    // Body - Dark Wood
     ctx.fillStyle = "#4e342e";
     ctx.fillRect(item.x, item.y, item.width, item.height);
 
-    if (facing === 'down') {
-        // Front view
-        ctx.strokeStyle = "#3e2723";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
+    // Doors outline
+    ctx.strokeStyle = "#3e2723";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
 
-        // Split
-        ctx.beginPath();
-        ctx.moveTo(item.x + item.width / 2, item.y + 2);
-        ctx.lineTo(item.x + item.width / 2, item.y + item.height - 2);
-        ctx.stroke();
+    // Middle split
+    ctx.beginPath();
+    ctx.moveTo(item.x + item.width / 2, item.y + 2);
+    ctx.lineTo(item.x + item.width / 2, item.y + item.height - 2);
+    ctx.stroke();
 
-        // Knobs
-        ctx.fillStyle = "#ffb74d";
-        ctx.beginPath();
-        ctx.arc(item.x + item.width/2 - 4, item.y + item.height/2, 2, 0, Math.PI*2);
-        ctx.arc(item.x + item.width/2 + 4, item.y + item.height/2, 2, 0, Math.PI*2);
-        ctx.fill();
-    } else if (facing === 'right') {
-        // Side view facing right (doors on right edge)
-        ctx.strokeStyle = "#3e2723";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
+    // Panels on doors (inset)
+    ctx.fillStyle = "#3e2723";
+    // Left door panels
+    ctx.fillRect(item.x + 6, item.y + 10, item.width/2 - 10, item.height/2 - 15);
+    ctx.fillRect(item.x + 6, item.y + item.height/2 + 5, item.width/2 - 10, item.height/2 - 15);
+    // Right door panels
+    ctx.fillRect(item.x + item.width/2 + 4, item.y + 10, item.width/2 - 10, item.height/2 - 15);
+    ctx.fillRect(item.x + item.width/2 + 4, item.y + item.height/2 + 5, item.width/2 - 10, item.height/2 - 15);
 
-        // Detail lines (side panels)
-        ctx.beginPath();
-        ctx.moveTo(item.x + item.width - 10, item.y + 2);
-        ctx.lineTo(item.x + item.width - 10, item.y + item.height - 2);
-        ctx.stroke();
+    // Knobs
+    ctx.fillStyle = "#ffd54f"; // Gold
+    ctx.beginPath();
+    ctx.arc(item.x + item.width/2 - 4, item.y + item.height/2, 2, 0, Math.PI*2);
+    ctx.arc(item.x + item.width/2 + 4, item.y + item.height/2, 2, 0, Math.PI*2);
+    ctx.fill();
+}
 
-        // Knob (on the side)
-        ctx.fillStyle = "#ffb74d";
-        ctx.beginPath();
-        ctx.arc(item.x + item.width - 4, item.y + item.height/2, 2, 0, Math.PI*2);
-        ctx.fill();
-    } else if (facing === 'left') {
-        // Side view facing left (doors on left edge)
-        ctx.strokeStyle = "#3e2723";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
+function drawChest(item) {
+    // Large wooden chest
+    ctx.fillStyle = "#5d4037"; // Wood
+    ctx.fillRect(item.x, item.y, item.width, item.height);
 
-        // Detail lines
-        ctx.beginPath();
-        ctx.moveTo(item.x + 10, item.y + 2);
-        ctx.lineTo(item.x + 10, item.y + item.height - 2);
-        ctx.stroke();
-
-        // Knob
-        ctx.fillStyle = "#ffb74d";
-        ctx.beginPath();
-        ctx.arc(item.x + 4, item.y + item.height/2, 2, 0, Math.PI*2);
-        ctx.fill();
+    // Planks
+    ctx.fillStyle = "#4e342e";
+    for(let i=0; i<item.height; i+=12) {
+        ctx.fillRect(item.x, item.y + i, item.width, 1);
     }
+
+    // Metal banding
+    ctx.fillStyle = "#3e2723"; // Darker bands
+    ctx.fillRect(item.x + 10, item.y, 8, item.height);
+    ctx.fillRect(item.x + item.width - 18, item.y, 8, item.height);
+
+    // Lock
+    ctx.fillStyle = "#263238"; // Dark metal
+    ctx.fillRect(item.x + item.width/2 - 6, item.y + 10, 12, 14);
+    ctx.fillStyle = "#78909c"; // Silver bit
+    ctx.fillRect(item.x + item.width/2 - 2, item.y + 18, 4, 4);
+}
+
+function drawRug(item) {
+    ctx.fillStyle = "#8d6e63"; // Beige/brownish
+    if (item.color) ctx.fillStyle = item.color;
+    ctx.fillRect(item.x, item.y, item.width, item.height);
+
+    // Texture/Pattern
+    ctx.strokeStyle = "rgba(0,0,0,0.1)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for(let i=4; i<item.width; i+=4) {
+        ctx.moveTo(item.x + i, item.y);
+        ctx.lineTo(item.x + i, item.y + item.height);
+    }
+    ctx.stroke();
+}
+
+function drawShelf(item) {
+    // Shelf board
+    ctx.fillStyle = "#5d4037";
+    ctx.fillRect(item.x, item.y + item.height - 5, item.width, 5);
+
+    // Books/Plants
+    ctx.fillStyle = "#ef5350"; // Red book
+    ctx.fillRect(item.x + 10, item.y + item.height - 20, 5, 15);
+    ctx.fillStyle = "#42a5f5"; // Blue book
+    ctx.fillRect(item.x + 16, item.y + item.height - 22, 6, 17);
+    ctx.fillStyle = "#66bb6a"; // Green book
+    ctx.fillRect(item.x + 24, item.y + item.height - 18, 4, 13);
+
+    // Pot
+    ctx.fillStyle = "#8d6e63";
+    ctx.fillRect(item.x + item.width - 20, item.y + item.height - 15, 10, 10);
+    // Plant
+    ctx.fillStyle = "#66bb6a";
+    ctx.beginPath();
+    ctx.arc(item.x + item.width - 15, item.y + item.height - 20, 8, 0, Math.PI, true);
+    ctx.fill();
 }
 
 function drawLocker(item) {
@@ -664,6 +742,9 @@ function drawFurnitureItem(item) {
     else if (item.type === 'locker') drawLocker(item);
     else if (item.type === 'window') drawWindow(item);
     else if (item.type === 'student') drawStudent(item);
+    else if (item.type === 'chest') drawChest(item);
+    else if (item.type === 'rug') drawRug(item);
+    else if (item.type === 'shelf') drawShelf(item);
 }
 
 function drawPlayer(x, y) {
@@ -799,6 +880,10 @@ function draw() {
   ctx.translate(-camera.x, -camera.y);
 
   drawRoom();
+
+  // Draw rugs first (always on floor)
+  room.furniture.filter(i => i.type === 'rug').forEach(drawFurnitureItem);
+
   drawDoors();
 
   const renderList = [];
@@ -808,10 +893,8 @@ function draw() {
   });
 
   room.furniture.forEach(item => {
-    // Windows are on wall, draw first? Or just z-sort by bottom?
-    // Windows usually have high Y (bottom), but they are on wall.
-    // If y is small (near ceiling), they will be drawn first anyway.
-    // Let's use bottom of object.
+    if (item.type === 'rug') return; // Handled separately
+
     renderList.push({
       y: item.y + item.height,
       draw: () => drawFurnitureItem(item)
