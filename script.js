@@ -8,7 +8,7 @@ const dialoguePrompt = document.getElementById("dialogue-prompt");
 const dialogue = [
   { text: "okay Luke", speaker: "LUKE" },
   { text: "this is your final chance", speaker: "LUKE" },
-  { text: "Use WASD to reach the door at the top.", speaker: "" }
+  { text: "Use WASD to reach the door on the left.", speaker: "" }
 ];
 
 let stage = 0;
@@ -22,35 +22,25 @@ const levels = {
     height: 520,
     wallHeight: 96,
     padding: 32,
-    theme: 'classroom',
+    theme: 'dorm',
     doors: [
       { x: 340 - 32, y: 96 - 78, width: 64, height: 80, orientation: 'top', target: 'hallway', targetSpawn: { x: 1282, y: 440 } }
     ],
     spawn: { x: 120, y: 240 },
     furniture: [
-      // Teacher area
-      { type: 'table', x: 450, y: 140, width: 120, height: 60 },
-      { type: 'cupboard', x: 600, y: 110, width: 60, height: 90, facing: 'left' },
+      // Beds on left wall (vertical)
+      { type: 'bed', x: 50, y: 200, width: 50, height: 90 },
+      { type: 'bed', x: 50, y: 340, width: 50, height: 90 },
+      // Beds on right wall (vertical)
+      { type: 'bed', x: 680 - 100, y: 200, width: 50, height: 90 },
+      { type: 'bed', x: 680 - 100, y: 340, width: 50, height: 90 },
 
-      // Student desks Row 1
-      { type: 'desk', variant: 'study', x: 160, y: 260, width: 70, height: 60 },
-      { type: 'student', x: 185, y: 290, width: 36, height: 40, facing: 'up' },
+      // Common Table in center
+      { type: 'table', x: 340 - 70, y: 240, width: 140, height: 68 },
 
-      { type: 'desk', variant: 'study', x: 300, y: 260, width: 70, height: 60 },
-      // Empty desk
-
-      { type: 'desk', variant: 'study', x: 440, y: 260, width: 70, height: 60 },
-      { type: 'student', x: 465, y: 290, width: 36, height: 40, facing: 'up' },
-
-      // Student desks Row 2
-      { type: 'desk', variant: 'study', x: 160, y: 380, width: 70, height: 60 },
-      // Empty desk
-
-      { type: 'desk', variant: 'study', x: 300, y: 380, width: 70, height: 60 },
-      { type: 'student', x: 325, y: 410, width: 36, height: 40, facing: 'up' },
-
-      { type: 'desk', variant: 'study', x: 440, y: 380, width: 70, height: 60 },
-      { type: 'student', x: 465, y: 410, width: 36, height: 40, facing: 'up' }
+      // Cupboards
+      { type: 'cupboard', x: 50, y: 96 - 30, width: 60, height: 90, facing: 'right' },
+      { type: 'cupboard', x: 680 - 110, y: 96 - 30, width: 60, height: 90, facing: 'left' }
     ]
   },
   hallway: {
