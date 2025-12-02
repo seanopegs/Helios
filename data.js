@@ -12,7 +12,13 @@ window.initialGameData = {
       padding: 32,
       theme: 'dorm',
       doors: [
-        { x: 308, y: 18, width: 64, height: 80, orientation: 'top', target: 'hallway', targetSpawn: { x: 1282, y: 440 } }
+        {
+          id: 'door_class_to_hall',
+          x: 308, y: 18, width: 64, height: 80,
+          orientation: 'top',
+          target: 'hallway',
+          targetDoorId: 'door_hall_to_class'
+        }
       ],
       spawn: { x: 340, y: 400 },
       furniture: [
@@ -39,8 +45,20 @@ window.initialGameData = {
       padding: 32,
       theme: 'hall',
       doors: [
-        { x: 1258, y: 440, width: 54, height: 80, orientation: 'bottom', target: 'classroom', targetSpawn: { x: 340, y: 130 } },
-        { x: 24, y: 220, width: 54, height: 90, orientation: 'left', target: 'lecture', targetSpawn: { x: 842, y: 224 } }
+        {
+          id: 'door_hall_to_class',
+          x: 1258, y: 440, width: 54, height: 80,
+          orientation: 'bottom',
+          target: 'classroom',
+          targetDoorId: 'door_class_to_hall'
+        },
+        {
+          id: 'door_hall_to_lecture',
+          x: 24, y: 220, width: 54, height: 90,
+          orientation: 'left',
+          target: 'lecture',
+          targetDoorId: 'door_lecture_to_hall'
+        }
       ],
       spawn: { x: 1282, y: 440 },
       furniture: [
@@ -65,7 +83,13 @@ window.initialGameData = {
       padding: 32,
       theme: 'classroom',
       doors: [
-        { x: 870, y: 180, width: 64, height: 88, orientation: 'right', target: 'hallway', targetSpawn: { x: 122, y: 262 } }
+        {
+          id: 'door_lecture_to_hall',
+          x: 870, y: 180, width: 64, height: 88,
+          orientation: 'right',
+          target: 'hallway',
+          targetDoorId: 'door_hall_to_lecture'
+        }
       ],
       spawn: { x: 460, y: 520 },
       furniture: [

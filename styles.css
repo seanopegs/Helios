@@ -176,13 +176,18 @@ body {
   width: 30px;
 }
 
-.dev-prop-row input {
+.dev-prop-row input, #dev-obj-type {
   width: 100px;
   background: #263238;
   border: 1px solid #5d4037;
   color: white;
   padding: 2px 4px;
   font-family: inherit;
+}
+
+#dev-obj-type {
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .modal {

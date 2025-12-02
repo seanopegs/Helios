@@ -34,15 +34,27 @@ const player = {
 
 let tempDialogueTimeout = null;
 
-function loadLevel(name, spawnPos) {
+function loadLevel(name, targetDoorId) {
   if (!levels[name]) return;
   currentLevelName = name;
   room = levels[name];
 
-  if (spawnPos) {
-      player.x = spawnPos.x;
-      player.y = spawnPos.y;
-  } else {
+  let spawned = false;
+  if (targetDoorId) {
+      const targetDoor = (room.doors || []).find(d => d.id === targetDoorId);
+      if (targetDoor) {
+          const spawn = doorAttachmentPoint(targetDoor);
+          // Offset slightly so player isn't inside door
+          player.x = spawn.x;
+          player.y = spawn.y + 10;
+          if (targetDoor.orientation === 'bottom') player.y = targetDoor.y - 24;
+          else if (targetDoor.orientation === 'left') player.x = targetDoor.x + targetDoor.width + 12;
+          else if (targetDoor.orientation === 'right') player.x = targetDoor.x - 12;
+          spawned = true;
+      }
+  }
+
+  if (!spawned) {
       player.x = room.spawn.x;
       player.y = room.spawn.y;
   }
@@ -72,6 +84,7 @@ function updateDevRoomSelect() {
 }
 
 document.getElementById("dev-room-select").addEventListener("change", (e) => {
+    // Save current player pos if needed or just switch
     loadLevel(e.target.value);
 });
 
@@ -702,7 +715,7 @@ function drawFurnitureItem(item) {
         // Ideally we pre-load, but for this simple tool we rely on browser cache or immediate data-uri decode.
         // Actually, drawing an image created every frame is bad.
         // We should cache the image object on the item.
-        if (!item._cachedImage) {
+        if (!item._cachedImage || !(item._cachedImage instanceof Image)) {
             item._cachedImage = new Image();
             item._cachedImage.src = item.textureData;
         }
@@ -727,6 +740,15 @@ function drawFurnitureItem(item) {
     else if (item.type === 'rug') drawRug(item);
     else if (item.type === 'shelf') drawShelf(item);
     else if (item.type === 'whiteboard') drawWhiteboard(item);
+    else {
+        // Fallback for custom/unknown objects
+        ctx.fillStyle = "#e91e63"; // Magenta for visibility
+        ctx.fillRect(item.x, item.y, item.width, item.height);
+        ctx.fillStyle = "white";
+        ctx.font = "10px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(item.type, item.x + item.width/2, item.y + item.height/2);
+    }
 }
 
 function drawPlayer(x, y) {
@@ -1057,7 +1079,17 @@ function handleInteraction() {
 
     const door = getNearestDoor(60);
     if (door && door.target) {
-        loadLevel(door.target, door.targetSpawn);
+        // Prefer ID-based targeting, fall back to spawn coords if legacy
+        if (door.targetDoorId) {
+            loadLevel(door.target, door.targetDoorId);
+        } else {
+            // Legacy/Manual override
+            loadLevel(door.target, null);
+            if (door.targetSpawn) {
+                player.x = door.targetSpawn.x;
+                player.y = door.targetSpawn.y;
+            }
+        }
     }
 }
 
@@ -1227,6 +1259,9 @@ function updatePropPanel() {
     const extra = document.getElementById("prop-extra");
     extra.innerHTML = "";
 
+    // Type is always editable now
+    addPropInput(extra, "Type", selectedObject.type, v => selectedObject.type = v);
+
     // Add specific fields
     if (selectedObject.type === 'student') {
         addPropInput(extra, "Name", selectedObject.name || 'STUDENT', v => selectedObject.name = v);
@@ -1234,7 +1269,10 @@ function updatePropPanel() {
         addPropInput(extra, "Shirt", selectedObject.shirt || '#000', v => selectedObject.shirt = v);
         addPropInput(extra, "Text", selectedObject.text || '', v => selectedObject.text = v);
     } else if (selectedObject.type === 'door') {
+        addPropInput(extra, "ID", selectedObject.id || '', v => selectedObject.id = v);
         addPropInput(extra, "Target Room", selectedObject.target || '', v => selectedObject.target = v);
+        addPropInput(extra, "Target Door ID", selectedObject.targetDoorId || '', v => selectedObject.targetDoorId = v);
+
         // Orientation dropdown
         const div = document.createElement("div");
         div.className = "dev-prop-row";
@@ -1249,10 +1287,10 @@ function updatePropPanel() {
         sel.value = selectedObject.orientation || 'top';
         sel.onchange = (e) => selectedObject.orientation = e.target.value;
 
-        // Spawn setter
+        // Spawn setter (Manual Override)
         const btn = document.createElement("button");
         btn.className = "dev-btn-small";
-        btn.textContent = "Set Target Spawn";
+        btn.textContent = "Set Manual Spawn";
         btn.onclick = () => startSetSpawn(selectedObject);
         extra.appendChild(btn);
     } else if (selectedObject.type === 'rug') {
@@ -1359,6 +1397,48 @@ function startGame() {
   loop();
 }
 
+// Auto-load external JSON if present
+async function loadExternalData() {
+    try {
+        const statusEl = document.createElement("div");
+        statusEl.id = "loading-status";
+        statusEl.style.marginTop = "20px";
+        statusEl.style.color = "#ccc";
+        statusEl.textContent = "Loading external data...";
+        document.querySelector(".start-menu").appendChild(statusEl);
+
+        const response = await fetch('game-data.json?t=' + Date.now()); // Prevent caching
+        if (response.ok) {
+            const data = await response.json();
+            if (data.levels && data.dialogue) {
+                levels = data.levels;
+                dialogue = data.dialogue;
+
+                // Refresh state
+                currentLevelName = Object.keys(levels)[0] || 'classroom';
+                // Force full reload of level to update player position etc.
+                loadLevel(currentLevelName);
+
+                statusEl.textContent = "Loaded Custom Data (game-data.json)";
+                statusEl.style.color = "#4caf50";
+                console.log("Auto-loaded game-data.json");
+            }
+        } else {
+             throw new Error("404");
+        }
+    } catch (e) {
+        console.log("No external game-data.json found, using defaults.");
+        const statusEl = document.getElementById("loading-status");
+        if (statusEl) {
+            statusEl.textContent = "Loaded Default Data";
+            statusEl.style.color = "#ffb74d";
+        }
+    }
+}
+
+// Run auto-load immediately
+loadExternalData();
+
 document.getElementById("btn-play").addEventListener("click", () => {
   isDeveloperMode = false;
   startGame();
@@ -1367,16 +1447,84 @@ document.getElementById("btn-play").addEventListener("click", () => {
 document.getElementById("btn-dev").addEventListener("click", () => {
   isDeveloperMode = true;
   document.getElementById("dev-sidebar").classList.remove("hidden");
+  updateDevRoomSelect(); // Ensure list is populated
   startGame();
 });
 
+// Start Screen Load Logic
+document.getElementById("btn-load-custom").addEventListener("click", () => {
+    document.getElementById("start-load-input").click();
+});
+
+document.getElementById("start-load-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.levels && data.dialogue) {
+        levels = data.levels;
+        dialogue = data.dialogue;
+
+        currentLevelName = Object.keys(levels)[0] || 'classroom';
+        loadLevel(currentLevelName);
+
+        const statusEl = document.getElementById("loading-status");
+        if (statusEl) {
+            statusEl.textContent = "Loaded: " + file.name;
+            statusEl.style.color = "#4caf50";
+        }
+        alert("Custom data loaded! Click Play to start.");
+      } else {
+        alert("Invalid game data file.");
+      }
+    } catch (err) {
+      alert("Error parsing JSON");
+    }
+  };
+  reader.readAsText(file);
+});
+
 // Save JSON
-document.getElementById("dev-save").addEventListener("click", () => {
+document.getElementById("dev-save").addEventListener("click", async () => {
   const data = {
     levels: levels,
     dialogue: dialogue
   };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  // Use a replacer to exclude internal properties like _cachedImage
+  const jsonString = JSON.stringify(data, (key, value) => {
+      if (key.startsWith('_')) return undefined;
+      return value;
+  }, 2);
+
+  // Try File System Access API
+  if (window.showSaveFilePicker) {
+      try {
+          const handle = await window.showSaveFilePicker({
+              suggestedName: 'game-data.json',
+              types: [{
+                  description: 'JSON File',
+                  accept: {'application/json': ['.json']},
+              }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(jsonString);
+          await writable.close();
+          alert("Saved successfully!");
+          return;
+      } catch (err) {
+          if (err.name !== 'AbortError') {
+              console.error(err);
+              alert("Error saving file via API. Falling back to download.");
+          } else {
+              return; // User cancelled
+          }
+      }
+  }
+
+  // Fallback
+  const blob = new Blob([jsonString], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

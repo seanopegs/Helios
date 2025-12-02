@@ -13,6 +13,9 @@
       <div class="start-menu">
         <button id="btn-play" class="btn">Play</button>
         <button id="btn-dev" class="btn">Developer Mode</button>
+
+        <input type="file" id="start-load-input" accept=".json" style="display: none;" />
+        <button id="btn-load-custom" class="btn" style="font-size: 16px; padding: 8px;">Load Custom File</button>
       </div>
     </div>
     <canvas id="scene" width="680" height="520" aria-label="Room scene"></canvas>
@@ -55,20 +58,21 @@
 
     <div class="dev-section">
       <h3>Add Object</h3>
-      <select id="dev-obj-type">
-        <option value="desk">Desk</option>
-        <option value="student">Student</option>
-        <option value="bed">Bed</option>
-        <option value="cupboard">Cupboard</option>
-        <option value="shelf">Shelf</option>
-        <option value="rug">Rug</option>
-        <option value="chest">Chest</option>
-        <option value="locker">Locker</option>
-        <option value="window">Window</option>
-        <option value="door">Door</option>
-        <option value="whiteboard">Whiteboard</option>
-        <option value="table">Table</option>
-      </select>
+      <input type="text" id="dev-obj-type" list="obj-types" placeholder="Type (e.g. desk)">
+      <datalist id="obj-types">
+        <option value="desk">
+        <option value="student">
+        <option value="bed">
+        <option value="cupboard">
+        <option value="shelf">
+        <option value="rug">
+        <option value="chest">
+        <option value="locker">
+        <option value="window">
+        <option value="door">
+        <option value="whiteboard">
+        <option value="table">
+      </datalist>
       <button id="dev-add-obj" class="dev-btn">Add</button>
     </div>
 
