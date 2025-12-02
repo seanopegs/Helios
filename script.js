@@ -101,46 +101,49 @@ const levels = {
     ],
     spawn: { x: 460, y: 520 },
     furniture: [
+      // Whiteboard
+      { type: 'whiteboard', x: 340, y: 30, width: 240, height: 60 },
+
       // Teacher desk
       { type: 'table', x: 400, y: 150, width: 120, height: 60 },
-      { type: 'cupboard', x: 760, y: 140, width: 60, height: 90, facing: 'left' },
 
       // Rows of classroom desks with students
       { type: 'desk', variant: 'study', x: 180, y: 240, width: 70, height: 60 },
-      { type: 'student', x: 205, y: 270, width: 36, height: 40, facing: 'up' },
+      { type: 'student', x: 203, y: 274, width: 24, height: 36, variant: 'boy', shirt: '#e57373', text: "Did you do the homework?" },
 
       { type: 'desk', variant: 'study', x: 340, y: 240, width: 70, height: 60 },
-      { type: 'student', x: 365, y: 270, width: 36, height: 40, facing: 'up' },
+      { type: 'student', x: 363, y: 274, width: 24, height: 36, variant: 'girl', shirt: '#ba68c8', text: "I love this subject!" },
 
       { type: 'desk', variant: 'study', x: 500, y: 240, width: 70, height: 60 },
-      { type: 'student', x: 525, y: 270, width: 36, height: 40, facing: 'up' },
+      { type: 'student', x: 523, y: 274, width: 24, height: 36, variant: 'boy', shirt: '#64b5f6', text: "Zzz..." },
 
       { type: 'desk', variant: 'study', x: 660, y: 240, width: 70, height: 60 },
-      { type: 'student', x: 685, y: 270, width: 36, height: 40, facing: 'up' },
+      { type: 'student', x: 683, y: 274, width: 24, height: 36, variant: 'girl', shirt: '#81c784', text: "Professor is late." },
 
       { type: 'desk', variant: 'study', x: 180, y: 340, width: 70, height: 60 },
-      { type: 'student', x: 205, y: 370, width: 36, height: 40, facing: 'up' },
+      { type: 'student', x: 203, y: 374, width: 24, height: 36, variant: 'girl', shirt: '#ffb74d', text: "Can I borrow a pen?" },
 
       { type: 'desk', variant: 'study', x: 340, y: 340, width: 70, height: 60 },
-      { type: 'student', x: 365, y: 370, width: 36, height: 40, facing: 'up' },
+      { type: 'student', x: 363, y: 374, width: 24, height: 36, variant: 'boy', shirt: '#a1887f', text: "Focusing..." },
 
       { type: 'desk', variant: 'study', x: 500, y: 340, width: 70, height: 60 },
-      { type: 'student', x: 525, y: 370, width: 36, height: 40, facing: 'up' },
+      { type: 'student', x: 523, y: 374, width: 24, height: 36, variant: 'girl', shirt: '#90a4ae', text: "..." },
 
       { type: 'desk', variant: 'study', x: 660, y: 340, width: 70, height: 60 },
-      { type: 'student', x: 685, y: 370, width: 36, height: 40, facing: 'up' },
+      { type: 'student', x: 683, y: 374, width: 24, height: 36, variant: 'boy', shirt: '#7986cb', text: "When is lunch?" },
 
-      { type: 'desk', variant: 'study', x: 180, y: 440, width: 70, height: 60 },
-      { type: 'student', x: 205, y: 470, width: 36, height: 40, facing: 'up' },
+      // Back Row
+      // Luke's Seat (Back Left) - Empty
+      { type: 'desk', variant: 'study', x: 180, y: 440, width: 70, height: 60, id: 'player_seat' },
 
       { type: 'desk', variant: 'study', x: 340, y: 440, width: 70, height: 60 },
-      { type: 'student', x: 365, y: 470, width: 36, height: 40, facing: 'up' },
+      { type: 'student', x: 363, y: 474, width: 24, height: 36, variant: 'boy', shirt: '#4db6ac', text: "Hey Luke!" },
 
       { type: 'desk', variant: 'study', x: 500, y: 440, width: 70, height: 60 },
-      { type: 'student', x: 525, y: 470, width: 36, height: 40, facing: 'up' },
+      { type: 'student', x: 523, y: 474, width: 24, height: 36, variant: 'girl', shirt: '#f06292', text: "Nice weather today." },
 
       { type: 'desk', variant: 'study', x: 660, y: 440, width: 70, height: 60 },
-      { type: 'student', x: 685, y: 470, width: 36, height: 40, facing: 'up' }
+      { type: 'student', x: 683, y: 474, width: 24, height: 36, variant: 'boy', shirt: '#9575cd', text: "I'm hungry." }
     ]
   }
 };
@@ -154,7 +157,8 @@ const player = {
   size: 24,
   speed: 3,
   facing: "down",
-  walkFrame: 0
+  walkFrame: 0,
+  isSitting: false
 };
 
 let tempDialogueTimeout = null;
@@ -283,6 +287,7 @@ function checkCollision(x, y) {
 
 function handleMovement() {
   if (stage < 2) return;
+  if (player.isSitting) return;
 
   let dx = 0;
   let dy = 0;
@@ -701,37 +706,69 @@ function drawWindow(item) {
     ctx.fill();
 }
 
+function drawWhiteboard(item) {
+    // Frame
+    ctx.fillStyle = "#b0bec5";
+    ctx.fillRect(item.x, item.y, item.width, item.height);
+
+    // Surface
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(item.x + 4, item.y + 4, item.width - 8, item.height - 8);
+
+    // Tray
+    ctx.fillStyle = "#90a4ae";
+    ctx.fillRect(item.x + 2, item.y + item.height - 4, item.width - 4, 4);
+
+    // Eraser/Marker
+    ctx.fillStyle = "#37474f";
+    ctx.fillRect(item.x + 40, item.y + item.height - 4, 10, 3);
+    ctx.fillStyle = "#e53935";
+    ctx.fillRect(item.x + 60, item.y + item.height - 4, 8, 2);
+}
+
 function drawStudent(item) {
     const baseY = item.y;
     const bob = Math.sin(Date.now() / 500 + (item.phase || 0)) * 2;
     const seatY = baseY - bob;
 
+    const w = item.width || 24;
+    const h = item.height || 36;
+    const variant = item.variant || 'boy';
+    const shirtColor = item.shirt || "#4caf50";
+
     // Seat shadow
     ctx.fillStyle = "rgba(0,0,0,0.2)";
-    ctx.fillRect(item.x + 4, seatY + item.height - 8, item.width - 8, 6);
+    ctx.fillRect(item.x + 2, seatY + h - 4, w - 4, 4);
 
     // Body
-    ctx.fillStyle = "#4caf50";
-    ctx.fillRect(item.x + 4, seatY + 10, item.width - 8, 16);
-    ctx.fillStyle = "#ffeb3b";
-    ctx.fillRect(item.x + 4, seatY + 16, item.width - 8, 4);
+    ctx.fillStyle = shirtColor;
+    ctx.fillRect(item.x, seatY + 12, w, 14);
+
+    // Legs (Sitting)
+    ctx.fillStyle = "#3e2723";
+    ctx.fillRect(item.x + 4, seatY + 26, 6, 8);
+    ctx.fillRect(item.x + w - 10, seatY + 26, 6, 8);
 
     // Head
     ctx.fillStyle = "#f1c27d";
-    ctx.fillRect(item.x + 6, seatY - 2, item.width - 12, 12);
+    ctx.fillRect(item.x + 2, seatY, w - 4, 12);
 
     // Hair
     ctx.fillStyle = "#4e342e";
-    ctx.fillRect(item.x + 4, seatY - 4, item.width - 8, 6);
+    if (variant === 'girl') {
+        ctx.fillRect(item.x, seatY, w, 6);
+        ctx.fillRect(item.x, seatY, 4, 14);
+        ctx.fillRect(item.x + w - 4, seatY, 4, 14);
+    } else {
+        ctx.fillRect(item.x, seatY, w, 4);
+        ctx.fillRect(item.x, seatY, 4, 8);
+        ctx.fillRect(item.x + w - 4, seatY, 4, 8);
+    }
 
-    // Arms resting
-    ctx.fillStyle = "#d84315";
-    ctx.fillRect(item.x + 6, seatY + 20, item.width - 12, 6);
-
-    // Eyes (facing front)
+    // Eyes
     ctx.fillStyle = "#212121";
-    ctx.fillRect(item.x + 10, seatY + 2, 3, 2);
-    ctx.fillRect(item.x + item.width - 13, seatY + 2, 3, 2);
+    ctx.fillRect(item.x + 6, seatY + 4, 2, 2);
+    ctx.fillRect(item.x + w - 8, seatY + 4, 2, 2);
 }
 
 function drawFurnitureItem(item) {
@@ -745,11 +782,53 @@ function drawFurnitureItem(item) {
     else if (item.type === 'chest') drawChest(item);
     else if (item.type === 'rug') drawRug(item);
     else if (item.type === 'shelf') drawShelf(item);
+    else if (item.type === 'whiteboard') drawWhiteboard(item);
 }
 
 function drawPlayer(x, y) {
   const w = 24;
   const h = 36;
+
+  const skinColor = "#ffcc80";
+  const shirtColor = "#4caf50";
+  const stripeColor = "#ffeb3b";
+  const pantsColor = "#3e2723";
+  const hairColor = "#5d4037";
+  const eyeColor = "#333";
+
+  ctx.save();
+
+  if (player.isSitting) {
+      const px = x - w / 2;
+      const py = y - h;
+
+      // Seat shadow
+      ctx.fillStyle = "rgba(0,0,0,0.2)";
+      ctx.fillRect(px + 2, py + h - 4, w - 4, 4);
+
+      // Body
+      ctx.fillStyle = shirtColor;
+      ctx.fillRect(px, py + 12, w, 14);
+      ctx.fillStyle = stripeColor;
+      ctx.fillRect(px, py + 18, w, 4);
+
+      // Legs (Sitting)
+      ctx.fillStyle = pantsColor;
+      ctx.fillRect(px + 4, py + 26, 6, 8);
+      ctx.fillRect(px + w - 10, py + 26, 6, 8);
+
+      // Head (Back view)
+      ctx.fillStyle = skinColor;
+      ctx.fillRect(px + 2, py, w - 4, 12);
+
+      // Hair
+      ctx.fillStyle = hairColor;
+      ctx.fillRect(px, py, w, 8);
+      ctx.fillRect(px + 2, py + 8, w - 4, 4);
+
+      ctx.restore();
+      return;
+  }
 
   // Animation calculation
   const isMoving = player.walkFrame !== 0;
@@ -764,20 +843,11 @@ function drawPlayer(x, y) {
   const px = x - w / 2;
   const py = y - h + 8 - bob; // Apply bob to entire body y
 
-  ctx.save();
-
   // Shadow (stays on ground, doesn't bob)
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath();
   ctx.ellipse(x, y + 6, w / 2, 4, 0, 0, Math.PI * 2);
   ctx.fill();
-
-  const skinColor = "#ffcc80";
-  const shirtColor = "#4caf50";
-  const stripeColor = "#ffeb3b";
-  const pantsColor = "#3e2723";
-  const hairColor = "#5d4037";
-  const eyeColor = "#333";
 
   if (player.facing === "down") {
     // Legs (independent of bob, connected to ground/body)
@@ -973,6 +1043,52 @@ function findNearbyFurniture(types, threshold = 60) {
 }
 
 function handleInteraction() {
+    if (player.isSitting) {
+        player.isSitting = false;
+        player.y += 10; // Step out
+        return;
+    }
+
+    const nearStudent = findNearbyFurniture(['student'], 40);
+    if (nearStudent && nearStudent.text) {
+        showLukeLine(nearStudent.text); // Actually should show student name or just text
+        // For now using showLukeLine but changing label to 'Student' would be better
+        // But showLukeLine hardcodes LUKE.
+        // I will just use updateDialogue for custom speaker if needed, but existing showLukeLine is convenient for temporary text.
+        // Let's modify showLukeLine slightly or just use it as is (Luke thinking about what they said? No.)
+
+        // Let's implement a proper speech bubble or reuse dialogue box with 'Student'
+        dialogueBox.hidden = false;
+        dialogueLine.textContent = nearStudent.text;
+        dialogueLabel.textContent = "STUDENT";
+        dialogueLabel.classList.remove("dialogue__label--hidden");
+        dialoguePrompt.textContent = "";
+        dialogueBox.classList.add("dialogue--active");
+        dialogueBox.classList.remove("dialogue--hidden");
+
+        if (tempDialogueTimeout) clearTimeout(tempDialogueTimeout);
+        tempDialogueTimeout = setTimeout(() => {
+            tempDialogueTimeout = null;
+            updateDialogue();
+        }, 2000);
+        return;
+    }
+
+    // Check for Luke's seat
+    const desks = room.furniture.filter(f => f.type === 'desk');
+    for (const desk of desks) {
+        if (desk.id === 'player_seat') {
+            const dist = Math.hypot(player.x - (desk.x + desk.width/2), player.y - (desk.y + desk.height));
+            if (dist < 50) {
+                player.isSitting = true;
+                player.x = desk.x + 23 + 12; // desk.x + 23 (student left) + 12 (center)
+                player.y = desk.y + 34 + 36; // desk.y + studentYOffset + height
+                player.facing = 'up';
+                return;
+            }
+        }
+    }
+
     const nearBed = findNearbyFurniture(['bed']);
     if (nearBed) {
         showLukeLine("it's not the right time to sleep");
