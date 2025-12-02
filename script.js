@@ -24,7 +24,7 @@ const levels = {
     padding: 32,
     theme: 'dorm',
     doors: [
-      { x: 340 - 32, y: 96 - 78, width: 64, height: 80, orientation: 'top', target: 'hallway', targetSpawn: { x: 1282, y: 440 } }
+        { x: 16, y: 150, width: 68, height: 84, orientation: 'left', target: 'hallway', targetSpawn: { x: 104, y: 262 } }
     ],
     spawn: { x: 120, y: 240 },
     furniture: [
@@ -50,8 +50,8 @@ const levels = {
     padding: 32,
     theme: 'hall',
     doors: [
-      { x: 1250, y: 520 - 40, width: 68, height: 40, orientation: 'bottom', target: 'classroom', targetSpawn: { x: 340, y: 130 } },
-      { x: 40, y: 96 - 84, width: 70, height: 84, orientation: 'top', target: 'lecture', targetSpawn: { x: 440, y: 460 } }
+        { x: 22, y: 220, width: 70, height: 84, orientation: 'left', target: 'classroom', targetSpawn: { x: 96, y: 192 } },
+        { x: 40, y: 96 - 84, width: 70, height: 84, orientation: 'top', target: 'lecture', targetSpawn: { x: 844, y: 245 } }
     ],
     spawn: { x: 1282, y: 520 - 80 },
     furniture: [
@@ -83,13 +83,13 @@ const levels = {
     padding: 32,
     theme: 'classroom',
     doors: [
-      { x: 460 - 32, y: 110 - 88, width: 64, height: 88, orientation: 'top', target: 'hallway', targetSpawn: { x: 140, y: 440 } }
+        { x: 960 - 32 - 72, y: 200, width: 72, height: 90, orientation: 'right', target: 'hallway', targetSpawn: { x: 75, y: 132 } }
     ],
     spawn: { x: 460, y: 520 },
     furniture: [
       // Teacher desk
       { type: 'table', x: 400, y: 150, width: 120, height: 60 },
-      { type: 'cupboard', x: 680, y: 150, width: 60, height: 90, facing: 'left' },
+      { type: 'cupboard', x: 820, y: 140, width: 60, height: 90, facing: 'left' },
 
       // Rows of classroom desks with students
       { type: 'desk', variant: 'study', x: 180, y: 240, width: 70, height: 60 },
@@ -166,8 +166,15 @@ function getDoors() {
 }
 
 function doorAttachmentPoint(door) {
-  if ((door.orientation || 'top') === 'bottom') {
+  const orientation = door.orientation || 'top';
+  if (orientation === 'bottom') {
     return { x: door.x + door.width / 2, y: door.y + door.height };
+  }
+  if (orientation === 'left') {
+    return { x: door.x + door.width, y: door.y + door.height / 2 };
+  }
+  if (orientation === 'right') {
+    return { x: door.x, y: door.y + door.height / 2 };
   }
   return { x: door.x + door.width / 2, y: door.y + door.height / 2 };
 }
@@ -366,34 +373,59 @@ function drawDoor(door) {
       ctx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      // Mat
-      ctx.fillStyle = "#6d4c41";
-      ctx.fillRect(x - 4, y + height - 8, width + 8, 10);
+    // Mat
+    ctx.fillStyle = "#6d4c41";
+    ctx.fillRect(x - 4, y + height - 8, width + 8, 10);
+  } else if (orientation === 'left' || orientation === 'right') {
+    const isLeft = orientation === 'left';
+
+    // Frame
+    ctx.fillStyle = "#3a271f";
+    ctx.fillRect(x - 6, y - 6, width + 12, height + 12);
+
+    // Door body
+    const gradient = ctx.createLinearGradient(x, 0, x + width, 0);
+    gradient.addColorStop(0, "#f6c453");
+    gradient.addColorStop(1, "#d89c27");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, width, height);
+
+    // Vertical window
+    ctx.fillStyle = "#90a4ae";
+    const windowX = isLeft ? x + width - 18 : x + 6;
+    ctx.fillRect(windowX, y + 10, 12, height - 20);
+
+    // Knob
+    ctx.fillStyle = "#f0c419";
+    const knobX = isLeft ? x + width - 6 : x + 6;
+    ctx.beginPath();
+    ctx.arc(knobX, y + height / 2, 4, 0, Math.PI * 2);
+    ctx.fill();
   } else {
-      // Top Door (Standard)
-      // Frame
-      ctx.fillStyle = "#3a271f";
-      ctx.fillRect(x - 6, y - 6, width + 12, height + 10);
+    // Top Door (Standard)
+    // Frame
+    ctx.fillStyle = "#3a271f";
+    ctx.fillRect(x - 6, y - 6, width + 12, height + 10);
 
-      const gradient = ctx.createLinearGradient(0, y, 0, y + height);
-      gradient.addColorStop(0, "#f6c453");
-      gradient.addColorStop(1, "#d89c27");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(x, y, width, height);
+    const gradient = ctx.createLinearGradient(0, y, 0, y + height);
+    gradient.addColorStop(0, "#f6c453");
+    gradient.addColorStop(1, "#d89c27");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, width, height);
 
-      // Shadow/Depth
-      ctx.fillStyle = "rgba(0,0,0,0.2)";
-      ctx.fillRect(x, y, 6, height);
+    // Shadow/Depth
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fillRect(x, y, 6, height);
 
-      // Upper window panel
-      ctx.fillStyle = "#90caf9";
-      ctx.fillRect(x + 8, y + 10, width - 16, 14);
+    // Upper window panel
+    ctx.fillStyle = "#90caf9";
+    ctx.fillRect(x + 8, y + 10, width - 16, 14);
 
-      // Knob
-      ctx.fillStyle = "#333";
-      ctx.beginPath();
-      ctx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
-      ctx.fill();
+    // Knob
+    ctx.fillStyle = "#333";
+    ctx.beginPath();
+    ctx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
