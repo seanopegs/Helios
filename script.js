@@ -5,165 +5,22 @@ const dialogueLabel = document.getElementById("dialogue-label");
 const dialogueLine = document.getElementById("dialogue-line");
 const dialoguePrompt = document.getElementById("dialogue-prompt");
 
-const dialogue = [
-  { text: "okay Luke", speaker: "LUKE" },
-  { text: "this is your final chance", speaker: "LUKE" },
-  { text: "Use WASD to reach the door at the top.", speaker: "" }
-];
+let dialogue = JSON.parse(JSON.stringify(window.initialGameData.dialogue));
+let levels = JSON.parse(JSON.stringify(window.initialGameData.levels));
+let isDeveloperMode = false;
 
 let stage = 0;
 let isHintActive = false;
 const keys = new Set();
 const camera = { x: 0, y: 0 };
 
-const levels = {
-  classroom: {
-    width: 680,
-    height: 520,
-    wallHeight: 96,
-    padding: 32,
-    theme: 'dorm',
-    doors: [
-      { x: 340 - 32, y: 96 - 78, width: 64, height: 80, orientation: 'top', target: 'hallway', targetSpawn: { x: 1282, y: 440 } }
-    ],
-    spawn: { x: 340, y: 400 },
-    furniture: [
-      // Rugs (Floor layer)
-      { type: 'rug', x: 150, y: 220, width: 80, height: 120, color: "#a1887f" },
-      { type: 'rug', x: 450, y: 220, width: 80, height: 120, color: "#a1887f" },
-
-      // Wardrobes (Corners)
-      { type: 'cupboard', x: 40, y: 50, width: 60, height: 90 },
-      { type: 'cupboard', x: 580, y: 50, width: 60, height: 90 },
-
-      // Main Desk (Top Right area)
-      { type: 'desk', x: 460, y: 140, width: 90, height: 50, hasLaptop: true, hasLamp: true },
-
-      // Shelves (Back wall)
-      { type: 'shelf', x: 130, y: 40, width: 60, height: 30 },
-      { type: 'shelf', x: 490, y: 40, width: 60, height: 30 },
-
-      // Left Wall (Bed - Desk - Bed)
-      { type: 'bed', x: 40, y: 180, width: 60, height: 100 },
-      { type: 'desk', x: 40, y: 290, width: 60, height: 60, hasLaptop: true, hasLamp: true },
-      { type: 'bed', x: 40, y: 360, width: 60, height: 100 },
-
-      // Right Wall (Bed - Desk - Bed)
-      { type: 'bed', x: 580, y: 180, width: 60, height: 100 },
-      { type: 'desk', x: 580, y: 290, width: 60, height: 60, hasLaptop: true, hasLamp: true },
-      { type: 'bed', x: 580, y: 360, width: 60, height: 100 },
-
-      // Center Chest
-      { type: 'chest', x: 270, y: 250, width: 140, height: 70 }
-    ]
-  },
-  hallway: {
-    width: 1400,
-    height: 520,
-    wallHeight: 96,
-    padding: 32,
-    theme: 'hall',
-    doors: [
-      { x: 1258, y: 520 - 80, width: 54, height: 80, orientation: 'bottom', target: 'classroom', targetSpawn: { x: 340, y: 130 } },
-      { x: 24, y: 220, width: 54, height: 90, orientation: 'left', target: 'lecture', targetSpawn: { x: 842, y: 224 } }
-    ],
-    spawn: { x: 1282, y: 520 - 80 },
-    furniture: [
-      // Lockers row 1
-      { type: 'locker', x: 100, y: 96 - 60, width: 40, height: 80 },
-      { type: 'locker', x: 140, y: 96 - 60, width: 40, height: 80 },
-      { type: 'locker', x: 180, y: 96 - 60, width: 40, height: 80 },
-
-      // Lockers row 2
-      { type: 'locker', x: 500, y: 96 - 60, width: 40, height: 80 },
-      { type: 'locker', x: 540, y: 96 - 60, width: 40, height: 80 },
-      { type: 'locker', x: 580, y: 96 - 60, width: 40, height: 80 },
-
-      // Lockers row 3
-      { type: 'locker', x: 900, y: 96 - 60, width: 40, height: 80 },
-      { type: 'locker', x: 940, y: 96 - 60, width: 40, height: 80 },
-      { type: 'locker', x: 980, y: 96 - 60, width: 40, height: 80 },
-
-      // Windows
-      { type: 'window', x: 300, y: 20, width: 100, height: 50 },
-      { type: 'window', x: 700, y: 20, width: 100, height: 50 },
-      { type: 'window', x: 1100, y: 20, width: 100, height: 50 }
-    ]
-  },
-  lecture: {
-    width: 960,
-    height: 820,
-    wallHeight: 110,
-    padding: 32,
-    theme: 'classroom',
-    doors: [
-      { x: 870, y: 180, width: 64, height: 88, orientation: 'right', target: 'hallway', targetSpawn: { x: 122, y: 262 } }
-    ],
-    spawn: { x: 460, y: 520 },
-    furniture: [
-      // Whiteboard
-      { type: 'whiteboard', x: 340, y: 30, width: 240, height: 60 },
-
-      // Teacher desk
-      { type: 'table', x: 400, y: 150, width: 120, height: 60 },
-
-      // Rows of classroom desks with students
-      { type: 'desk', variant: 'study', x: 180, y: 240, width: 70, height: 60 },
-      { type: 'student', x: 203, y: 274, width: 24, height: 36, variant: 'boy', shirt: '#e57373', text: "Did you do the homework?" },
-
-      { type: 'desk', variant: 'study', x: 340, y: 240, width: 70, height: 60 },
-      { type: 'student', x: 363, y: 274, width: 24, height: 36, variant: 'girl', shirt: '#ba68c8', text: "I love this subject!" },
-
-      { type: 'desk', variant: 'study', x: 500, y: 240, width: 70, height: 60 },
-      { type: 'student', x: 523, y: 274, width: 24, height: 36, variant: 'boy', shirt: '#64b5f6', text: "Zzz..." },
-
-      { type: 'desk', variant: 'study', x: 660, y: 240, width: 70, height: 60 },
-      { type: 'student', x: 683, y: 274, width: 24, height: 36, variant: 'girl', shirt: '#81c784', text: "Professor is late." },
-
-      { type: 'desk', variant: 'study', x: 180, y: 340, width: 70, height: 60 },
-      { type: 'student', x: 203, y: 374, width: 24, height: 36, variant: 'girl', shirt: '#ffb74d', text: "Can I borrow a pen?" },
-
-      { type: 'desk', variant: 'study', x: 340, y: 340, width: 70, height: 60 },
-      { type: 'student', x: 363, y: 374, width: 24, height: 36, variant: 'boy', shirt: '#a1887f', text: "Focusing..." },
-
-      { type: 'desk', variant: 'study', x: 500, y: 340, width: 70, height: 60 },
-      { type: 'student', x: 523, y: 374, width: 24, height: 36, variant: 'girl', shirt: '#90a4ae', text: "..." },
-
-      { type: 'desk', variant: 'study', x: 660, y: 340, width: 70, height: 60 },
-      { type: 'student', x: 683, y: 374, width: 24, height: 36, variant: 'boy', shirt: '#7986cb', text: "When is lunch?" },
-
-      // Back Row
-      // Luke's Seat (Back Left) - Empty
-      { type: 'desk', variant: 'study', x: 180, y: 440, width: 70, height: 60, id: 'player_seat' },
-
-      { type: 'desk', variant: 'study', x: 340, y: 440, width: 70, height: 60 },
-      { type: 'student', x: 363, y: 474, width: 24, height: 36, variant: 'boy', shirt: '#4db6ac', text: "Hey Luke!" },
-
-      { type: 'desk', variant: 'study', x: 500, y: 440, width: 70, height: 60 },
-      { type: 'student', x: 523, y: 474, width: 24, height: 36, variant: 'girl', shirt: '#f06292', text: "Nice weather today." },
-
-      { type: 'desk', variant: 'study', x: 660, y: 440, width: 70, height: 60 },
-      { type: 'student', x: 683, y: 474, width: 24, height: 36, variant: 'boy', shirt: '#9575cd', text: "I'm hungry." },
-
-      // Lockers at bottom
-      { type: 'locker', x: 200, y: 700, width: 50, height: 100 },
-      { type: 'locker', x: 250, y: 700, width: 50, height: 100 },
-      { type: 'locker', x: 300, y: 700, width: 50, height: 100 },
-      { type: 'locker', x: 350, y: 700, width: 50, height: 100 },
-
-      { type: 'locker', x: 560, y: 700, width: 50, height: 100 },
-      { type: 'locker', x: 610, y: 700, width: 50, height: 100 },
-      { type: 'locker', x: 660, y: 700, width: 50, height: 100 },
-      { type: 'locker', x: 710, y: 700, width: 50, height: 100 },
-
-      // Rug
-      { type: 'rug', x: 420, y: 720, width: 120, height: 80, color: "#607d8b" }
-    ]
-  }
-};
-
 let currentLevelName = 'classroom';
 let room = levels[currentLevelName];
+
+// Dev Mode State
+let selectedObject = null;
+let isDragging = false;
+let dragOffset = { x: 0, y: 0 };
 
 const player = {
   x: room.spawn.x,
@@ -177,15 +34,27 @@ const player = {
 
 let tempDialogueTimeout = null;
 
-function loadLevel(name, spawnPos) {
+function loadLevel(name, targetDoorId) {
   if (!levels[name]) return;
   currentLevelName = name;
   room = levels[name];
 
-  if (spawnPos) {
-      player.x = spawnPos.x;
-      player.y = spawnPos.y;
-  } else {
+  let spawned = false;
+  if (targetDoorId) {
+      const targetDoor = (room.doors || []).find(d => d.id === targetDoorId);
+      if (targetDoor) {
+          const spawn = doorAttachmentPoint(targetDoor);
+          // Offset slightly so player isn't inside door
+          player.x = spawn.x;
+          player.y = spawn.y + 10;
+          if (targetDoor.orientation === 'bottom') player.y = targetDoor.y - 24;
+          else if (targetDoor.orientation === 'left') player.x = targetDoor.x + targetDoor.width + 12;
+          else if (targetDoor.orientation === 'right') player.x = targetDoor.x - 12;
+          spawned = true;
+      }
+  }
+
+  if (!spawned) {
       player.x = room.spawn.x;
       player.y = room.spawn.y;
   }
@@ -197,7 +66,48 @@ function loadLevel(name, spawnPos) {
   if (name === 'lecture') title = "Helios - Classroom";
   else if (name === 'hallway') title = "Helios - Student Hallway";
   document.title = title;
+
+  updateDevRoomSelect();
 }
+
+function updateDevRoomSelect() {
+  const select = document.getElementById("dev-room-select");
+  if (!select) return;
+  select.innerHTML = "";
+  Object.keys(levels).forEach(key => {
+    const option = document.createElement("option");
+    option.value = key;
+    option.textContent = key;
+    if (key === currentLevelName) option.selected = true;
+    select.appendChild(option);
+  });
+}
+
+document.getElementById("dev-room-select").addEventListener("change", (e) => {
+    // Save current player pos if needed or just switch
+    loadLevel(e.target.value);
+});
+
+document.getElementById("dev-add-room").addEventListener("click", () => {
+    const name = prompt("Enter new room name:");
+    if (name && !levels[name]) {
+        levels[name] = {
+            width: 800,
+            height: 600,
+            wallHeight: 96,
+            padding: 32,
+            theme: 'dorm',
+            doors: [],
+            spawn: { x: 400, y: 300 },
+            furniture: []
+        };
+        updateDevRoomSelect();
+        loadLevel(name);
+    } else if (levels[name]) {
+        alert("Room already exists!");
+    }
+});
+
 
 function getDoors() {
   return room.doors || [];
@@ -797,6 +707,28 @@ function drawStudent(item) {
 }
 
 function drawFurnitureItem(item) {
+    if (item.textureData) {
+        // Draw Custom Texture
+        const img = new Image();
+        img.src = item.textureData;
+        // Since loading is async, this might blink on first frame.
+        // Ideally we pre-load, but for this simple tool we rely on browser cache or immediate data-uri decode.
+        // Actually, drawing an image created every frame is bad.
+        // We should cache the image object on the item.
+        if (!item._cachedImage || !(item._cachedImage instanceof Image)) {
+            item._cachedImage = new Image();
+            item._cachedImage.src = item.textureData;
+        }
+        if (item._cachedImage.complete) {
+             ctx.drawImage(item._cachedImage, item.x, item.y, item.width, item.height);
+        } else {
+             // Fallback while loading
+             ctx.fillStyle = "#ccc";
+             ctx.fillRect(item.x, item.y, item.width, item.height);
+        }
+        return;
+    }
+
     if (item.type === 'desk') drawDesk(item);
     else if (item.type === 'table') drawTable(item);
     else if (item.type === 'bed') drawBed(item);
@@ -808,6 +740,15 @@ function drawFurnitureItem(item) {
     else if (item.type === 'rug') drawRug(item);
     else if (item.type === 'shelf') drawShelf(item);
     else if (item.type === 'whiteboard') drawWhiteboard(item);
+    else {
+        // Fallback for custom/unknown objects
+        ctx.fillStyle = "#e91e63"; // Magenta for visibility
+        ctx.fillRect(item.x, item.y, item.width, item.height);
+        ctx.fillStyle = "white";
+        ctx.font = "10px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(item.type, item.x + item.width/2, item.y + item.height/2);
+    }
 }
 
 function drawPlayer(x, y) {
@@ -1003,6 +944,16 @@ function draw() {
 
   // HUD
   drawHints();
+  drawDevOverlay();
+}
+
+function drawDevOverlay() {
+    if (!isDeveloperMode) return;
+    if (selectedObject) {
+        ctx.strokeStyle = "#00ff00";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(selectedObject.x - camera.x, selectedObject.y - camera.y, selectedObject.width, selectedObject.height);
+    }
 }
 
 function drawHints() {
@@ -1085,7 +1036,7 @@ function handleInteraction() {
         // Let's implement a proper speech bubble or reuse dialogue box with 'Student'
         dialogueBox.hidden = false;
         dialogueLine.textContent = nearStudent.text;
-        dialogueLabel.textContent = "STUDENT";
+        dialogueLabel.textContent = nearStudent.name || "STUDENT";
         dialogueLabel.classList.remove("dialogue__label--hidden");
         dialoguePrompt.textContent = "";
         dialogueBox.classList.add("dialogue--active");
@@ -1128,7 +1079,17 @@ function handleInteraction() {
 
     const door = getNearestDoor(60);
     if (door && door.target) {
-        loadLevel(door.target, door.targetSpawn);
+        // Prefer ID-based targeting, fall back to spawn coords if legacy
+        if (door.targetDoorId) {
+            loadLevel(door.target, door.targetDoorId);
+        } else {
+            // Legacy/Manual override
+            loadLevel(door.target, null);
+            if (door.targetSpawn) {
+                player.x = door.targetSpawn.x;
+                player.y = door.targetSpawn.y;
+            }
+        }
     }
 }
 
@@ -1137,8 +1098,11 @@ document.addEventListener("keydown", (event) => {
   if (["w", "a", "s", "d"].includes(key)) {
     keys.add(key);
   }
-  if (key === " ") {
+  if (key === " " && !isDeveloperMode) {
       handleInteraction();
+  }
+  if (isDeveloperMode && (key === 'delete' || key === 'backspace')) {
+      if (selectedObject) deleteObject();
   }
 });
 
@@ -1147,6 +1111,451 @@ document.addEventListener("keyup", (event) => {
   keys.delete(key);
 });
 
+// Dev Mode Mouse Handling
+canvas.addEventListener("mousedown", (e) => {
+  if (!isDeveloperMode) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left + camera.x;
+  const my = e.clientY - rect.top + camera.y;
+
+  // Check furniture
+  // Search in reverse order (topmost first)
+  const items = [...room.furniture].reverse();
+  for (const item of items) {
+      if (mx >= item.x && mx <= item.x + item.width &&
+          my >= item.y && my <= item.y + item.height) {
+          selectedObject = item;
+          isDragging = true;
+          dragOffset.x = mx - item.x;
+          dragOffset.y = my - item.y;
+          updatePropPanel();
+          return;
+      }
+  }
+
+  // Check doors
+  const doors = getDoors();
+  for (const door of doors) {
+      if (mx >= door.x && mx <= door.x + door.width &&
+          my >= door.y && my <= door.y + door.height) {
+          selectedObject = door;
+          selectedObject.type = 'door'; // Tag it as door for props
+          isDragging = true;
+          dragOffset.x = mx - door.x;
+          dragOffset.y = my - door.y;
+          updatePropPanel();
+          return;
+      }
+  }
+
+  // Clicked empty space
+  selectedObject = null;
+  document.getElementById("dev-props").classList.add("hidden");
+});
+
+// Handle Spawn Setting Click
+canvas.addEventListener("click", (e) => {
+    if (isSettingSpawn && doorToSetSpawn) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left + camera.x;
+        const my = e.clientY - rect.top + camera.y;
+
+        doorToSetSpawn.targetSpawn = { x: Math.round(mx), y: Math.round(my) };
+
+        isSettingSpawn = false;
+        doorToSetSpawn = null;
+
+        const instr = document.getElementById("spawn-instruction");
+        if (instr) instr.remove();
+
+        alert("Spawn point set!");
+    }
+});
+
+// Texture Editor Logic
+const paintCanvas = document.getElementById("paint-canvas");
+const paintCtx = paintCanvas.getContext("2d");
+let isPainting = false;
+
+// Initialize blank
+paintCtx.fillStyle = "white";
+paintCtx.fillRect(0, 0, 64, 64);
+
+document.getElementById("dev-edit-texture").addEventListener("click", () => {
+    if (!selectedObject) return;
+    document.getElementById("texture-editor").classList.remove("hidden");
+
+    // Load existing texture or clear
+    if (selectedObject.textureData) {
+        const img = new Image();
+        img.onload = () => {
+             paintCtx.drawImage(img, 0, 0, 64, 64);
+        };
+        img.src = selectedObject.textureData;
+    } else {
+        paintCtx.fillStyle = "white";
+        paintCtx.fillRect(0, 0, 64, 64);
+    }
+});
+
+document.getElementById("paint-cancel").addEventListener("click", () => {
+    document.getElementById("texture-editor").classList.add("hidden");
+});
+
+document.getElementById("paint-clear").addEventListener("click", () => {
+    paintCtx.fillStyle = "white";
+    paintCtx.fillRect(0, 0, 64, 64);
+});
+
+document.getElementById("paint-save").addEventListener("click", () => {
+    if (selectedObject) {
+        selectedObject.textureData = paintCanvas.toDataURL();
+        // Clear cache so it redraws
+        selectedObject._cachedImage = null;
+    }
+    document.getElementById("texture-editor").classList.add("hidden");
+});
+
+// Painting interaction
+paintCanvas.addEventListener("mousedown", () => isPainting = true);
+paintCanvas.addEventListener("mouseup", () => isPainting = false);
+paintCanvas.addEventListener("mouseleave", () => isPainting = false);
+
+paintCanvas.addEventListener("mousemove", (e) => {
+    if (!isPainting) return;
+    const rect = paintCanvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / (rect.width / 64));
+    const y = Math.floor((e.clientY - rect.top) / (rect.height / 64));
+
+    paintCtx.fillStyle = document.getElementById("paint-color").value;
+    paintCtx.fillRect(x, y, 1, 1);
+});
+
+canvas.addEventListener("mousemove", (e) => {
+    if (!isDeveloperMode || !isDragging || !selectedObject) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left + camera.x;
+    const my = e.clientY - rect.top + camera.y;
+
+    selectedObject.x = Math.round(mx - dragOffset.x);
+    selectedObject.y = Math.round(my - dragOffset.y);
+    updatePropPanel(); // Update input values while dragging
+});
+
+canvas.addEventListener("mouseup", () => {
+    isDragging = false;
+});
+
+function updatePropPanel() {
+    if (!selectedObject) return;
+    const p = document.getElementById("dev-props");
+    p.classList.remove("hidden");
+
+    document.getElementById("prop-x").value = selectedObject.x;
+    document.getElementById("prop-y").value = selectedObject.y;
+    document.getElementById("prop-w").value = selectedObject.width;
+    document.getElementById("prop-h").value = selectedObject.height;
+
+    const extra = document.getElementById("prop-extra");
+    extra.innerHTML = "";
+
+    // Type is always editable now
+    addPropInput(extra, "Type", selectedObject.type, v => selectedObject.type = v);
+
+    // Add specific fields
+    if (selectedObject.type === 'student') {
+        addPropInput(extra, "Name", selectedObject.name || 'STUDENT', v => selectedObject.name = v);
+        addPropInput(extra, "Variant", selectedObject.variant || 'boy', v => selectedObject.variant = v);
+        addPropInput(extra, "Shirt", selectedObject.shirt || '#000', v => selectedObject.shirt = v);
+        addPropInput(extra, "Text", selectedObject.text || '', v => selectedObject.text = v);
+    } else if (selectedObject.type === 'door') {
+        addPropInput(extra, "ID", selectedObject.id || '', v => selectedObject.id = v);
+        addPropInput(extra, "Target Room", selectedObject.target || '', v => selectedObject.target = v);
+        addPropInput(extra, "Target Door ID", selectedObject.targetDoorId || '', v => selectedObject.targetDoorId = v);
+
+        // Orientation dropdown
+        const div = document.createElement("div");
+        div.className = "dev-prop-row";
+        div.innerHTML = `<label>Dir:</label> <select id="prop-door-dir">
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+        </select>`;
+        extra.appendChild(div);
+        const sel = div.querySelector("select");
+        sel.value = selectedObject.orientation || 'top';
+        sel.onchange = (e) => selectedObject.orientation = e.target.value;
+
+        // Spawn setter (Manual Override)
+        const btn = document.createElement("button");
+        btn.className = "dev-btn-small";
+        btn.textContent = "Set Manual Spawn";
+        btn.onclick = () => startSetSpawn(selectedObject);
+        extra.appendChild(btn);
+    } else if (selectedObject.type === 'rug') {
+        addPropInput(extra, "Color", selectedObject.color || '#fff', v => selectedObject.color = v);
+    }
+
+    if (selectedObject.id !== undefined || selectedObject.type === 'desk') {
+        addPropInput(extra, "ID", selectedObject.id || '', v => selectedObject.id = v);
+    }
+}
+
+function addPropInput(container, label, value, onChange) {
+    const div = document.createElement("div");
+    div.className = "dev-prop-row";
+    div.innerHTML = `<label style="width:50px">${label}</label> <input type="text" value="${value}">`;
+    container.appendChild(div);
+    div.querySelector("input").onchange = (e) => onChange(e.target.value);
+}
+
+let isSettingSpawn = false;
+let doorToSetSpawn = null;
+
+function startSetSpawn(door) {
+    if (!door.target) {
+        alert("Please set a Target Room first");
+        return;
+    }
+    if (!levels[door.target]) {
+        alert("Target Room does not exist");
+        return;
+    }
+
+    // Switch to target room
+    loadLevel(door.target);
+    isSettingSpawn = true;
+    doorToSetSpawn = door;
+
+    // Show instruction
+    const h1 = document.createElement("div");
+    h1.id = "spawn-instruction";
+    h1.style.position = "absolute";
+    h1.style.top = "50%";
+    h1.style.left = "50%";
+    h1.style.transform = "translate(-50%, -50%)";
+    h1.style.background = "rgba(0,0,0,0.8)";
+    h1.style.padding = "20px";
+    h1.style.color = "white";
+    h1.style.pointerEvents = "none";
+    h1.textContent = "Click anywhere to set spawn point";
+    document.querySelector(".frame").appendChild(h1);
+}
+
+// Property Inputs Event Listeners (Global x/y/w/h)
+['x', 'y', 'w', 'h'].forEach(key => {
+    document.getElementById(`prop-${key}`).addEventListener("change", (e) => {
+        if (selectedObject) {
+            const val = parseInt(e.target.value);
+            if (key === 'x') selectedObject.x = val;
+            if (key === 'y') selectedObject.y = val;
+            if (key === 'w') selectedObject.width = val;
+            if (key === 'h') selectedObject.height = val;
+        }
+    });
+});
+
+document.getElementById("dev-delete-obj").addEventListener("click", deleteObject);
+
+function deleteObject() {
+    if (!selectedObject) return;
+    if (selectedObject.type === 'door') {
+        room.doors = room.doors.filter(d => d !== selectedObject);
+    } else {
+        room.furniture = room.furniture.filter(f => f !== selectedObject);
+    }
+    selectedObject = null;
+    document.getElementById("dev-props").classList.add("hidden");
+}
+
+document.getElementById("dev-add-obj").addEventListener("click", () => {
+    const type = document.getElementById("dev-obj-type").value;
+    let obj = { x: camera.x + 340, y: camera.y + 260, width: 40, height: 40, type: type };
+
+    // Defaults
+    if (type === 'door') {
+        obj.width = 64; obj.height = 80; obj.orientation = 'top';
+        if (!room.doors) room.doors = [];
+        room.doors.push(obj);
+    } else {
+        if (type === 'student') { obj.width = 24; obj.height = 36; obj.variant = 'boy'; obj.text = 'Hello'; }
+        if (type === 'desk') { obj.width = 70; obj.height = 60; }
+        if (type === 'rug') { obj.width = 80; obj.height = 120; }
+        if (type === 'bed') { obj.width = 60; obj.height = 100; }
+        room.furniture.push(obj);
+    }
+    selectedObject = obj;
+    updatePropPanel();
+});
+
 canvas.addEventListener("click", advanceDialogue);
-updateDialogue();
-loop();
+
+function startGame() {
+  document.getElementById("start-screen").style.display = "none";
+  updateDialogue();
+  loop();
+}
+
+// Auto-load external JSON if present
+async function loadExternalData() {
+    try {
+        const statusEl = document.createElement("div");
+        statusEl.id = "loading-status";
+        statusEl.style.marginTop = "20px";
+        statusEl.style.color = "#ccc";
+        statusEl.textContent = "Loading external data...";
+        document.querySelector(".start-menu").appendChild(statusEl);
+
+        const response = await fetch('game-data.json?t=' + Date.now()); // Prevent caching
+        if (response.ok) {
+            const data = await response.json();
+            if (data.levels && data.dialogue) {
+                levels = data.levels;
+                dialogue = data.dialogue;
+
+                // Refresh state
+                currentLevelName = Object.keys(levels)[0] || 'classroom';
+                // Force full reload of level to update player position etc.
+                loadLevel(currentLevelName);
+
+                statusEl.textContent = "Loaded Custom Data (game-data.json)";
+                statusEl.style.color = "#4caf50";
+                console.log("Auto-loaded game-data.json");
+            }
+        } else {
+             throw new Error("404");
+        }
+    } catch (e) {
+        console.log("No external game-data.json found, using defaults.");
+        const statusEl = document.getElementById("loading-status");
+        if (statusEl) {
+            statusEl.textContent = "Loaded Default Data";
+            statusEl.style.color = "#ffb74d";
+        }
+    }
+}
+
+// Run auto-load immediately
+loadExternalData();
+
+document.getElementById("btn-play").addEventListener("click", () => {
+  isDeveloperMode = false;
+  startGame();
+});
+
+document.getElementById("btn-dev").addEventListener("click", () => {
+  isDeveloperMode = true;
+  document.getElementById("dev-sidebar").classList.remove("hidden");
+  updateDevRoomSelect(); // Ensure list is populated
+  startGame();
+});
+
+// Start Screen Load Logic
+document.getElementById("btn-load-custom").addEventListener("click", () => {
+    document.getElementById("start-load-input").click();
+});
+
+document.getElementById("start-load-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.levels && data.dialogue) {
+        levels = data.levels;
+        dialogue = data.dialogue;
+
+        currentLevelName = Object.keys(levels)[0] || 'classroom';
+        loadLevel(currentLevelName);
+
+        const statusEl = document.getElementById("loading-status");
+        if (statusEl) {
+            statusEl.textContent = "Loaded: " + file.name;
+            statusEl.style.color = "#4caf50";
+        }
+        alert("Custom data loaded! Click Play to start.");
+      } else {
+        alert("Invalid game data file.");
+      }
+    } catch (err) {
+      alert("Error parsing JSON");
+    }
+  };
+  reader.readAsText(file);
+});
+
+// Save JSON
+document.getElementById("dev-save").addEventListener("click", async () => {
+  const data = {
+    levels: levels,
+    dialogue: dialogue
+  };
+  // Use a replacer to exclude internal properties like _cachedImage
+  const jsonString = JSON.stringify(data, (key, value) => {
+      if (key.startsWith('_')) return undefined;
+      return value;
+  }, 2);
+
+  // Try File System Access API
+  if (window.showSaveFilePicker) {
+      try {
+          const handle = await window.showSaveFilePicker({
+              suggestedName: 'game-data.json',
+              types: [{
+                  description: 'JSON File',
+                  accept: {'application/json': ['.json']},
+              }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(jsonString);
+          await writable.close();
+          alert("Saved successfully!");
+          return;
+      } catch (err) {
+          if (err.name !== 'AbortError') {
+              console.error(err);
+              alert("Error saving file via API. Falling back to download.");
+          } else {
+              return; // User cancelled
+          }
+      }
+  }
+
+  // Fallback
+  const blob = new Blob([jsonString], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "game-data.json";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// Load JSON
+document.getElementById("dev-load").addEventListener("click", () => {
+  document.getElementById("dev-load-input").click();
+});
+
+document.getElementById("dev-load-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.levels && data.dialogue) {
+        levels = data.levels;
+        dialogue = data.dialogue;
+        loadLevel(currentLevelName); // Reload current level
+        alert("Game data loaded successfully!");
+      } else {
+        alert("Invalid game data file.");
+      }
+    } catch (err) {
+      alert("Error parsing JSON");
+    }
+  };
+  reader.readAsText(file);
+});
