@@ -13,27 +13,38 @@ const dialogue = [
 
 let stage = 0;
 let isHintActive = false;
+let interactionMessageTimer = 0;
 const keys = new Set();
 const camera = { x: 0, y: 0 };
 
 const levels = {
-  classroom: {
+  dorm: {
     width: 680,
     height: 520,
     wallHeight: 96,
     padding: 32,
-    door: { x: 340 - 32, y: 96 - 80, width: 64, height: 80, target: 'hallway', targetSpawn: { x: 1282, y: 440 } },
+    doors: [
+      {
+        x: 340 - 32,
+        y: 96 - 80,
+        width: 64,
+        height: 80,
+        orientation: 'top',
+        target: 'hallway',
+        targetSpawn: { x: 1282, y: 440 }
+      }
+    ],
     spawn: { x: 120, y: 240 },
     furniture: [
-      // Beds (Desks) on left wall (vertical)
-      { type: 'desk', x: 50, y: 200, width: 50, height: 90 },
-      { type: 'desk', x: 50, y: 340, width: 50, height: 90 },
+      // Beds on left wall (vertical)
+      { type: 'bed', x: 50, y: 200, width: 60, height: 100 },
+      { type: 'bed', x: 50, y: 340, width: 60, height: 100 },
       // Beds on right wall (vertical)
-      { type: 'desk', x: 680 - 100, y: 200, width: 50, height: 90 },
-      { type: 'desk', x: 680 - 100, y: 340, width: 50, height: 90 },
+      { type: 'bed', x: 680 - 110, y: 200, width: 60, height: 100 },
+      { type: 'bed', x: 680 - 110, y: 340, width: 60, height: 100 },
 
       // Common Table in center
-      { type: 'desk', x: 340 - 60, y: 240, width: 120, height: 60 },
+      { type: 'table', x: 340 - 60, y: 240, width: 120, height: 60 },
 
       // Cupboards
       { type: 'cupboard', x: 50, y: 96 - 30, width: 60, height: 90, facing: 'right' },
@@ -45,7 +56,26 @@ const levels = {
     height: 520,
     wallHeight: 96,
     padding: 32,
-    door: { x: 1250, y: 520 - 32, width: 64, height: 32, target: 'classroom', targetSpawn: { x: 340, y: 130 } },
+    doors: [
+      {
+        x: 1250,
+        y: 520 - 32,
+        width: 72,
+        height: 40,
+        orientation: 'bottom',
+        target: 'dorm',
+        targetSpawn: { x: 340, y: 130 }
+      },
+      {
+        x: 56,
+        y: 96 - 88,
+        width: 80,
+        height: 88,
+        orientation: 'top',
+        target: 'classroom',
+        targetSpawn: { x: 200, y: 420 }
+      }
+    ],
     spawn: { x: 1282, y: 520 - 80 },
     furniture: [
       // Lockers row 1
@@ -68,11 +98,56 @@ const levels = {
       { type: 'window', x: 700, y: 20, width: 100, height: 50 },
       { type: 'window', x: 1100, y: 20, width: 100, height: 50 }
     ]
+  },
+  classroom: {
+    width: 960,
+    height: 600,
+    wallHeight: 96,
+    padding: 32,
+    doors: [
+      {
+        x: 120,
+        y: 600 - 40,
+        width: 96,
+        height: 40,
+        orientation: 'bottom',
+        target: 'hallway',
+        targetSpawn: { x: 96, y: 180 }
+      }
+    ],
+    spawn: { x: 160, y: 440 },
+    furniture: [
+      { type: 'teacher-desk', x: 420, y: 140, width: 120, height: 70 },
+      { type: 'whiteboard', x: 240, y: 30, width: 480, height: 40 },
+      // Student desks rows
+      { type: 'student-desk', x: 180, y: 240, width: 90, height: 70, student: { color: '#ffcc80' } },
+      { type: 'student-desk', x: 320, y: 240, width: 90, height: 70, student: { color: '#ffe0b2' } },
+      { type: 'student-desk', x: 460, y: 240, width: 90, height: 70, student: { color: '#ffb74d' } },
+      { type: 'student-desk', x: 600, y: 240, width: 90, height: 70, student: { color: '#ffe0b2' } },
+
+      { type: 'student-desk', x: 180, y: 340, width: 90, height: 70, student: { color: '#d1c4e9' } },
+      { type: 'student-desk', x: 320, y: 340, width: 90, height: 70, student: { color: '#ffccbc' } },
+      { type: 'student-desk', x: 460, y: 340, width: 90, height: 70, student: { color: '#c5cae9' } },
+      { type: 'student-desk', x: 600, y: 340, width: 90, height: 70, student: { color: '#f8bbd0' } },
+
+      { type: 'student-desk', x: 180, y: 440, width: 90, height: 70, student: { color: '#b2dfdb' } },
+      { type: 'student-desk', x: 320, y: 440, width: 90, height: 70, student: { color: '#ffe082' } },
+      { type: 'student-desk', x: 460, y: 440, width: 90, height: 70, student: { color: '#c8e6c9' } },
+      { type: 'student-desk', x: 600, y: 440, width: 90, height: 70, student: { color: '#b3e5fc' } },
+
+      // Spare chairs near back
+      { type: 'chair', x: 760, y: 240, width: 36, height: 40 },
+      { type: 'chair', x: 760, y: 300, width: 36, height: 40 },
+      { type: 'chair', x: 760, y: 360, width: 36, height: 40 },
+      { type: 'chair', x: 760, y: 420, width: 36, height: 40 }
+    ]
   }
 };
 
-let currentLevelName = 'classroom';
+let currentLevelName = 'dorm';
 let room = levels[currentLevelName];
+
+let tick = 0;
 
 const player = {
   x: room.spawn.x,
@@ -229,41 +304,51 @@ function drawRoom() {
   ctx.fillRect(room.padding, room.wallHeight - 12, room.width - room.padding * 2, 12);
 }
 
-function drawDoor() {
-  if (!room.door) return;
-
-  const { x, y, width, height } = room.door;
-
-  // Check if door is on bottom wall (simple check: y > room.height / 2)
-  const isBottom = y > room.height / 2;
+function drawDoor(door) {
+  const { x, y, width, height, orientation } = door;
+  const isBottom = orientation === 'bottom';
 
   if (isBottom) {
       // Bottom Door (Exit mat style)
-      ctx.fillStyle = "#3e2723"; // Frame color
-      ctx.fillRect(x - 4, y, width + 8, height);
+      ctx.fillStyle = "#4a342d"; // Frame color
+      ctx.fillRect(x - 6, y, width + 12, height);
 
-      ctx.fillStyle = "#263238"; // Dark void/exit
+      // Door surface with panels
+      ctx.fillStyle = "#d7ccc8";
       ctx.fillRect(x, y + 4, width, height - 4);
+      ctx.fillStyle = "#bcaaa4";
+      ctx.fillRect(x + 6, y + 10, width - 12, 10);
+      ctx.fillRect(x + 6, y + height - 22, width - 12, 10);
 
-      // Mat
-      ctx.fillStyle = "#5d4037"; // Slightly lighter than void
-      ctx.fillRect(x, y + height - 10, width, 10);
+      // Knobs
+      ctx.fillStyle = "#37474f";
+      ctx.beginPath();
+      ctx.arc(x + width / 2, y + height - 12, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Floor mat
+      ctx.fillStyle = "#5d4037";
+      ctx.fillRect(x - 4, y + height - 8, width + 8, 8);
   } else {
       // Top Door (Standard)
-      // Frame
-      ctx.fillStyle = "#3e2723";
-      ctx.fillRect(x - 6, y - 6, width + 12, height + 6);
+      ctx.fillStyle = "#5d4037";
+      ctx.fillRect(x - 8, y - 8, width + 16, height + 12);
 
       // Door itself
-      ctx.fillStyle = "#ffca28";
+      ctx.fillStyle = currentLevelName === 'hallway' ? "#ffc107" : "#ffca28";
       ctx.fillRect(x, y, width, height);
 
+      // Panels
+      ctx.fillStyle = "#f57f17";
+      ctx.fillRect(x + 8, y + 10, width - 16, 10);
+      ctx.fillRect(x + 8, y + height - 24, width - 16, 10);
+
       // Shadow/Depth
-      ctx.fillStyle = "rgba(0,0,0,0.2)";
-      ctx.fillRect(x, y, 6, height);
+      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.fillRect(x, y, 8, height);
 
       // Knob
-      ctx.fillStyle = "#333";
+      ctx.fillStyle = "#263238";
       ctx.beginPath();
       ctx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
       ctx.fill();
@@ -287,6 +372,101 @@ function drawDesk(item) {
   // Edge
   ctx.fillStyle = "#6d4c41";
   ctx.fillRect(item.x, item.y + item.height - 15, item.width, 5);
+}
+
+function drawTable(item) {
+  ctx.fillStyle = "#6d4c41";
+  ctx.fillRect(item.x, item.y, item.width, item.height - 12);
+
+  ctx.fillStyle = "#8d6e63";
+  ctx.fillRect(item.x + 4, item.y + 4, item.width - 8, item.height - 20);
+
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  ctx.fillRect(item.x + 6, item.y + item.height - 12, item.width - 12, 12);
+}
+
+function drawBed(item) {
+  ctx.fillStyle = "#3e2723";
+  ctx.fillRect(item.x, item.y + 10, item.width, item.height - 10);
+
+  ctx.fillStyle = "#8d6e63";
+  ctx.fillRect(item.x + 4, item.y + 6, item.width - 8, item.height - 20);
+
+  // Blanket
+  ctx.fillStyle = "#90caf9";
+  ctx.fillRect(item.x + 6, item.y + 20, item.width - 12, item.height - 40);
+
+  // Pillow
+  ctx.fillStyle = "#e0f7fa";
+  ctx.fillRect(item.x + item.width / 2 - 18, item.y + 8, 36, 16);
+  ctx.fillStyle = "rgba(0,0,0,0.1)";
+  ctx.fillRect(item.x + item.width / 2 - 18, item.y + 20, 36, 2);
+}
+
+function drawTeacherDesk(item) {
+  ctx.fillStyle = "#4e342e";
+  ctx.fillRect(item.x, item.y, item.width, item.height - 10);
+
+  ctx.fillStyle = "#6d4c41";
+  ctx.fillRect(item.x + 4, item.y + 4, item.width - 8, item.height - 18);
+
+  ctx.fillStyle = "#3e2723";
+  ctx.fillRect(item.x + 8, item.y + item.height - 16, item.width - 16, 10);
+
+  // Papers
+  ctx.fillStyle = "#fafafa";
+  ctx.fillRect(item.x + 12, item.y + 12, 32, 18);
+  ctx.fillRect(item.x + item.width - 48, item.y + 16, 28, 14);
+}
+
+function drawWhiteboard(item) {
+  ctx.fillStyle = "#cfd8dc";
+  ctx.fillRect(item.x, item.y, item.width, item.height);
+
+  ctx.strokeStyle = "#eceff1";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(item.x, item.y, item.width, item.height);
+
+  ctx.fillStyle = "#42a5f5";
+  ctx.fillRect(item.x + 20, item.y + 10, 80, 12);
+  ctx.fillStyle = "#ef5350";
+  ctx.fillRect(item.x + 120, item.y + 10, 60, 12);
+}
+
+function drawSeatedStudent(x, y, color) {
+  const bob = Math.sin(tick / 12) * 1.5;
+
+  // Body
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y - 18 - bob, 14, 18);
+
+  // Head
+  ctx.fillStyle = "#ffe0b2";
+  ctx.fillRect(x, y - 32 - bob, 14, 14);
+
+  // Hair band
+  ctx.fillStyle = "#6d4c41";
+  ctx.fillRect(x, y - 32 - bob, 14, 4);
+
+  // Eyes
+  ctx.fillStyle = "#263238";
+  ctx.fillRect(x + 3, y - 26 - bob, 2, 2);
+  ctx.fillRect(x + 9, y - 26 - bob, 2, 2);
+}
+
+function drawStudentDesk(item) {
+  drawDesk(item);
+  const seatX = item.x + item.width / 2 - 7;
+  const seatY = item.y + item.height;
+  drawSeatedStudent(seatX, seatY, item.student?.color || "#81d4fa");
+}
+
+function drawChair(item) {
+  ctx.fillStyle = "#8d6e63";
+  ctx.fillRect(item.x, item.y + 6, item.width, item.height - 6);
+
+  ctx.fillStyle = "#a1887f";
+  ctx.fillRect(item.x + 4, item.y, item.width - 8, item.height - 10);
 }
 
 function drawCupboard(item) {
@@ -395,9 +575,15 @@ function drawWindow(item) {
 
 function drawFurnitureItem(item) {
     if (item.type === 'desk') drawDesk(item);
+    else if (item.type === 'table') drawTable(item);
+    else if (item.type === 'bed') drawBed(item);
     else if (item.type === 'cupboard') drawCupboard(item);
     else if (item.type === 'locker') drawLocker(item);
     else if (item.type === 'window') drawWindow(item);
+    else if (item.type === 'teacher-desk') drawTeacherDesk(item);
+    else if (item.type === 'whiteboard') drawWhiteboard(item);
+    else if (item.type === 'student-desk') drawStudentDesk(item);
+    else if (item.type === 'chair') drawChair(item);
 }
 
 function drawPlayer(x, y) {
@@ -533,7 +719,9 @@ function draw() {
   ctx.translate(-camera.x, -camera.y);
 
   drawRoom();
-  drawDoor();
+  if (room.doors) {
+    room.doors.forEach(drawDoor);
+  }
 
   const renderList = [];
   renderList.push({
@@ -567,7 +755,7 @@ function drawHints() {
   ctx.font = "16px 'VT323', 'Courier New', monospace";
   ctx.textAlign = "center";
 
-  if (stage >= 2 && currentLevelName === 'classroom') {
+  if (stage >= 2 && currentLevelName === 'dorm') {
     ctx.fillStyle = "#9e9e9e";
     ctx.fillText("W A S D", canvas.width - 60, canvas.height - 40);
   }
@@ -575,9 +763,12 @@ function drawHints() {
 
   // DOM Hints logic
   let showingHint = false;
-  if (room.door) {
-      const dist = Math.hypot(player.x - (room.door.x + room.door.width/2), player.y - (room.door.y + room.door.height));
-      if (dist < 50) {
+  if (interactionMessageTimer > 0) {
+      interactionMessageTimer -= 1;
+      showingHint = true;
+  } else if (room.doors) {
+      const closeDoor = room.doors.find(d => Math.hypot(player.x - (d.x + d.width/2), player.y - (d.y + d.height)) < 60);
+      if (closeDoor) {
           showingHint = true;
           if (!isHintActive) {
              dialogueBox.hidden = false;
@@ -599,6 +790,7 @@ function drawHints() {
 
 function loop() {
   handleMovement();
+  tick += 1;
   draw();
   requestAnimationFrame(loop);
 }
@@ -614,13 +806,45 @@ function advanceDialogue() {
 }
 
 // Interaction Handler
+function showInteractionMessage(text) {
+    dialogueBox.hidden = false;
+    dialogueBox.classList.remove("dialogue--hidden");
+    dialogueBox.classList.add("dialogue--active");
+    dialogueLine.textContent = text;
+    dialogueLabel.textContent = "LUKE";
+    dialogueLabel.classList.remove("dialogue__label--hidden");
+    dialoguePrompt.textContent = "";
+    interactionMessageTimer = 90;
+    isHintActive = true;
+}
+
+function findNearbyFurniture(types, maxDistance = 70) {
+    return room.furniture.find(item => {
+        if (!types.includes(item.type)) return false;
+        const centerX = item.x + item.width / 2;
+        const centerY = item.y + item.height;
+        const dist = Math.hypot(player.x - centerX, player.y - centerY);
+        return dist < maxDistance;
+    });
+}
+
 function handleInteraction() {
-    if (!room.door) return;
-    const dist = Math.hypot(player.x - (room.door.x + room.door.width/2), player.y - (room.door.y + room.door.height));
-    if (dist < 50) {
-        if (room.door.target) {
-            loadLevel(room.door.target, room.door.targetSpawn);
-        }
+    const bed = findNearbyFurniture(['bed']);
+    if (bed) {
+        showInteractionMessage("it's not the right time to sleep");
+        return;
+    }
+
+    const cupboard = findNearbyFurniture(['cupboard']);
+    if (cupboard) {
+        showInteractionMessage("why?");
+        return;
+    }
+
+    if (!room.doors) return;
+    const closeDoor = room.doors.find(d => Math.hypot(player.x - (d.x + d.width/2), player.y - (d.y + d.height)) < 60);
+    if (closeDoor && closeDoor.target) {
+        loadLevel(closeDoor.target, closeDoor.targetSpawn);
     }
 }
 
