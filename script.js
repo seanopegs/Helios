@@ -72,6 +72,7 @@ function updateDevRoomSelect() {
 }
 
 document.getElementById("dev-room-select").addEventListener("change", (e) => {
+    // Save current player pos if needed or just switch
     loadLevel(e.target.value);
 });
 
@@ -727,6 +728,15 @@ function drawFurnitureItem(item) {
     else if (item.type === 'rug') drawRug(item);
     else if (item.type === 'shelf') drawShelf(item);
     else if (item.type === 'whiteboard') drawWhiteboard(item);
+    else {
+        // Fallback for custom/unknown objects
+        ctx.fillStyle = "#e91e63"; // Magenta for visibility
+        ctx.fillRect(item.x, item.y, item.width, item.height);
+        ctx.fillStyle = "white";
+        ctx.font = "10px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(item.type, item.x + item.width/2, item.y + item.height/2);
+    }
 }
 
 function drawPlayer(x, y) {
@@ -1227,6 +1237,9 @@ function updatePropPanel() {
     const extra = document.getElementById("prop-extra");
     extra.innerHTML = "";
 
+    // Type is always editable now
+    addPropInput(extra, "Type", selectedObject.type, v => selectedObject.type = v);
+
     // Add specific fields
     if (selectedObject.type === 'student') {
         addPropInput(extra, "Name", selectedObject.name || 'STUDENT', v => selectedObject.name = v);
@@ -1359,6 +1372,31 @@ function startGame() {
   loop();
 }
 
+// Auto-load external JSON if present
+async function loadExternalData() {
+    try {
+        const response = await fetch('game-data.json');
+        if (response.ok) {
+            const data = await response.json();
+            if (data.levels && data.dialogue) {
+                levels = data.levels;
+                dialogue = data.dialogue;
+
+                // Refresh state
+                currentLevelName = Object.keys(levels)[0] || 'classroom';
+                room = levels[currentLevelName];
+                updateDevRoomSelect();
+                console.log("Auto-loaded game-data.json");
+            }
+        }
+    } catch (e) {
+        console.log("No external game-data.json found, using defaults.");
+    }
+}
+
+// Run auto-load immediately
+loadExternalData();
+
 document.getElementById("btn-play").addEventListener("click", () => {
   isDeveloperMode = false;
   startGame();
@@ -1367,6 +1405,7 @@ document.getElementById("btn-play").addEventListener("click", () => {
 document.getElementById("btn-dev").addEventListener("click", () => {
   isDeveloperMode = true;
   document.getElementById("dev-sidebar").classList.remove("hidden");
+  updateDevRoomSelect(); // Ensure list is populated
   startGame();
 });
 
