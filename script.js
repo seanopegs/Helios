@@ -64,8 +64,8 @@ const levels = {
     padding: 32,
     theme: 'hall',
     doors: [
-      { x: 1250, y: 520 - 40, width: 68, height: 40, orientation: 'bottom', target: 'classroom', targetSpawn: { x: 340, y: 130 } },
-      { x: 24, y: 220, width: 70, height: 84, orientation: 'left', target: 'lecture', targetSpawn: { x: 842, y: 224 } }
+      { x: 1258, y: 520 - 80, width: 54, height: 80, orientation: 'bottom', target: 'classroom', targetSpawn: { x: 340, y: 130 } },
+      { x: 24, y: 220, width: 54, height: 90, orientation: 'left', target: 'lecture', targetSpawn: { x: 842, y: 224 } }
     ],
     spawn: { x: 1282, y: 520 - 80 },
     furniture: [
@@ -92,7 +92,7 @@ const levels = {
   },
   lecture: {
     width: 960,
-    height: 620,
+    height: 820,
     wallHeight: 110,
     padding: 32,
     theme: 'classroom',
@@ -143,7 +143,21 @@ const levels = {
       { type: 'student', x: 523, y: 474, width: 24, height: 36, variant: 'girl', shirt: '#f06292', text: "Nice weather today." },
 
       { type: 'desk', variant: 'study', x: 660, y: 440, width: 70, height: 60 },
-      { type: 'student', x: 683, y: 474, width: 24, height: 36, variant: 'boy', shirt: '#9575cd', text: "I'm hungry." }
+      { type: 'student', x: 683, y: 474, width: 24, height: 36, variant: 'boy', shirt: '#9575cd', text: "I'm hungry." },
+
+      // Lockers at bottom
+      { type: 'locker', x: 200, y: 700, width: 50, height: 100 },
+      { type: 'locker', x: 250, y: 700, width: 50, height: 100 },
+      { type: 'locker', x: 300, y: 700, width: 50, height: 100 },
+      { type: 'locker', x: 350, y: 700, width: 50, height: 100 },
+
+      { type: 'locker', x: 560, y: 700, width: 50, height: 100 },
+      { type: 'locker', x: 610, y: 700, width: 50, height: 100 },
+      { type: 'locker', x: 660, y: 700, width: 50, height: 100 },
+      { type: 'locker', x: 710, y: 700, width: 50, height: 100 },
+
+      // Rug
+      { type: 'rug', x: 420, y: 720, width: 120, height: 80, color: "#607d8b" }
     ]
   }
 };
@@ -177,6 +191,12 @@ function loadLevel(name, spawnPos) {
   }
 
   camera.x = 0;
+  camera.y = 0;
+
+  let title = "Helios - Luke's Room";
+  if (name === 'lecture') title = "Helios - Classroom";
+  else if (name === 'hallway') title = "Helios - Student Hallway";
+  document.title = title;
 }
 
 function getDoors() {
@@ -320,9 +340,14 @@ function handleMovement() {
 
   // Camera update
   const camTargetX = player.x - canvas.width / 2;
+  const camTargetY = player.y - canvas.height / 2;
+
   // Clamp
-  const maxCamX = room.width - canvas.width;
+  const maxCamX = Math.max(0, room.width - canvas.width);
+  const maxCamY = Math.max(0, room.height - canvas.height);
+
   camera.x = Math.max(0, Math.min(camTargetX, maxCamX));
+  camera.y = Math.max(0, Math.min(camTargetY, maxCamY));
 }
 
 function drawRoom() {
