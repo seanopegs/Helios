@@ -276,8 +276,8 @@ function checkCollision(x, y) {
 }
 
 function handleMovement() {
-  // Block movement if dialogue is active
-  if (dialogueBox.classList.contains("dialogue--active")) return;
+  // Block movement if dialogue is active (but allow if it's just a hint)
+  if (dialogueBox.classList.contains("dialogue--active") && !isHintActive) return;
   if (player.isSitting) return;
 
   let dx = 0;
@@ -1340,7 +1340,7 @@ document.addEventListener("keydown", (event) => {
     keys.add(key);
   }
   if (key === " ") {
-      if (dialogueBox.classList.contains("dialogue--active")) {
+      if (dialogueBox.classList.contains("dialogue--active") && !isHintActive) {
           advanceDialogue();
       } else {
           handleInteraction();
