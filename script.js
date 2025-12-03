@@ -256,14 +256,27 @@ function checkCollision(x, y) {
 
   // Furniture collision
   for (const item of room.furniture) {
-    // Windows and Rugs don't block movement
-    if (item.type === 'window' || item.type === 'rug' || item.type === 'shelf') continue;
+    const hasCustom = !!item.collisionRect;
 
-    const dLeft = item.x;
-    const dRight = item.x + item.width;
-    const dTop = item.y;
-    // Basic depth for furniture (collision at base)
-    const dBottom = item.y + item.height;
+    // Windows and Rugs don't block movement unless custom collision is set
+    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf')) continue;
+
+    let dLeft, dTop, dWidth, dHeight;
+
+    if (hasCustom) {
+        dLeft = item.x + item.collisionRect.x;
+        dTop = item.y + item.collisionRect.y;
+        dWidth = item.collisionRect.width;
+        dHeight = item.collisionRect.height;
+    } else {
+        dLeft = item.x;
+        dTop = item.y;
+        dWidth = item.width;
+        dHeight = item.height;
+    }
+
+    const dRight = dLeft + dWidth;
+    const dBottom = dTop + dHeight;
 
     // A bit of padding for movement feel
     if (x + half > dLeft && x - half < dRight &&
@@ -370,359 +383,359 @@ function drawRoom() {
   ctx.fillRect(room.padding, room.wallHeight - 12, room.width - room.padding * 2, 12);
 }
 
-function drawDoor(door) {
+function drawDoor(door, targetCtx = ctx) {
   const { x, y, width, height } = door;
   const orientation = door.orientation || (y > room.height / 2 ? 'bottom' : 'top');
 
   if (orientation === 'bottom') {
       // Bottom Door (Exit mat style)
-      ctx.fillStyle = "#2d1e19"; // Frame color
-      ctx.fillRect(x - 6, y - 4, width + 12, height + 6);
+      targetCtx.fillStyle = "#2d1e19"; // Frame color
+      targetCtx.fillRect(x - 6, y - 4, width + 12, height + 6);
 
-      const gradient = ctx.createLinearGradient(0, y, 0, y + height);
+      const gradient = targetCtx.createLinearGradient(0, y, 0, y + height);
       gradient.addColorStop(0, "#5d4037");
       gradient.addColorStop(1, "#3e2723");
-      ctx.fillStyle = gradient; // Door body
-      ctx.fillRect(x, y, width, height);
+      targetCtx.fillStyle = gradient; // Door body
+      targetCtx.fillRect(x, y, width, height);
 
       // Window slit
-      ctx.fillStyle = "#90a4ae";
-      ctx.fillRect(x + 10, y + 8, width - 20, 10);
+      targetCtx.fillStyle = "#90a4ae";
+      targetCtx.fillRect(x + 10, y + 8, width - 20, 10);
 
       // Knob
-      ctx.fillStyle = "#f0c419";
-      ctx.beginPath();
-      ctx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
-      ctx.fill();
+      targetCtx.fillStyle = "#f0c419";
+      targetCtx.beginPath();
+      targetCtx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
+      targetCtx.fill();
 
       // Mat
-      ctx.fillStyle = "#6d4c41";
-      ctx.fillRect(x - 4, y + height - 8, width + 8, 10);
+      targetCtx.fillStyle = "#6d4c41";
+      targetCtx.fillRect(x - 4, y + height - 8, width + 8, 10);
   } else if (orientation === 'left') {
       // Left wall door
-      ctx.fillStyle = "#3a271f";
-      ctx.fillRect(x - 4, y - 6, width + 8, height + 12);
+      targetCtx.fillStyle = "#3a271f";
+      targetCtx.fillRect(x - 4, y - 6, width + 8, height + 12);
 
-      const gradient = ctx.createLinearGradient(x, 0, x + width, 0);
+      const gradient = targetCtx.createLinearGradient(x, 0, x + width, 0);
       gradient.addColorStop(0, "#f6c453");
       gradient.addColorStop(1, "#d89c27");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(x, y, width, height);
+      targetCtx.fillStyle = gradient;
+      targetCtx.fillRect(x, y, width, height);
 
-      ctx.fillStyle = "rgba(0,0,0,0.2)";
-      ctx.fillRect(x, y, width, 6);
+      targetCtx.fillStyle = "rgba(0,0,0,0.2)";
+      targetCtx.fillRect(x, y, width, 6);
 
-      ctx.fillStyle = "#90caf9";
-      ctx.fillRect(x + 10, y + 8, 14, height - 16);
+      targetCtx.fillStyle = "#90caf9";
+      targetCtx.fillRect(x + 10, y + 8, 14, height - 16);
 
-      ctx.fillStyle = "#333";
-      ctx.beginPath();
-      ctx.arc(x + width / 2, y + height - 12, 4, 0, Math.PI * 2);
-      ctx.fill();
+      targetCtx.fillStyle = "#333";
+      targetCtx.beginPath();
+      targetCtx.arc(x + width / 2, y + height - 12, 4, 0, Math.PI * 2);
+      targetCtx.fill();
   } else if (orientation === 'right') {
       // Right wall door
-      ctx.fillStyle = "#3a271f";
-      ctx.fillRect(x - 4, y - 6, width + 8, height + 12);
+      targetCtx.fillStyle = "#3a271f";
+      targetCtx.fillRect(x - 4, y - 6, width + 8, height + 12);
 
-      const gradient = ctx.createLinearGradient(x, 0, x + width, 0);
+      const gradient = targetCtx.createLinearGradient(x, 0, x + width, 0);
       gradient.addColorStop(0, "#d89c27");
       gradient.addColorStop(1, "#f6c453");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(x, y, width, height);
+      targetCtx.fillStyle = gradient;
+      targetCtx.fillRect(x, y, width, height);
 
-      ctx.fillStyle = "rgba(0,0,0,0.2)";
-      ctx.fillRect(x + width - 6, y, 6, height);
+      targetCtx.fillStyle = "rgba(0,0,0,0.2)";
+      targetCtx.fillRect(x + width - 6, y, 6, height);
 
-      ctx.fillStyle = "#90caf9";
-      ctx.fillRect(x + width - 24, y + 8, 14, height - 16);
+      targetCtx.fillStyle = "#90caf9";
+      targetCtx.fillRect(x + width - 24, y + 8, 14, height - 16);
 
-      ctx.fillStyle = "#333";
-      ctx.beginPath();
-      ctx.arc(x + width / 2, y + 12, 4, 0, Math.PI * 2);
-      ctx.fill();
+      targetCtx.fillStyle = "#333";
+      targetCtx.beginPath();
+      targetCtx.arc(x + width / 2, y + 12, 4, 0, Math.PI * 2);
+      targetCtx.fill();
   } else {
       // Top Door (Standard)
       // Frame
-      ctx.fillStyle = "#3a271f";
-      ctx.fillRect(x - 6, y - 6, width + 12, height + 10);
+      targetCtx.fillStyle = "#3a271f";
+      targetCtx.fillRect(x - 6, y - 6, width + 12, height + 10);
 
-      const gradient = ctx.createLinearGradient(0, y, 0, y + height);
+      const gradient = targetCtx.createLinearGradient(0, y, 0, y + height);
       gradient.addColorStop(0, "#f6c453");
       gradient.addColorStop(1, "#d89c27");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(x, y, width, height);
+      targetCtx.fillStyle = gradient;
+      targetCtx.fillRect(x, y, width, height);
 
       // Shadow/Depth
-      ctx.fillStyle = "rgba(0,0,0,0.2)";
-      ctx.fillRect(x, y, 6, height);
+      targetCtx.fillStyle = "rgba(0,0,0,0.2)";
+      targetCtx.fillRect(x, y, 6, height);
 
       // Upper window panel
-      ctx.fillStyle = "#90caf9";
-      ctx.fillRect(x + 8, y + 10, width - 16, 14);
+      targetCtx.fillStyle = "#90caf9";
+      targetCtx.fillRect(x + 8, y + 10, width - 16, 14);
 
       // Knob
-      ctx.fillStyle = "#333";
-      ctx.beginPath();
-      ctx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
-      ctx.fill();
+      targetCtx.fillStyle = "#333";
+      targetCtx.beginPath();
+      targetCtx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
+      targetCtx.fill();
   }
 }
 
 function drawDoors() {
-  getDoors().forEach(drawDoor);
+  getDoors().forEach(d => drawDoor(d, ctx));
 }
 
-function drawDesk(item) {
+function drawDesk(item, targetCtx = ctx) {
     // Legs
-    ctx.fillStyle = "#3e2723";
-    ctx.fillRect(item.x + 4, item.y + 10, 4, item.height - 10);
-    ctx.fillRect(item.x + item.width - 8, item.y + 10, 4, item.height - 10);
+    targetCtx.fillStyle = "#3e2723";
+    targetCtx.fillRect(item.x + 4, item.y + 10, 4, item.height - 10);
+    targetCtx.fillRect(item.x + item.width - 8, item.y + 10, 4, item.height - 10);
 
     // Top
-    ctx.fillStyle = "#6d4c41"; // Medium wood
-    ctx.fillRect(item.x, item.y, item.width, item.height - 10);
+    targetCtx.fillStyle = "#6d4c41"; // Medium wood
+    targetCtx.fillRect(item.x, item.y, item.width, item.height - 10);
 
     // Drawers on right side if wide enough
     if (item.width > 50) {
-        ctx.fillStyle = "#5d4037";
-        ctx.fillRect(item.x + item.width - 20, item.y + 10, 18, 20);
-        ctx.fillStyle = "#3e2723"; // Knob
-        ctx.fillRect(item.x + item.width - 12, item.y + 18, 4, 4);
+        targetCtx.fillStyle = "#5d4037";
+        targetCtx.fillRect(item.x + item.width - 20, item.y + 10, 18, 20);
+        targetCtx.fillStyle = "#3e2723"; // Knob
+        targetCtx.fillRect(item.x + item.width - 12, item.y + 18, 4, 4);
     }
 
     // Laptop
     if (item.hasLaptop) {
-        ctx.fillStyle = "#cfd8dc"; // Silver
-        ctx.fillRect(item.x + item.width/2 - 10, item.y + 5, 20, 12); // Screen
-        ctx.fillStyle = "#b0bec5";
-        ctx.fillRect(item.x + item.width/2 - 10, item.y + 17, 20, 8); // Base
-        ctx.fillStyle = "#81d4fa"; // Screen glow
-        ctx.fillRect(item.x + item.width/2 - 8, item.y + 7, 16, 8);
+        targetCtx.fillStyle = "#cfd8dc"; // Silver
+        targetCtx.fillRect(item.x + item.width/2 - 10, item.y + 5, 20, 12); // Screen
+        targetCtx.fillStyle = "#b0bec5";
+        targetCtx.fillRect(item.x + item.width/2 - 10, item.y + 17, 20, 8); // Base
+        targetCtx.fillStyle = "#81d4fa"; // Screen glow
+        targetCtx.fillRect(item.x + item.width/2 - 8, item.y + 7, 16, 8);
     }
 
     // Lamp
     if (item.hasLamp) {
-         ctx.fillStyle = "#fff59d"; // Shade
-         ctx.beginPath();
-         ctx.moveTo(item.x + 10, item.y + 15);
-         ctx.lineTo(item.x + 20, item.y + 15);
-         ctx.lineTo(item.x + 15, item.y + 5);
-         ctx.fill();
-         ctx.fillStyle = "#3e2723"; // Stand
-         ctx.fillRect(item.x + 14, item.y + 15, 2, 5);
+         targetCtx.fillStyle = "#fff59d"; // Shade
+         targetCtx.beginPath();
+         targetCtx.moveTo(item.x + 10, item.y + 15);
+         targetCtx.lineTo(item.x + 20, item.y + 15);
+         targetCtx.lineTo(item.x + 15, item.y + 5);
+         targetCtx.fill();
+         targetCtx.fillStyle = "#3e2723"; // Stand
+         targetCtx.fillRect(item.x + 14, item.y + 15, 2, 5);
     }
 }
 
-function drawTable(item) {
+function drawTable(item, targetCtx = ctx) {
   // Shadow
-  ctx.fillStyle = "rgba(0,0,0,0.25)";
-  ctx.fillRect(item.x + 6, item.y + item.height - 6, item.width - 12, 6);
+  targetCtx.fillStyle = "rgba(0,0,0,0.25)";
+  targetCtx.fillRect(item.x + 6, item.y + item.height - 6, item.width - 12, 6);
 
   // Legs
-  ctx.fillStyle = "#2f2a28";
-  ctx.fillRect(item.x + 6, item.y + 12, 8, item.height - 18);
-  ctx.fillRect(item.x + item.width - 14, item.y + 12, 8, item.height - 18);
-  ctx.fillRect(item.x + item.width / 2 - 4, item.y + 12, 8, item.height - 18);
+  targetCtx.fillStyle = "#2f2a28";
+  targetCtx.fillRect(item.x + 6, item.y + 12, 8, item.height - 18);
+  targetCtx.fillRect(item.x + item.width - 14, item.y + 12, 8, item.height - 18);
+  targetCtx.fillRect(item.x + item.width / 2 - 4, item.y + 12, 8, item.height - 18);
 
   // Top
-  const gradient = ctx.createLinearGradient(item.x, item.y, item.x, item.y + item.height);
+  const gradient = targetCtx.createLinearGradient(item.x, item.y, item.x, item.y + item.height);
   gradient.addColorStop(0, "#b0a089");
   gradient.addColorStop(1, "#9e8c74");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(item.x, item.y, item.width, item.height - 10);
+  targetCtx.fillStyle = gradient;
+  targetCtx.fillRect(item.x, item.y, item.width, item.height - 10);
 
   // Edge
-  ctx.fillStyle = "#7b6a56";
-  ctx.fillRect(item.x, item.y + item.height - 10, item.width, 10);
+  targetCtx.fillStyle = "#7b6a56";
+  targetCtx.fillRect(item.x, item.y + item.height - 10, item.width, 10);
 }
 
-function drawBed(item) {
+function drawBed(item, targetCtx = ctx) {
   // Headboard (Wood)
-  ctx.fillStyle = "#5d4037"; // Dark wood
-  ctx.fillRect(item.x, item.y, item.width, 12);
+  targetCtx.fillStyle = "#5d4037"; // Dark wood
+  targetCtx.fillRect(item.x, item.y, item.width, 12);
 
   // Footboard
-  ctx.fillRect(item.x, item.y + item.height - 8, item.width, 8);
+  targetCtx.fillRect(item.x, item.y + item.height - 8, item.width, 8);
 
   // Mattress
-  ctx.fillStyle = "#eceff1";
-  ctx.fillRect(item.x + 4, item.y + 8, item.width - 8, item.height - 16);
+  targetCtx.fillStyle = "#eceff1";
+  targetCtx.fillRect(item.x + 4, item.y + 8, item.width - 8, item.height - 16);
 
   // Quilt (Blue Pattern)
-  ctx.fillStyle = "#5c6bc0"; // Indigo/Blue
-  ctx.fillRect(item.x + 4, item.y + 30, item.width - 8, item.height - 38);
+  targetCtx.fillStyle = "#5c6bc0"; // Indigo/Blue
+  targetCtx.fillRect(item.x + 4, item.y + 30, item.width - 8, item.height - 38);
 
   // Pattern on quilt (Diamonds/Checks)
-  ctx.fillStyle = "rgba(255,255,255,0.1)";
+  targetCtx.fillStyle = "rgba(255,255,255,0.1)";
   for(let i=0; i<item.width-8; i+=10) {
       for(let j=0; j<item.height-38; j+=10) {
-          if ((i+j)%20 === 0) ctx.fillRect(item.x + 4 + i, item.y + 30 + j, 5, 5);
+          if ((i+j)%20 === 0) targetCtx.fillRect(item.x + 4 + i, item.y + 30 + j, 5, 5);
       }
   }
 
   // Pillow
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(item.x + 8, item.y + 12, item.width - 16, 15);
+  targetCtx.fillStyle = "#fff";
+  targetCtx.fillRect(item.x + 8, item.y + 12, item.width - 16, 15);
 }
 
-function drawCupboard(item) {
+function drawCupboard(item, targetCtx = ctx) {
     // Body - Dark Wood
-    ctx.fillStyle = "#4e342e";
-    ctx.fillRect(item.x, item.y, item.width, item.height);
+    targetCtx.fillStyle = "#4e342e";
+    targetCtx.fillRect(item.x, item.y, item.width, item.height);
 
     // Doors outline
-    ctx.strokeStyle = "#3e2723";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
+    targetCtx.strokeStyle = "#3e2723";
+    targetCtx.lineWidth = 2;
+    targetCtx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
 
     // Middle split
-    ctx.beginPath();
-    ctx.moveTo(item.x + item.width / 2, item.y + 2);
-    ctx.lineTo(item.x + item.width / 2, item.y + item.height - 2);
-    ctx.stroke();
+    targetCtx.beginPath();
+    targetCtx.moveTo(item.x + item.width / 2, item.y + 2);
+    targetCtx.lineTo(item.x + item.width / 2, item.y + item.height - 2);
+    targetCtx.stroke();
 
     // Panels on doors (inset)
-    ctx.fillStyle = "#3e2723";
+    targetCtx.fillStyle = "#3e2723";
     // Left door panels
-    ctx.fillRect(item.x + 6, item.y + 10, item.width/2 - 10, item.height/2 - 15);
-    ctx.fillRect(item.x + 6, item.y + item.height/2 + 5, item.width/2 - 10, item.height/2 - 15);
+    targetCtx.fillRect(item.x + 6, item.y + 10, item.width/2 - 10, item.height/2 - 15);
+    targetCtx.fillRect(item.x + 6, item.y + item.height/2 + 5, item.width/2 - 10, item.height/2 - 15);
     // Right door panels
-    ctx.fillRect(item.x + item.width/2 + 4, item.y + 10, item.width/2 - 10, item.height/2 - 15);
-    ctx.fillRect(item.x + item.width/2 + 4, item.y + item.height/2 + 5, item.width/2 - 10, item.height/2 - 15);
+    targetCtx.fillRect(item.x + item.width/2 + 4, item.y + 10, item.width/2 - 10, item.height/2 - 15);
+    targetCtx.fillRect(item.x + item.width/2 + 4, item.y + item.height/2 + 5, item.width/2 - 10, item.height/2 - 15);
 
     // Knobs
-    ctx.fillStyle = "#ffd54f"; // Gold
-    ctx.beginPath();
-    ctx.arc(item.x + item.width/2 - 4, item.y + item.height/2, 2, 0, Math.PI*2);
-    ctx.arc(item.x + item.width/2 + 4, item.y + item.height/2, 2, 0, Math.PI*2);
-    ctx.fill();
+    targetCtx.fillStyle = "#ffd54f"; // Gold
+    targetCtx.beginPath();
+    targetCtx.arc(item.x + item.width/2 - 4, item.y + item.height/2, 2, 0, Math.PI*2);
+    targetCtx.arc(item.x + item.width/2 + 4, item.y + item.height/2, 2, 0, Math.PI*2);
+    targetCtx.fill();
 }
 
-function drawChest(item) {
+function drawChest(item, targetCtx = ctx) {
     // Large wooden chest
-    ctx.fillStyle = "#5d4037"; // Wood
-    ctx.fillRect(item.x, item.y, item.width, item.height);
+    targetCtx.fillStyle = "#5d4037"; // Wood
+    targetCtx.fillRect(item.x, item.y, item.width, item.height);
 
     // Planks
-    ctx.fillStyle = "#4e342e";
+    targetCtx.fillStyle = "#4e342e";
     for(let i=0; i<item.height; i+=12) {
-        ctx.fillRect(item.x, item.y + i, item.width, 1);
+        targetCtx.fillRect(item.x, item.y + i, item.width, 1);
     }
 
     // Metal banding
-    ctx.fillStyle = "#3e2723"; // Darker bands
-    ctx.fillRect(item.x + 10, item.y, 8, item.height);
-    ctx.fillRect(item.x + item.width - 18, item.y, 8, item.height);
+    targetCtx.fillStyle = "#3e2723"; // Darker bands
+    targetCtx.fillRect(item.x + 10, item.y, 8, item.height);
+    targetCtx.fillRect(item.x + item.width - 18, item.y, 8, item.height);
 
     // Lock
-    ctx.fillStyle = "#263238"; // Dark metal
-    ctx.fillRect(item.x + item.width/2 - 6, item.y + 10, 12, 14);
-    ctx.fillStyle = "#78909c"; // Silver bit
-    ctx.fillRect(item.x + item.width/2 - 2, item.y + 18, 4, 4);
+    targetCtx.fillStyle = "#263238"; // Dark metal
+    targetCtx.fillRect(item.x + item.width/2 - 6, item.y + 10, 12, 14);
+    targetCtx.fillStyle = "#78909c"; // Silver bit
+    targetCtx.fillRect(item.x + item.width/2 - 2, item.y + 18, 4, 4);
 }
 
-function drawRug(item) {
-    ctx.fillStyle = "#8d6e63"; // Beige/brownish
-    if (item.color) ctx.fillStyle = item.color;
-    ctx.fillRect(item.x, item.y, item.width, item.height);
+function drawRug(item, targetCtx = ctx) {
+    targetCtx.fillStyle = "#8d6e63"; // Beige/brownish
+    if (item.color) targetCtx.fillStyle = item.color;
+    targetCtx.fillRect(item.x, item.y, item.width, item.height);
 
     // Texture/Pattern
-    ctx.strokeStyle = "rgba(0,0,0,0.1)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
+    targetCtx.strokeStyle = "rgba(0,0,0,0.1)";
+    targetCtx.lineWidth = 1;
+    targetCtx.beginPath();
     for(let i=4; i<item.width; i+=4) {
-        ctx.moveTo(item.x + i, item.y);
-        ctx.lineTo(item.x + i, item.y + item.height);
+        targetCtx.moveTo(item.x + i, item.y);
+        targetCtx.lineTo(item.x + i, item.y + item.height);
     }
-    ctx.stroke();
+    targetCtx.stroke();
 }
 
-function drawShelf(item) {
+function drawShelf(item, targetCtx = ctx) {
     // Shelf board
-    ctx.fillStyle = "#5d4037";
-    ctx.fillRect(item.x, item.y + item.height - 5, item.width, 5);
+    targetCtx.fillStyle = "#5d4037";
+    targetCtx.fillRect(item.x, item.y + item.height - 5, item.width, 5);
 
     // Books/Plants
-    ctx.fillStyle = "#ef5350"; // Red book
-    ctx.fillRect(item.x + 10, item.y + item.height - 20, 5, 15);
-    ctx.fillStyle = "#42a5f5"; // Blue book
-    ctx.fillRect(item.x + 16, item.y + item.height - 22, 6, 17);
-    ctx.fillStyle = "#66bb6a"; // Green book
-    ctx.fillRect(item.x + 24, item.y + item.height - 18, 4, 13);
+    targetCtx.fillStyle = "#ef5350"; // Red book
+    targetCtx.fillRect(item.x + 10, item.y + item.height - 20, 5, 15);
+    targetCtx.fillStyle = "#42a5f5"; // Blue book
+    targetCtx.fillRect(item.x + 16, item.y + item.height - 22, 6, 17);
+    targetCtx.fillStyle = "#66bb6a"; // Green book
+    targetCtx.fillRect(item.x + 24, item.y + item.height - 18, 4, 13);
 
     // Pot
-    ctx.fillStyle = "#8d6e63";
-    ctx.fillRect(item.x + item.width - 20, item.y + item.height - 15, 10, 10);
+    targetCtx.fillStyle = "#8d6e63";
+    targetCtx.fillRect(item.x + item.width - 20, item.y + item.height - 15, 10, 10);
     // Plant
-    ctx.fillStyle = "#66bb6a";
-    ctx.beginPath();
-    ctx.arc(item.x + item.width - 15, item.y + item.height - 20, 8, 0, Math.PI, true);
-    ctx.fill();
+    targetCtx.fillStyle = "#66bb6a";
+    targetCtx.beginPath();
+    targetCtx.arc(item.x + item.width - 15, item.y + item.height - 20, 8, 0, Math.PI, true);
+    targetCtx.fill();
 }
 
-function drawLocker(item) {
-    ctx.fillStyle = "#607d8b";
-    ctx.fillRect(item.x, item.y, item.width, item.height);
+function drawLocker(item, targetCtx = ctx) {
+    targetCtx.fillStyle = "#607d8b";
+    targetCtx.fillRect(item.x, item.y, item.width, item.height);
 
     // Detail
-    ctx.fillStyle = "#546e7a";
-    ctx.fillRect(item.x + 4, item.y + 10, item.width - 8, 4); // Vents
-    ctx.fillRect(item.x + 4, item.y + 16, item.width - 8, 4);
-    ctx.fillRect(item.x + 4, item.y + 22, item.width - 8, 4);
+    targetCtx.fillStyle = "#546e7a";
+    targetCtx.fillRect(item.x + 4, item.y + 10, item.width - 8, 4); // Vents
+    targetCtx.fillRect(item.x + 4, item.y + 16, item.width - 8, 4);
+    targetCtx.fillRect(item.x + 4, item.y + 22, item.width - 8, 4);
 
     // Handle
-    ctx.fillStyle = "#cfd8dc";
-    ctx.fillRect(item.x + item.width - 8, item.y + item.height/2, 4, 10);
+    targetCtx.fillStyle = "#cfd8dc";
+    targetCtx.fillRect(item.x + item.width - 8, item.y + item.height/2, 4, 10);
 }
 
-function drawWindow(item) {
-    ctx.fillStyle = "#81d4fa";
-    ctx.fillRect(item.x, item.y, item.width, item.height);
+function drawWindow(item, targetCtx = ctx) {
+    targetCtx.fillStyle = "#81d4fa";
+    targetCtx.fillRect(item.x, item.y, item.width, item.height);
 
     // Frame
-    ctx.strokeStyle = "#eceff1";
-    ctx.lineWidth = 4;
-    ctx.strokeRect(item.x, item.y, item.width, item.height);
+    targetCtx.strokeStyle = "#eceff1";
+    targetCtx.lineWidth = 4;
+    targetCtx.strokeRect(item.x, item.y, item.width, item.height);
 
     // Cross
-    ctx.beginPath();
-    ctx.moveTo(item.x + item.width/2, item.y);
-    ctx.lineTo(item.x + item.width/2, item.y + item.height);
-    ctx.moveTo(item.x, item.y + item.height/2);
-    ctx.lineTo(item.x + item.width, item.y + item.height/2);
-    ctx.stroke();
+    targetCtx.beginPath();
+    targetCtx.moveTo(item.x + item.width/2, item.y);
+    targetCtx.lineTo(item.x + item.width/2, item.y + item.height);
+    targetCtx.moveTo(item.x, item.y + item.height/2);
+    targetCtx.lineTo(item.x + item.width, item.y + item.height/2);
+    targetCtx.stroke();
 
     // Shine
-    ctx.fillStyle = "rgba(255,255,255,0.4)";
-    ctx.beginPath();
-    ctx.moveTo(item.x + 10, item.y + item.height);
-    ctx.lineTo(item.x + 30, item.y);
-    ctx.lineTo(item.x + 50, item.y);
-    ctx.lineTo(item.x + 30, item.y + item.height);
-    ctx.fill();
+    targetCtx.fillStyle = "rgba(255,255,255,0.4)";
+    targetCtx.beginPath();
+    targetCtx.moveTo(item.x + 10, item.y + item.height);
+    targetCtx.lineTo(item.x + 30, item.y);
+    targetCtx.lineTo(item.x + 50, item.y);
+    targetCtx.lineTo(item.x + 30, item.y + item.height);
+    targetCtx.fill();
 }
 
-function drawWhiteboard(item) {
+function drawWhiteboard(item, targetCtx = ctx) {
     // Frame
-    ctx.fillStyle = "#b0bec5";
-    ctx.fillRect(item.x, item.y, item.width, item.height);
+    targetCtx.fillStyle = "#b0bec5";
+    targetCtx.fillRect(item.x, item.y, item.width, item.height);
 
     // Surface
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(item.x + 4, item.y + 4, item.width - 8, item.height - 8);
+    targetCtx.fillStyle = "#ffffff";
+    targetCtx.fillRect(item.x + 4, item.y + 4, item.width - 8, item.height - 8);
 
     // Tray
-    ctx.fillStyle = "#90a4ae";
-    ctx.fillRect(item.x + 2, item.y + item.height - 4, item.width - 4, 4);
+    targetCtx.fillStyle = "#90a4ae";
+    targetCtx.fillRect(item.x + 2, item.y + item.height - 4, item.width - 4, 4);
 
     // Eraser/Marker
-    ctx.fillStyle = "#37474f";
-    ctx.fillRect(item.x + 40, item.y + item.height - 4, 10, 3);
-    ctx.fillStyle = "#e53935";
-    ctx.fillRect(item.x + 60, item.y + item.height - 4, 8, 2);
+    targetCtx.fillStyle = "#37474f";
+    targetCtx.fillRect(item.x + 40, item.y + item.height - 4, 10, 3);
+    targetCtx.fillStyle = "#e53935";
+    targetCtx.fillRect(item.x + 60, item.y + item.height - 4, 8, 2);
 }
 
-function drawStudent(item) {
+function drawStudent(item, targetCtx = ctx) {
     const baseY = item.y;
     const bob = Math.sin(Date.now() / 500 + (item.phase || 0)) * 2;
     const seatY = baseY - bob;
@@ -733,41 +746,41 @@ function drawStudent(item) {
     const shirtColor = item.shirt || "#4caf50";
 
     // Seat shadow
-    ctx.fillStyle = "rgba(0,0,0,0.2)";
-    ctx.fillRect(item.x + 2, seatY + h - 4, w - 4, 4);
+    targetCtx.fillStyle = "rgba(0,0,0,0.2)";
+    targetCtx.fillRect(item.x + 2, seatY + h - 4, w - 4, 4);
 
     // Body
-    ctx.fillStyle = shirtColor;
-    ctx.fillRect(item.x, seatY + 12, w, 14);
+    targetCtx.fillStyle = shirtColor;
+    targetCtx.fillRect(item.x, seatY + 12, w, 14);
 
     // Legs (Sitting)
-    ctx.fillStyle = "#3e2723";
-    ctx.fillRect(item.x + 4, seatY + 26, 6, 8);
-    ctx.fillRect(item.x + w - 10, seatY + 26, 6, 8);
+    targetCtx.fillStyle = "#3e2723";
+    targetCtx.fillRect(item.x + 4, seatY + 26, 6, 8);
+    targetCtx.fillRect(item.x + w - 10, seatY + 26, 6, 8);
 
     // Head
-    ctx.fillStyle = "#f1c27d";
-    ctx.fillRect(item.x + 2, seatY, w - 4, 12);
+    targetCtx.fillStyle = "#f1c27d";
+    targetCtx.fillRect(item.x + 2, seatY, w - 4, 12);
 
     // Hair
-    ctx.fillStyle = "#4e342e";
+    targetCtx.fillStyle = "#4e342e";
     if (variant === 'girl') {
-        ctx.fillRect(item.x, seatY, w, 6);
-        ctx.fillRect(item.x, seatY, 4, 14);
-        ctx.fillRect(item.x + w - 4, seatY, 4, 14);
+        targetCtx.fillRect(item.x, seatY, w, 6);
+        targetCtx.fillRect(item.x, seatY, 4, 14);
+        targetCtx.fillRect(item.x + w - 4, seatY, 4, 14);
     } else {
-        ctx.fillRect(item.x, seatY, w, 4);
-        ctx.fillRect(item.x, seatY, 4, 8);
-        ctx.fillRect(item.x + w - 4, seatY, 4, 8);
+        targetCtx.fillRect(item.x, seatY, w, 4);
+        targetCtx.fillRect(item.x, seatY, 4, 8);
+        targetCtx.fillRect(item.x + w - 4, seatY, 4, 8);
     }
 
     // Eyes
-    ctx.fillStyle = "#212121";
-    ctx.fillRect(item.x + 6, seatY + 4, 2, 2);
-    ctx.fillRect(item.x + w - 8, seatY + 4, 2, 2);
+    targetCtx.fillStyle = "#212121";
+    targetCtx.fillRect(item.x + 6, seatY + 4, 2, 2);
+    targetCtx.fillRect(item.x + w - 8, seatY + 4, 2, 2);
 }
 
-function drawFurnitureItem(item) {
+function drawFurnitureItem(item, targetCtx = ctx) {
     if (item.textureData) {
         // Draw Custom Texture
         const img = new Image();
@@ -781,34 +794,34 @@ function drawFurnitureItem(item) {
             item._cachedImage.src = item.textureData;
         }
         if (item._cachedImage.complete) {
-             ctx.drawImage(item._cachedImage, item.x, item.y, item.width, item.height);
+             targetCtx.drawImage(item._cachedImage, item.x, item.y, item.width, item.height);
         } else {
              // Fallback while loading
-             ctx.fillStyle = "#ccc";
-             ctx.fillRect(item.x, item.y, item.width, item.height);
+             targetCtx.fillStyle = "#ccc";
+             targetCtx.fillRect(item.x, item.y, item.width, item.height);
         }
         return;
     }
 
-    if (item.type === 'desk') drawDesk(item);
-    else if (item.type === 'table') drawTable(item);
-    else if (item.type === 'bed') drawBed(item);
-    else if (item.type === 'cupboard') drawCupboard(item);
-    else if (item.type === 'locker') drawLocker(item);
-    else if (item.type === 'window') drawWindow(item);
-    else if (item.type === 'student') drawStudent(item);
-    else if (item.type === 'chest') drawChest(item);
-    else if (item.type === 'rug') drawRug(item);
-    else if (item.type === 'shelf') drawShelf(item);
-    else if (item.type === 'whiteboard') drawWhiteboard(item);
+    if (item.type === 'desk') drawDesk(item, targetCtx);
+    else if (item.type === 'table') drawTable(item, targetCtx);
+    else if (item.type === 'bed') drawBed(item, targetCtx);
+    else if (item.type === 'cupboard') drawCupboard(item, targetCtx);
+    else if (item.type === 'locker') drawLocker(item, targetCtx);
+    else if (item.type === 'window') drawWindow(item, targetCtx);
+    else if (item.type === 'student') drawStudent(item, targetCtx);
+    else if (item.type === 'chest') drawChest(item, targetCtx);
+    else if (item.type === 'rug') drawRug(item, targetCtx);
+    else if (item.type === 'shelf') drawShelf(item, targetCtx);
+    else if (item.type === 'whiteboard') drawWhiteboard(item, targetCtx);
     else {
         // Fallback for custom/unknown objects
-        ctx.fillStyle = "#e91e63"; // Magenta for visibility
-        ctx.fillRect(item.x, item.y, item.width, item.height);
-        ctx.fillStyle = "white";
-        ctx.font = "10px monospace";
-        ctx.textAlign = "center";
-        ctx.fillText(item.type, item.x + item.width/2, item.y + item.height/2);
+        targetCtx.fillStyle = "#e91e63"; // Magenta for visibility
+        targetCtx.fillRect(item.x, item.y, item.width, item.height);
+        targetCtx.fillStyle = "white";
+        targetCtx.font = "10px monospace";
+        targetCtx.textAlign = "center";
+        targetCtx.fillText(item.type, item.x + item.width/2, item.y + item.height/2);
     }
 }
 
@@ -1068,6 +1081,21 @@ function drawDevOverlay() {
                 ctx.fillRect(h.x - handleSize/2 - camera.x, h.y - handleSize/2 - camera.y, handleSize, handleSize);
                 ctx.strokeRect(h.x - handleSize/2 - camera.x, h.y - handleSize/2 - camera.y, handleSize, handleSize);
             });
+        }
+
+        // Draw Custom Hitbox (Blue)
+        if (selectedObject.collisionRect) {
+            const cr = selectedObject.collisionRect;
+            const cx = selectedObject.x + cr.x;
+            const cy = selectedObject.y + cr.y;
+
+            ctx.strokeStyle = "#00ffff"; // Cyan/Blue
+            ctx.lineWidth = 2;
+            ctx.strokeRect(cx - camera.x, cy - camera.y, cr.width, cr.height);
+            ctx.fillStyle = "rgba(0, 255, 255, 0.2)";
+            ctx.fillRect(cx - camera.x, cy - camera.y, cr.width, cr.height);
+            ctx.fillStyle = "cyan";
+            ctx.fillText("HITBOX", cx - camera.x, cy - 5 - camera.y);
         }
     }
 }
@@ -1489,26 +1517,104 @@ canvas.addEventListener("click", (e) => {
 const paintCanvas = document.getElementById("paint-canvas");
 const paintCtx = paintCanvas.getContext("2d");
 let isPainting = false;
+let paintMode = 'brush'; // 'brush' or 'eraser'
+let lastPaintX = 0;
+let lastPaintY = 0;
 
-// Initialize blank
-paintCtx.fillStyle = "white";
-paintCtx.fillRect(0, 0, 64, 64);
+function captureObjectTexture(item) {
+    const cvs = document.createElement("canvas");
+    cvs.width = item.width;
+    cvs.height = item.height;
+    const c = cvs.getContext("2d");
+
+    // Clone item to avoid modifying the actual object
+    // We want the procedural look, so we strip textureData.
+    const tempItem = JSON.parse(JSON.stringify(item));
+    tempItem.textureData = null;
+    tempItem.x = 0;
+    tempItem.y = 0;
+
+    // Force draw
+    drawFurnitureItem(tempItem, c);
+
+    return cvs.toDataURL();
+}
+
+function resizePaintCanvas(w, h, preserveContent = true) {
+    let saved = null;
+    if (preserveContent) {
+        saved = document.createElement("canvas");
+        saved.width = paintCanvas.width;
+        saved.height = paintCanvas.height;
+        saved.getContext("2d").drawImage(paintCanvas, 0, 0);
+    }
+
+    paintCanvas.width = w;
+    paintCanvas.height = h;
+
+    if (saved) {
+        paintCtx.drawImage(saved, 0, 0, saved.width, saved.height); // Draw old content (scaling? No, keep 1:1)
+        // actually if resizing object, usually we want to keep image as is, or scale it?
+        // User asked "can resize dimension". Usually implies extending the canvas.
+        // So keeping 1:1 is correct.
+    }
+}
 
 document.getElementById("dev-edit-texture").addEventListener("click", () => {
     if (!selectedObject) return;
     document.getElementById("texture-editor").classList.remove("hidden");
 
-    // Load existing texture or clear
+    // Init inputs
+    document.getElementById("paint-width").value = selectedObject.width;
+    document.getElementById("paint-height").value = selectedObject.height;
+
+    // Resize canvas
+    paintCanvas.width = selectedObject.width;
+    paintCanvas.height = selectedObject.height;
+
+    // Load existing texture or capture procedural
+    paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+
     if (selectedObject.textureData) {
         const img = new Image();
         img.onload = () => {
-             paintCtx.drawImage(img, 0, 0, 64, 64);
+             paintCtx.drawImage(img, 0, 0, paintCanvas.width, paintCanvas.height);
         };
         img.src = selectedObject.textureData;
     } else {
-        paintCtx.fillStyle = "white";
-        paintCtx.fillRect(0, 0, 64, 64);
+        // Capture procedural look
+        const dataUrl = captureObjectTexture(selectedObject);
+        const img = new Image();
+        img.onload = () => {
+            paintCtx.drawImage(img, 0, 0);
+        };
+        img.src = dataUrl;
     }
+});
+
+document.getElementById("paint-width").addEventListener("change", (e) => {
+    const w = parseInt(e.target.value) || 32;
+    resizePaintCanvas(w, paintCanvas.height);
+});
+document.getElementById("paint-height").addEventListener("change", (e) => {
+    const h = parseInt(e.target.value) || 32;
+    resizePaintCanvas(paintCanvas.width, h);
+});
+
+document.getElementById("paint-size").addEventListener("input", (e) => {
+    document.getElementById("paint-size-val").textContent = e.target.value;
+});
+
+// Tools
+document.getElementById("paint-tool-brush").addEventListener("click", (e) => {
+    paintMode = 'brush';
+    document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
+    e.target.classList.add("active");
+});
+document.getElementById("paint-tool-eraser").addEventListener("click", (e) => {
+    paintMode = 'eraser';
+    document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
+    e.target.classList.add("active");
 });
 
 document.getElementById("paint-cancel").addEventListener("click", () => {
@@ -1516,34 +1622,80 @@ document.getElementById("paint-cancel").addEventListener("click", () => {
 });
 
 document.getElementById("paint-clear").addEventListener("click", () => {
-    paintCtx.fillStyle = "white";
-    paintCtx.fillRect(0, 0, 64, 64);
+    paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
 });
 
 document.getElementById("paint-save").addEventListener("click", () => {
     if (selectedObject) {
         selectedObject.textureData = paintCanvas.toDataURL();
+        // Update dimensions based on canvas
+        selectedObject.width = paintCanvas.width;
+        selectedObject.height = paintCanvas.height;
+
         // Clear cache so it redraws
         selectedObject._cachedImage = null;
+        updatePropPanel();
         saveLocal();
     }
     document.getElementById("texture-editor").classList.add("hidden");
 });
 
 // Painting interaction
-paintCanvas.addEventListener("mousedown", () => isPainting = true);
-paintCanvas.addEventListener("mouseup", () => isPainting = false);
-paintCanvas.addEventListener("mouseleave", () => isPainting = false);
+function getPaintPos(e) {
+    const rect = paintCanvas.getBoundingClientRect();
+    const scaleX = paintCanvas.width / rect.width;
+    const scaleY = paintCanvas.height / rect.height;
+    return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+    };
+}
+
+paintCanvas.addEventListener("mousedown", (e) => {
+    isPainting = true;
+    const pos = getPaintPos(e);
+    lastPaintX = pos.x;
+    lastPaintY = pos.y;
+
+    // Dot
+    paint(pos.x, pos.y, true);
+});
+window.addEventListener("mouseup", () => isPainting = false); // Global mouseup
 
 paintCanvas.addEventListener("mousemove", (e) => {
     if (!isPainting) return;
-    const rect = paintCanvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) / (rect.width / 64));
-    const y = Math.floor((e.clientY - rect.top) / (rect.height / 64));
-
-    paintCtx.fillStyle = document.getElementById("paint-color").value;
-    paintCtx.fillRect(x, y, 1, 1);
+    const pos = getPaintPos(e);
+    paint(pos.x, pos.y);
+    lastPaintX = pos.x;
+    lastPaintY = pos.y;
 });
+
+function paint(x, y, isDot = false) {
+    paintCtx.lineWidth = parseInt(document.getElementById("paint-size").value);
+    paintCtx.lineCap = "round";
+    paintCtx.lineJoin = "round";
+
+    if (paintMode === 'eraser') {
+        paintCtx.globalCompositeOperation = 'destination-out';
+    } else {
+        paintCtx.globalCompositeOperation = 'source-over';
+        paintCtx.strokeStyle = document.getElementById("paint-color").value;
+        paintCtx.fillStyle = document.getElementById("paint-color").value;
+    }
+
+    if (isDot) {
+        paintCtx.beginPath();
+        paintCtx.arc(x, y, paintCtx.lineWidth / 2, 0, Math.PI * 2);
+        paintCtx.fill();
+    } else {
+        paintCtx.beginPath();
+        paintCtx.moveTo(lastPaintX, lastPaintY);
+        paintCtx.lineTo(x, y);
+        paintCtx.stroke();
+    }
+
+    paintCtx.globalCompositeOperation = 'source-over'; // Reset
+}
 
 canvas.addEventListener("mousemove", (e) => {
     if (!isDeveloperMode) return;
@@ -1702,6 +1854,40 @@ function updatePropPanel() {
 
     if (selectedObject.id !== undefined || selectedObject.type === 'desk') {
         addPropInput(extra, "ID", selectedObject.id || '', v => selectedObject.id = v);
+    }
+
+    // Collision Editor
+    const colHeader = document.createElement("div");
+    colHeader.className = "dev-prop-row";
+    colHeader.style.marginTop = "5px";
+    colHeader.style.borderTop = "1px solid #444";
+    colHeader.style.paddingTop = "5px";
+
+    const colCheck = document.createElement("input");
+    colCheck.type = "checkbox";
+    colCheck.checked = !!selectedObject.collisionRect;
+    colCheck.onchange = (e) => {
+        if (e.target.checked) {
+            selectedObject.collisionRect = { x: 0, y: 0, width: selectedObject.width, height: selectedObject.height };
+        } else {
+            delete selectedObject.collisionRect;
+        }
+        saveLocal();
+        updatePropPanel();
+    };
+
+    const colLbl = document.createElement("label");
+    colLbl.textContent = " Custom Hitbox";
+    colLbl.prepend(colCheck);
+    colHeader.appendChild(colLbl);
+    extra.appendChild(colHeader);
+
+    if (selectedObject.collisionRect) {
+        const cr = selectedObject.collisionRect;
+        addPropInput(extra, "Hit X", cr.x, v => cr.x = parseInt(v));
+        addPropInput(extra, "Hit Y", cr.y, v => cr.y = parseInt(v));
+        addPropInput(extra, "Hit W", cr.width, v => cr.width = parseInt(v));
+        addPropInput(extra, "Hit H", cr.height, v => cr.height = parseInt(v));
     }
 
     // Interaction Editor
