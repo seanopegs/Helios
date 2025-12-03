@@ -215,12 +215,49 @@ body {
 }
 
 #paint-canvas {
-  background: white;
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc),
+    linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc);
+  background-position: 0 0, 10px 10px;
+  background-size: 20px 20px;
   border: 1px solid #999;
   cursor: crosshair;
-  width: 256px; /* Scaled up for view */
-  height: 256px;
   image-rendering: pixelated;
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  transform-origin: top left; /* Zoom from top-left corner */
+}
+
+.editor-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  background: rgba(0,0,0,0.3);
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-right: 1px solid #555;
+  padding-right: 8px;
+}
+.tool-group:last-child { border: none; }
+
+.tool-btn {
+  background: #3e2723;
+  color: white;
+  border: 1px solid #5d4037;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.tool-btn.active {
+  background: #fdd835;
+  color: black;
 }
 
 .btn {
