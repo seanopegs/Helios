@@ -46,7 +46,7 @@ body {
   color: var(--text);
   font-size: 18px;
   letter-spacing: 0.02em;
-  min-height: 68px;
+  min-height: 100px;
 }
 
 .dialogue__label {
