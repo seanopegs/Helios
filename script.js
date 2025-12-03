@@ -21,6 +21,8 @@ let room = levels[currentLevelName];
 let selectedObject = null;
 let isDragging = false;
 let isDraggingSpawn = false;
+let isDraggingInteraction = false;
+let resizeHandle = null;
 let dragOffset = { x: 0, y: 0 };
 
 const player = {
@@ -74,6 +76,52 @@ function loadLevel(name, targetDoorId) {
   document.title = title;
 
   updateDevRoomSelect();
+}
+
+function normalizeGameData(data) {
+    if (!data.levels) return;
+    Object.values(data.levels).forEach(level => {
+        if (!level.furniture) return;
+        level.furniture.forEach(item => {
+            // Migration for old student text
+            if (item.type === 'student' && item.text && !item.interaction) {
+                 item.interaction = {
+                     enabled: true,
+                     type: 'sequence',
+                     // Conversations -> Array of Conversation(Array of Lines)
+                     conversations: [
+                         [{ speaker: item.name || 'STUDENT', text: item.text }]
+                     ],
+                     area: { x: -10, y: item.height, width: item.width + 20, height: 40 }
+                 };
+                 // Clean up old props if you want, or keep for safety. keeping for now.
+            }
+
+            // Migration for Bed
+            if (item.type === 'bed' && !item.interaction) {
+                item.interaction = {
+                    enabled: true,
+                    type: 'sequence',
+                    conversations: [
+                        [{ speaker: 'LUKE', text: "it's not the right time to sleep" }]
+                    ],
+                    area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 }
+                };
+            }
+
+            // Migration for Cupboard
+            if (item.type === 'cupboard' && !item.interaction) {
+                 item.interaction = {
+                    enabled: true,
+                    type: 'sequence',
+                    conversations: [
+                        [{ speaker: 'LUKE', text: "why?" }]
+                    ],
+                    area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 }
+                };
+            }
+        });
+    });
 }
 
 function updateDevRoomSelect() {
@@ -220,7 +268,8 @@ function checkCollision(x, y) {
 }
 
 function handleMovement() {
-  if (stage < 2) return;
+  // Block movement if dialogue is active
+  if (dialogueBox.classList.contains("dialogue--active")) return;
   if (player.isSitting) return;
 
   let dx = 0;
@@ -982,6 +1031,36 @@ function drawDevOverlay() {
             ctx.font = "10px monospace";
             ctx.fillText("SPAWN", spawnX - camera.x, spawnY - 12 - camera.y);
         }
+
+        // Draw Interaction Area
+        if (selectedObject.interaction && selectedObject.interaction.enabled) {
+            const area = selectedObject.interaction.area || {x:0,y:0,width:selectedObject.width,height:selectedObject.height};
+            const ix = selectedObject.x + area.x;
+            const iy = selectedObject.y + area.y;
+
+            ctx.strokeStyle = "#00ff00"; // Green
+            ctx.lineWidth = 2;
+            ctx.strokeRect(ix - camera.x, iy - camera.y, area.width, area.height);
+            ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
+            ctx.fillRect(ix - camera.x, iy - camera.y, area.width, area.height);
+
+            // Draw Resize Handles (Corners)
+            const handleSize = 6;
+            ctx.fillStyle = "white";
+            ctx.strokeStyle = "green";
+
+            const handles = [
+                { x: ix, y: iy }, // TL
+                { x: ix + area.width, y: iy }, // TR
+                { x: ix, y: iy + area.height }, // BL
+                { x: ix + area.width, y: iy + area.height } // BR
+            ];
+
+            handles.forEach(h => {
+                ctx.fillRect(h.x - handleSize/2 - camera.x, h.y - handleSize/2 - camera.y, handleSize, handleSize);
+                ctx.strokeRect(h.x - handleSize/2 - camera.x, h.y - handleSize/2 - camera.y, handleSize, handleSize);
+            });
+        }
     }
 }
 
@@ -1053,8 +1132,38 @@ function handleInteraction() {
         return;
     }
 
+    // New Interaction System
+    for (const item of room.furniture) {
+         if (item.interaction && item.interaction.enabled && item.interaction.conversations && item.interaction.conversations.length > 0) {
+             const area = item.interaction.area || { x: 0, y: 0, width: item.width, height: item.height };
+             const ix = item.x + area.x;
+             const iy = item.y + area.y;
+
+             if (player.x >= ix && player.x <= ix + area.width &&
+                 player.y >= iy && player.y <= iy + area.height) {
+
+                 const convos = item.interaction.conversations;
+                 let selectedConvo = [];
+
+                 if (item.interaction.type === 'random') {
+                     const idx = Math.floor(Math.random() * convos.length);
+                     selectedConvo = convos[idx];
+                 } else {
+                     selectedConvo = convos[0];
+                 }
+
+                 if (selectedConvo && selectedConvo.length > 0) {
+                     dialogue = JSON.parse(JSON.stringify(selectedConvo));
+                     stage = 0;
+                     updateDialogue();
+                     return;
+                 }
+             }
+         }
+    }
+
     const nearStudent = findNearbyFurniture(['student'], 40);
-    if (nearStudent && nearStudent.text) {
+    if (nearStudent && nearStudent.text && !nearStudent.interaction) {
         showTemporaryDialogue(nearStudent.text, nearStudent.name || "STUDENT");
         return;
     }
@@ -1108,8 +1217,36 @@ function handleInteraction() {
     }
 }
 
+let clipboard = null;
+
 document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
+
+  // Ctrl+C / Ctrl+V
+  if (isDeveloperMode && (event.ctrlKey || event.metaKey)) {
+      if (key === 'c' && selectedObject) {
+          clipboard = JSON.parse(JSON.stringify(selectedObject));
+          // Don't copy unique things?
+          // Keep it exact clone.
+          return;
+      }
+      if (key === 'v' && clipboard) {
+          const newObj = JSON.parse(JSON.stringify(clipboard));
+          newObj.x += 20;
+          newObj.y += 20;
+
+          if (newObj.type === 'door') {
+              room.doors.push(newObj);
+          } else {
+              room.furniture.push(newObj);
+          }
+          selectedObject = newObj;
+          updatePropPanel();
+          saveLocal();
+          return;
+      }
+  }
+
   if (["w", "a", "s", "d"].includes(key)) {
     keys.add(key);
   }
@@ -1117,6 +1254,8 @@ document.addEventListener("keydown", (event) => {
       handleInteraction();
   }
   if (isDeveloperMode && (key === 'delete' || key === 'backspace')) {
+      // Avoid deleting when typing in input fields
+      if (document.activeElement.tagName === 'INPUT') return;
       if (selectedObject) deleteObject();
   }
 });
@@ -1151,6 +1290,50 @@ canvas.addEventListener("mousedown", (e) => {
       if (mx >= spawnX - 10 && mx <= spawnX + 10 &&
           my >= spawnY - 10 && my <= spawnY + 10) {
           isDraggingSpawn = true;
+          return;
+      }
+  }
+
+  // Check Interaction Area Dragging
+  if (selectedObject && selectedObject.interaction && selectedObject.interaction.enabled) {
+      const area = selectedObject.interaction.area;
+      const ix = selectedObject.x + area.x;
+      const iy = selectedObject.y + area.y;
+
+      const handleSize = 10;
+
+      // Check handles
+      // TL
+      if (Math.abs(mx - ix) <= handleSize && Math.abs(my - iy) <= handleSize) {
+          resizeHandle = 'tl';
+          dragOffset = { x: mx - ix, y: my - iy }; // Offset from handle center
+          return;
+      }
+      // TR
+      if (Math.abs(mx - (ix + area.width)) <= handleSize && Math.abs(my - iy) <= handleSize) {
+          resizeHandle = 'tr';
+          dragOffset = { x: mx - (ix + area.width), y: my - iy };
+          return;
+      }
+      // BL
+      if (Math.abs(mx - ix) <= handleSize && Math.abs(my - (iy + area.height)) <= handleSize) {
+          resizeHandle = 'bl';
+          dragOffset = { x: mx - ix, y: my - (iy + area.height) };
+          return;
+      }
+      // BR
+      if (Math.abs(mx - (ix + area.width)) <= handleSize && Math.abs(my - (iy + area.height)) <= handleSize) {
+          resizeHandle = 'br';
+          dragOffset = { x: mx - (ix + area.width), y: my - (iy + area.height) };
+          return;
+      }
+
+      // Body for move
+      if (mx >= ix && mx <= ix + area.width &&
+          my >= iy && my <= iy + area.height) {
+          isDraggingInteraction = true;
+          dragOffset.x = mx - ix;
+          dragOffset.y = my - iy;
           return;
       }
   }
@@ -1281,6 +1464,70 @@ canvas.addEventListener("mousemove", (e) => {
         return;
     }
 
+    if (resizeHandle && selectedObject) {
+        const area = selectedObject.interaction.area;
+        const ix = selectedObject.x + area.x;
+        const iy = selectedObject.y + area.y;
+        const right = ix + area.width;
+        const bottom = iy + area.height;
+
+        const mouseX = mx - dragOffset.x;
+        const mouseY = my - dragOffset.y;
+
+        if (resizeHandle === 'br') {
+            area.width = Math.max(10, Math.round(mouseX - ix));
+            area.height = Math.max(10, Math.round(mouseY - iy));
+        } else if (resizeHandle === 'bl') {
+            const newRight = ix + area.width; // Fixed right edge
+            // newLeft = mouseX
+            // width = right - newLeft
+            const newW = newRight - mouseX;
+            if (newW >= 10) {
+                 area.x = Math.round(mouseX - selectedObject.x);
+                 area.width = newW;
+            }
+            area.height = Math.max(10, Math.round(mouseY - iy));
+        } else if (resizeHandle === 'tr') {
+            const newBottom = iy + area.height; // Fixed bottom edge
+            // newTop = mouseY
+            // height = bottom - newTop
+            const newH = newBottom - mouseY;
+            if (newH >= 10) {
+                area.y = Math.round(mouseY - selectedObject.y);
+                area.height = newH;
+            }
+            area.width = Math.max(10, Math.round(mouseX - ix));
+        } else if (resizeHandle === 'tl') {
+             const newRight = ix + area.width;
+             const newBottom = iy + area.height;
+
+             const newW = newRight - mouseX;
+             const newH = newBottom - mouseY;
+
+             if (newW >= 10) {
+                 area.x = Math.round(mouseX - selectedObject.x);
+                 area.width = newW;
+             }
+             if (newH >= 10) {
+                 area.y = Math.round(mouseY - selectedObject.y);
+                 area.height = newH;
+             }
+        }
+
+        updatePropPanel();
+        return;
+    }
+
+    if (isDraggingInteraction && selectedObject) {
+        const area = selectedObject.interaction.area;
+        // ix = mx - off
+        // area.x = ix - obj.x
+        area.x = Math.round((mx - dragOffset.x) - selectedObject.x);
+        area.y = Math.round((my - dragOffset.y) - selectedObject.y);
+        updatePropPanel();
+        return;
+    }
+
     if (isDragging && selectedObject) {
         selectedObject.x = Math.round(mx - dragOffset.x);
         selectedObject.y = Math.round(my - dragOffset.y);
@@ -1289,11 +1536,13 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("mouseup", () => {
-    if (isDragging || isDraggingSpawn) {
+    if (isDragging || isDraggingSpawn || isDraggingInteraction || resizeHandle) {
         saveLocal();
     }
     isDragging = false;
     isDraggingSpawn = false;
+    isDraggingInteraction = false;
+    resizeHandle = null;
 });
 
 function updatePropPanel() {
@@ -1308,6 +1557,9 @@ function updatePropPanel() {
 
     const extra = document.getElementById("prop-extra");
     extra.innerHTML = "";
+
+    // Copy/Paste buttons (Re-append per selection)
+    extra.appendChild(cpContainer);
 
     // Type is always editable now
     addPropInput(extra, "Type", selectedObject.type, v => selectedObject.type = v);
@@ -1357,6 +1609,140 @@ function updatePropPanel() {
 
     if (selectedObject.id !== undefined || selectedObject.type === 'desk') {
         addPropInput(extra, "ID", selectedObject.id || '', v => selectedObject.id = v);
+    }
+
+    // Interaction Editor
+    const interactHeader = document.createElement("div");
+    interactHeader.className = "dev-prop-row";
+    interactHeader.style.marginTop = "10px";
+    interactHeader.style.borderTop = "1px solid #444";
+    interactHeader.style.paddingTop = "5px";
+
+    const interactCheck = document.createElement("input");
+    interactCheck.type = "checkbox";
+    interactCheck.checked = !!(selectedObject.interaction && selectedObject.interaction.enabled);
+    interactCheck.onchange = (e) => {
+        if (e.target.checked) {
+             if (!selectedObject.interaction) selectedObject.interaction = {};
+             selectedObject.interaction.enabled = true;
+             if (!selectedObject.interaction.type) selectedObject.interaction.type = 'sequence';
+             if (!selectedObject.interaction.conversations) selectedObject.interaction.conversations = [ [] ];
+             if (!selectedObject.interaction.area) selectedObject.interaction.area = { x: 0, y: selectedObject.height, width: selectedObject.width, height: 40 };
+        } else {
+             if (selectedObject.interaction) selectedObject.interaction.enabled = false;
+        }
+        saveLocal();
+        updatePropPanel();
+    };
+
+    const lbl = document.createElement("label");
+    lbl.textContent = " Interact";
+    lbl.prepend(interactCheck);
+    interactHeader.appendChild(lbl);
+    extra.appendChild(interactHeader);
+
+    if (selectedObject.interaction && selectedObject.interaction.enabled) {
+        const iObj = selectedObject.interaction;
+
+        // Interaction Area UI
+        addPropInput(extra, "Area X", iObj.area.x, v => iObj.area.x = parseInt(v));
+        addPropInput(extra, "Area Y", iObj.area.y, v => iObj.area.y = parseInt(v));
+        addPropInput(extra, "Area W", iObj.area.width, v => iObj.area.width = parseInt(v));
+        addPropInput(extra, "Area H", iObj.area.height, v => iObj.area.height = parseInt(v));
+
+        // Interaction Type
+        const typeRow = document.createElement("div");
+        typeRow.className = "dev-prop-row";
+        typeRow.innerHTML = `<label>Mode</label> <select>
+           <option value="sequence">Sequence</option>
+           <option value="random">Random</option>
+        </select>`;
+        typeRow.querySelector("select").value = iObj.type || 'sequence';
+        typeRow.querySelector("select").onchange = (e) => { iObj.type = e.target.value; saveLocal(); };
+        extra.appendChild(typeRow);
+
+        // Conversations Management
+        const convList = document.createElement("div");
+        convList.style.marginTop = "5px";
+
+        iObj.conversations.forEach((convo, idx) => {
+            const cDiv = document.createElement("div");
+            cDiv.style.background = "rgba(0,0,0,0.2)";
+            cDiv.style.padding = "4px";
+            cDiv.style.marginBottom = "4px";
+
+            cDiv.innerHTML = `<div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                <span>Convo #${idx+1}</span>
+                <div>
+                   <button class="btn-sm btn-del-convo">x</button>
+                </div>
+            </div>`;
+
+            cDiv.querySelector(".btn-del-convo").onclick = () => {
+                iObj.conversations.splice(idx, 1);
+                saveLocal();
+                updatePropPanel();
+            };
+
+            // Lines
+            const linesDiv = document.createElement("div");
+            convo.forEach((line, lIdx) => {
+                 const lDiv = document.createElement("div");
+                 lDiv.style.marginBottom = "2px";
+                 lDiv.style.display = "flex";
+                 lDiv.style.gap = "2px";
+
+                 const spIn = document.createElement("input");
+                 spIn.placeholder = "Speaker";
+                 spIn.style.width = "40px";
+                 spIn.value = line.speaker || selectedObject.name || "PLAYER";
+                 spIn.onchange = (e) => { line.speaker = e.target.value; saveLocal(); };
+
+                 const txIn = document.createElement("input");
+                 txIn.placeholder = "Text";
+                 txIn.style.flex = "1";
+                 txIn.value = line.text || "";
+                 txIn.onchange = (e) => { line.text = e.target.value; saveLocal(); };
+
+                 const delBtn = document.createElement("button");
+                 delBtn.textContent = "-";
+                 delBtn.onclick = () => {
+                     convo.splice(lIdx, 1);
+                     saveLocal();
+                     updatePropPanel();
+                 };
+
+                 lDiv.appendChild(spIn);
+                 lDiv.appendChild(txIn);
+                 lDiv.appendChild(delBtn);
+                 linesDiv.appendChild(lDiv);
+            });
+            cDiv.appendChild(linesDiv);
+
+            const addLineBtn = document.createElement("button");
+            addLineBtn.textContent = "+ Line";
+            addLineBtn.className = "btn-xs";
+            addLineBtn.onclick = () => {
+                 convo.push({ speaker: selectedObject.name || "NPC", text: "..." });
+                 saveLocal();
+                 updatePropPanel();
+            };
+            cDiv.appendChild(addLineBtn);
+
+            convList.appendChild(cDiv);
+        });
+
+        const addConvoBtn = document.createElement("button");
+        addConvoBtn.textContent = "+ New Conversation";
+        addConvoBtn.style.width = "100%";
+        addConvoBtn.onclick = () => {
+             iObj.conversations.push( [] );
+             saveLocal();
+             updatePropPanel();
+        };
+
+        extra.appendChild(convList);
+        extra.appendChild(addConvoBtn);
     }
 }
 
@@ -1420,6 +1806,49 @@ function startSetSpawn(door) {
 
 document.getElementById("dev-delete-obj").addEventListener("click", deleteObject);
 
+// Add Copy/Paste buttons to UI
+const actionContainer = document.querySelector("#dev-sidebar .dev-section");
+// Find where to inject, maybe near add obj?
+// Actually let's just append to the object actions area (dev-props)
+// But dev-props is hidden if no object selected.
+// Let's add it to dev-props.
+
+const copyBtn = document.createElement("button");
+copyBtn.textContent = "Copy";
+copyBtn.className = "btn-sm";
+copyBtn.style.marginRight = "5px";
+copyBtn.onclick = () => {
+    if (selectedObject) clipboard = JSON.parse(JSON.stringify(selectedObject));
+};
+
+const pasteBtn = document.createElement("button");
+pasteBtn.textContent = "Paste";
+pasteBtn.className = "btn-sm";
+pasteBtn.onclick = () => {
+    if (clipboard) {
+          const newObj = JSON.parse(JSON.stringify(clipboard));
+          newObj.x += 20;
+          newObj.y += 20;
+          if (newObj.type === 'door') room.doors.push(newObj);
+          else room.furniture.push(newObj);
+          selectedObject = newObj;
+          updatePropPanel();
+          saveLocal();
+    }
+};
+
+const cpContainer = document.createElement("div");
+cpContainer.className = "dev-prop-row";
+cpContainer.style.marginTop = "10px";
+cpContainer.appendChild(copyBtn);
+cpContainer.appendChild(pasteBtn);
+// We will append this inside updatePropPanel or just once to the dev-props container?
+// dev-props is cleared? No, it has static elements + generated extras.
+// The 'prop-extra' is cleared.
+// Let's add it to the static HTML or inject once.
+// I'll inject it into 'dev-props' dynamically if not present, or just add it to 'prop-extra'.
+// Adding to prop-extra is easiest as it refreshes with selection.
+
 function deleteObject() {
     if (!selectedObject) return;
     if (selectedObject.type === 'door') {
@@ -1469,6 +1898,7 @@ async function loadExternalData() {
         if (savedData) {
             const data = JSON.parse(savedData);
             if (data.levels && data.dialogue) {
+                normalizeGameData(data);
                 levels = data.levels;
                 dialogue = data.dialogue;
                 currentLevelName = Object.keys(levels)[0] || 'classroom';
@@ -1487,6 +1917,7 @@ async function loadExternalData() {
         if (response.ok) {
             const data = await response.json();
             if (data.levels && data.dialogue) {
+                normalizeGameData(data);
                 levels = data.levels;
                 dialogue = data.dialogue;
 
