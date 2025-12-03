@@ -1098,7 +1098,7 @@ document.addEventListener("keydown", (event) => {
   if (["w", "a", "s", "d"].includes(key)) {
     keys.add(key);
   }
-  if (key === " " && !isDeveloperMode) {
+  if (key === " ") {
       handleInteraction();
   }
   if (isDeveloperMode && (key === 'delete' || key === 'backspace')) {
@@ -1399,14 +1399,26 @@ function startGame() {
 
 // Auto-load external JSON if present
 async function loadExternalData() {
+    // 1. Try LocalStorage (Auto-Save Persistence)
     try {
-        const statusEl = document.createElement("div");
-        statusEl.id = "loading-status";
-        statusEl.style.marginTop = "20px";
-        statusEl.style.color = "#ccc";
-        statusEl.textContent = "Loading external data...";
-        document.querySelector(".start-menu").appendChild(statusEl);
+        const savedData = localStorage.getItem('helios_game_data');
+        if (savedData) {
+            const data = JSON.parse(savedData);
+            if (data.levels && data.dialogue) {
+                levels = data.levels;
+                dialogue = data.dialogue;
+                currentLevelName = Object.keys(levels)[0] || 'classroom';
+                loadLevel(currentLevelName);
+                console.log("Auto-loaded from LocalStorage");
+                return; // Prioritize local storage edits
+            }
+        }
+    } catch (e) {
+        console.warn("LocalStorage access failed", e);
+    }
 
+    // 2. Try Fetching game-data.json
+    try {
         const response = await fetch('game-data.json?t=' + Date.now()); // Prevent caching
         if (response.ok) {
             const data = await response.json();
@@ -1418,21 +1430,11 @@ async function loadExternalData() {
                 currentLevelName = Object.keys(levels)[0] || 'classroom';
                 // Force full reload of level to update player position etc.
                 loadLevel(currentLevelName);
-
-                statusEl.textContent = "Loaded Custom Data (game-data.json)";
-                statusEl.style.color = "#4caf50";
                 console.log("Auto-loaded game-data.json");
             }
-        } else {
-             throw new Error("404");
         }
     } catch (e) {
-        console.log("No external game-data.json found, using defaults.");
-        const statusEl = document.getElementById("loading-status");
-        if (statusEl) {
-            statusEl.textContent = "Loaded Default Data";
-            statusEl.style.color = "#ffb74d";
-        }
+        console.log("No external game-data.json found (or CORS blocked), using defaults.");
     }
 }
 
@@ -1451,41 +1453,6 @@ document.getElementById("btn-dev").addEventListener("click", () => {
   startGame();
 });
 
-// Start Screen Load Logic
-document.getElementById("btn-load-custom").addEventListener("click", () => {
-    document.getElementById("start-load-input").click();
-});
-
-document.getElementById("start-load-input").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const data = JSON.parse(e.target.result);
-      if (data.levels && data.dialogue) {
-        levels = data.levels;
-        dialogue = data.dialogue;
-
-        currentLevelName = Object.keys(levels)[0] || 'classroom';
-        loadLevel(currentLevelName);
-
-        const statusEl = document.getElementById("loading-status");
-        if (statusEl) {
-            statusEl.textContent = "Loaded: " + file.name;
-            statusEl.style.color = "#4caf50";
-        }
-        alert("Custom data loaded! Click Play to start.");
-      } else {
-        alert("Invalid game data file.");
-      }
-    } catch (err) {
-      alert("Error parsing JSON");
-    }
-  };
-  reader.readAsText(file);
-});
-
 // Save JSON
 document.getElementById("dev-save").addEventListener("click", async () => {
   const data = {
@@ -1498,7 +1465,15 @@ document.getElementById("dev-save").addEventListener("click", async () => {
       return value;
   }, 2);
 
-  // Try File System Access API
+  // 1. Auto-save to LocalStorage
+  try {
+      localStorage.setItem('helios_game_data', jsonString);
+      console.log("Saved to LocalStorage");
+  } catch (e) {
+      console.warn("LocalStorage save failed", e);
+  }
+
+  // 2. Try File System Access API
   if (window.showSaveFilePicker) {
       try {
           const handle = await window.showSaveFilePicker({
@@ -1511,14 +1486,16 @@ document.getElementById("dev-save").addEventListener("click", async () => {
           const writable = await handle.createWritable();
           await writable.write(jsonString);
           await writable.close();
-          alert("Saved successfully!");
+          alert("Saved successfully! (Also updated LocalStorage)");
           return;
       } catch (err) {
           if (err.name !== 'AbortError') {
               console.error(err);
               alert("Error saving file via API. Falling back to download.");
           } else {
-              return; // User cancelled
+              // Even if cancelled, we saved to LocalStorage
+              alert("Saved to Local Browser Storage.");
+              return;
           }
       }
   }
@@ -1532,6 +1509,18 @@ document.getElementById("dev-save").addEventListener("click", async () => {
   a.click();
   URL.revokeObjectURL(url);
 });
+
+// Reset LocalStorage
+const resetBtn = document.createElement("button");
+resetBtn.className = "dev-btn-danger";
+resetBtn.textContent = "Reset Local Storage";
+resetBtn.onclick = () => {
+    if (confirm("Clear local changes and revert to file data? Page will reload.")) {
+        localStorage.removeItem('helios_game_data');
+        location.reload();
+    }
+};
+document.querySelector("#dev-sidebar .dev-section").appendChild(resetBtn);
 
 // Load JSON
 document.getElementById("dev-load").addEventListener("click", () => {
