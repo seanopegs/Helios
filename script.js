@@ -1340,7 +1340,7 @@ document.addEventListener("keydown", (event) => {
     keys.add(key);
   }
   if (key === " ") {
-      if (dialogueBox.classList.contains("dialogue--active")) {
+      if (dialogueBox.classList.contains("dialogue--active") && !isHintActive) {
           advanceDialogue();
       } else {
           handleInteraction();
