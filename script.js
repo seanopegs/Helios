@@ -20,6 +20,7 @@ let room = levels[currentLevelName];
 // Dev Mode State
 let selectedObject = null;
 let isDragging = false;
+let isDraggingSpawn = false;
 let dragOffset = { x: 0, y: 0 };
 
 const player = {
@@ -43,13 +44,18 @@ function loadLevel(name, targetDoorId) {
   if (targetDoorId) {
       const targetDoor = (room.doors || []).find(d => d.id === targetDoorId);
       if (targetDoor) {
-          const spawn = doorAttachmentPoint(targetDoor);
-          // Offset slightly so player isn't inside door
-          player.x = spawn.x;
-          player.y = spawn.y + 10;
-          if (targetDoor.orientation === 'bottom') player.y = targetDoor.y - 24;
-          else if (targetDoor.orientation === 'left') player.x = targetDoor.x + targetDoor.width + 12;
-          else if (targetDoor.orientation === 'right') player.x = targetDoor.x - 12;
+          if (targetDoor.customSpawn) {
+              player.x = targetDoor.customSpawn.x;
+              player.y = targetDoor.customSpawn.y;
+          } else {
+              const spawn = doorAttachmentPoint(targetDoor);
+              // Offset slightly so player isn't inside door
+              player.x = spawn.x;
+              player.y = spawn.y + 10;
+              if (targetDoor.orientation === 'bottom') player.y = targetDoor.y - 24;
+              else if (targetDoor.orientation === 'left') player.x = targetDoor.x + targetDoor.width + 12;
+              else if (targetDoor.orientation === 'right') player.x = targetDoor.x - 12;
+          }
           spawned = true;
       }
   }
@@ -953,6 +959,31 @@ function drawDevOverlay() {
         ctx.strokeStyle = "#00ff00";
         ctx.lineWidth = 2;
         ctx.strokeRect(selectedObject.x - camera.x, selectedObject.y - camera.y, selectedObject.width, selectedObject.height);
+
+        // Draw Spawn Point for Doors
+        if (selectedObject.type === 'door') {
+            let spawnX, spawnY;
+            if (selectedObject.customSpawn) {
+                spawnX = selectedObject.customSpawn.x;
+                spawnY = selectedObject.customSpawn.y;
+            } else {
+                const pt = doorAttachmentPoint(selectedObject);
+                // Apply default offset logic to visualize correct default
+                spawnX = pt.x;
+                spawnY = pt.y + 10;
+                if (selectedObject.orientation === 'bottom') spawnY = selectedObject.y - 24;
+                else if (selectedObject.orientation === 'left') spawnX = selectedObject.x + selectedObject.width + 12;
+                else if (selectedObject.orientation === 'right') spawnX = selectedObject.x - 12;
+            }
+
+            ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+            ctx.fillRect(spawnX - 10 - camera.x, spawnY - 10 - camera.y, 20, 20);
+            ctx.strokeStyle = "red";
+            ctx.strokeRect(spawnX - 10 - camera.x, spawnY - 10 - camera.y, 20, 20);
+            ctx.fillStyle = "white";
+            ctx.font = "10px monospace";
+            ctx.fillText("SPAWN", spawnX - camera.x, spawnY - 12 - camera.y);
+        }
     }
 }
 
@@ -1079,16 +1110,22 @@ function handleInteraction() {
 
     const door = getNearestDoor(60);
     if (door && door.target) {
-        // Prefer ID-based targeting, fall back to spawn coords if legacy
-        if (door.targetDoorId) {
-            loadLevel(door.target, door.targetDoorId);
-        } else {
-            // Legacy/Manual override
-            loadLevel(door.target, null);
-            if (door.targetSpawn) {
-                player.x = door.targetSpawn.x;
-                player.y = door.targetSpawn.y;
-            }
+        // Parse "Room:ID" format or Legacy "Room" format
+        const parts = door.target.split(':');
+        let targetRoom = parts[0].trim();
+        let targetId = parts[1] ? parts[1].trim() : null;
+
+        // Legacy fallback: if targetDoorId property exists, use it
+        if (!targetId && door.targetDoorId) {
+            targetId = door.targetDoorId;
+        }
+
+        loadLevel(targetRoom, targetId);
+
+        // Manual override (legacy support)
+        if (!targetId && door.targetSpawn) {
+             player.x = door.targetSpawn.x;
+             player.y = door.targetSpawn.y;
         }
     }
 }
@@ -1117,6 +1154,28 @@ canvas.addEventListener("mousedown", (e) => {
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left + camera.x;
   const my = e.clientY - rect.top + camera.y;
+
+  // Check Spawn Point Dragging (if door selected)
+  if (selectedObject && selectedObject.type === 'door') {
+      let spawnX, spawnY;
+      if (selectedObject.customSpawn) {
+          spawnX = selectedObject.customSpawn.x;
+          spawnY = selectedObject.customSpawn.y;
+      } else {
+          const pt = doorAttachmentPoint(selectedObject);
+          spawnX = pt.x;
+          spawnY = pt.y + 10; // Default calc
+          if (selectedObject.orientation === 'bottom') spawnY = selectedObject.y - 24;
+          else if (selectedObject.orientation === 'left') spawnX = selectedObject.x + selectedObject.width + 12;
+          else if (selectedObject.orientation === 'right') spawnX = selectedObject.x - 12;
+      }
+
+      if (mx >= spawnX - 10 && mx <= spawnX + 10 &&
+          my >= spawnY - 10 && my <= spawnY + 10) {
+          isDraggingSpawn = true;
+          return;
+      }
+  }
 
   // Check furniture
   // Search in reverse order (topmost first)
@@ -1212,6 +1271,7 @@ document.getElementById("paint-save").addEventListener("click", () => {
         selectedObject.textureData = paintCanvas.toDataURL();
         // Clear cache so it redraws
         selectedObject._cachedImage = null;
+        saveLocal();
     }
     document.getElementById("texture-editor").classList.add("hidden");
 });
@@ -1232,18 +1292,30 @@ paintCanvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
-    if (!isDeveloperMode || !isDragging || !selectedObject) return;
+    if (!isDeveloperMode) return;
+
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left + camera.x;
     const my = e.clientY - rect.top + camera.y;
 
-    selectedObject.x = Math.round(mx - dragOffset.x);
-    selectedObject.y = Math.round(my - dragOffset.y);
-    updatePropPanel(); // Update input values while dragging
+    if (isDraggingSpawn && selectedObject && selectedObject.type === 'door') {
+        selectedObject.customSpawn = { x: Math.round(mx), y: Math.round(my) };
+        return;
+    }
+
+    if (isDragging && selectedObject) {
+        selectedObject.x = Math.round(mx - dragOffset.x);
+        selectedObject.y = Math.round(my - dragOffset.y);
+        updatePropPanel(); // Update input values while dragging
+    }
 });
 
 canvas.addEventListener("mouseup", () => {
+    if (isDragging || isDraggingSpawn) {
+        saveLocal();
+    }
     isDragging = false;
+    isDraggingSpawn = false;
 });
 
 function updatePropPanel() {
@@ -1270,8 +1342,18 @@ function updatePropPanel() {
         addPropInput(extra, "Text", selectedObject.text || '', v => selectedObject.text = v);
     } else if (selectedObject.type === 'door') {
         addPropInput(extra, "ID", selectedObject.id || '', v => selectedObject.id = v);
-        addPropInput(extra, "Target Room", selectedObject.target || '', v => selectedObject.target = v);
-        addPropInput(extra, "Target Door ID", selectedObject.targetDoorId || '', v => selectedObject.targetDoorId = v);
+
+        // Convert old separate properties to new format for display if needed
+        let displayTarget = selectedObject.target || '';
+        if (selectedObject.targetDoorId && !displayTarget.includes(':')) {
+            displayTarget += ':' + selectedObject.targetDoorId;
+        }
+
+        addPropInput(extra, "Target (Room:ID)", displayTarget, v => {
+            selectedObject.target = v;
+            // Clear legacy property to avoid confusion
+            delete selectedObject.targetDoorId;
+        });
 
         // Orientation dropdown
         const div = document.createElement("div");
@@ -1285,14 +1367,12 @@ function updatePropPanel() {
         extra.appendChild(div);
         const sel = div.querySelector("select");
         sel.value = selectedObject.orientation || 'top';
-        sel.onchange = (e) => selectedObject.orientation = e.target.value;
+        sel.onchange = (e) => {
+             selectedObject.orientation = e.target.value;
+             saveLocal();
+        };
 
-        // Spawn setter (Manual Override)
-        const btn = document.createElement("button");
-        btn.className = "dev-btn-small";
-        btn.textContent = "Set Manual Spawn";
-        btn.onclick = () => startSetSpawn(selectedObject);
-        extra.appendChild(btn);
+        // Spawn setter removed (replaced by visual editor)
     } else if (selectedObject.type === 'rug') {
         addPropInput(extra, "Color", selectedObject.color || '#fff', v => selectedObject.color = v);
     }
@@ -1307,7 +1387,10 @@ function addPropInput(container, label, value, onChange) {
     div.className = "dev-prop-row";
     div.innerHTML = `<label style="width:50px">${label}</label> <input type="text" value="${value}">`;
     container.appendChild(div);
-    div.querySelector("input").onchange = (e) => onChange(e.target.value);
+    div.querySelector("input").onchange = (e) => {
+        onChange(e.target.value);
+        saveLocal();
+    };
 }
 
 let isSettingSpawn = false;
@@ -1352,6 +1435,7 @@ function startSetSpawn(door) {
             if (key === 'y') selectedObject.y = val;
             if (key === 'w') selectedObject.width = val;
             if (key === 'h') selectedObject.height = val;
+            saveLocal();
         }
     });
 });
@@ -1367,6 +1451,7 @@ function deleteObject() {
     }
     selectedObject = null;
     document.getElementById("dev-props").classList.add("hidden");
+    saveLocal();
 }
 
 document.getElementById("dev-add-obj").addEventListener("click", () => {
@@ -1387,6 +1472,7 @@ document.getElementById("dev-add-obj").addEventListener("click", () => {
     }
     selectedObject = obj;
     updatePropPanel();
+    saveLocal();
 });
 
 canvas.addEventListener("click", advanceDialogue);
@@ -1453,25 +1539,34 @@ document.getElementById("btn-dev").addEventListener("click", () => {
   startGame();
 });
 
-// Save JSON
+function saveLocal() {
+    const data = {
+        levels: levels,
+        dialogue: dialogue
+    };
+    const jsonString = JSON.stringify(data, (key, value) => {
+        if (key.startsWith('_')) return undefined;
+        return value;
+    }, 2);
+
+    try {
+        localStorage.setItem('helios_game_data', jsonString);
+        console.log("Auto-saved to LocalStorage");
+    } catch (e) {
+        console.warn("LocalStorage save failed", e);
+    }
+}
+
+// Save JSON (File Download Only)
 document.getElementById("dev-save").addEventListener("click", async () => {
   const data = {
     levels: levels,
     dialogue: dialogue
   };
-  // Use a replacer to exclude internal properties like _cachedImage
   const jsonString = JSON.stringify(data, (key, value) => {
       if (key.startsWith('_')) return undefined;
       return value;
   }, 2);
-
-  // 1. Auto-save to LocalStorage
-  try {
-      localStorage.setItem('helios_game_data', jsonString);
-      console.log("Saved to LocalStorage");
-  } catch (e) {
-      console.warn("LocalStorage save failed", e);
-  }
 
   // 2. Try File System Access API
   if (window.showSaveFilePicker) {
@@ -1486,15 +1581,13 @@ document.getElementById("dev-save").addEventListener("click", async () => {
           const writable = await handle.createWritable();
           await writable.write(jsonString);
           await writable.close();
-          alert("Saved successfully! (Also updated LocalStorage)");
+          alert("File saved successfully!");
           return;
       } catch (err) {
           if (err.name !== 'AbortError') {
               console.error(err);
               alert("Error saving file via API. Falling back to download.");
           } else {
-              // Even if cancelled, we saved to LocalStorage
-              alert("Saved to Local Browser Storage.");
               return;
           }
       }
