@@ -151,7 +151,6 @@ function updateDialogue() {
   const entry = dialogue[stage];
 
   if (entry) {
-    dialogueBox.hidden = false;
     dialogueLine.textContent = entry.text;
 
     const hasSpeaker = Boolean(entry.speaker);
@@ -162,11 +161,7 @@ function updateDialogue() {
     dialogueBox.classList.add("dialogue--active");
     dialogueBox.classList.remove("dialogue--hidden");
   } else {
-    dialogueBox.hidden = true;
-    dialogueLine.textContent = "";
-    dialoguePrompt.textContent = "";
-    dialogueLabel.textContent = "";
-    dialogueLabel.classList.add("dialogue__label--hidden");
+    dialogueBox.classList.remove("dialogue--active");
     dialogueBox.classList.add("dialogue--hidden");
   }
 }
@@ -177,7 +172,6 @@ function showLukeLine(text) {
     tempDialogueTimeout = null;
   }
 
-  dialogueBox.hidden = false;
   dialogueLine.textContent = text;
   dialogueLabel.textContent = "LUKE";
   dialogueLabel.classList.remove("dialogue__label--hidden");
@@ -1005,7 +999,6 @@ function drawHints() {
   if (nearbyDoor) {
       showingHint = true;
       if (!isHintActive) {
-         dialogueBox.hidden = false;
          dialogueBox.classList.remove("dialogue--hidden");
          dialogueBox.classList.add("dialogue--active");
          dialogueLine.textContent = "Press [SPACE] to open";
@@ -1065,7 +1058,6 @@ function handleInteraction() {
         // Let's modify showLukeLine slightly or just use it as is (Luke thinking about what they said? No.)
 
         // Let's implement a proper speech bubble or reuse dialogue box with 'Student'
-        dialogueBox.hidden = false;
         dialogueLine.textContent = nearStudent.text;
         dialogueLabel.textContent = nearStudent.name || "STUDENT";
         dialogueLabel.classList.remove("dialogue__label--hidden");
