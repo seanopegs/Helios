@@ -166,14 +166,14 @@ function updateDialogue() {
   }
 }
 
-function showLukeLine(text) {
+function showTemporaryDialogue(text, speaker = "LUKE") {
   if (tempDialogueTimeout) {
     clearTimeout(tempDialogueTimeout);
     tempDialogueTimeout = null;
   }
 
   dialogueLine.textContent = text;
-  dialogueLabel.textContent = "LUKE";
+  dialogueLabel.textContent = speaker;
   dialogueLabel.classList.remove("dialogue__label--hidden");
   dialoguePrompt.textContent = "";
   dialogueBox.classList.add("dialogue--active");
@@ -182,7 +182,11 @@ function showLukeLine(text) {
   tempDialogueTimeout = setTimeout(() => {
     tempDialogueTimeout = null;
     updateDialogue();
-  }, 1600);
+  }, 2000);
+}
+
+function showLukeLine(text) {
+  showTemporaryDialogue(text, "LUKE");
 }
 
 function checkCollision(x, y) {
@@ -1051,25 +1055,7 @@ function handleInteraction() {
 
     const nearStudent = findNearbyFurniture(['student'], 40);
     if (nearStudent && nearStudent.text) {
-        showLukeLine(nearStudent.text); // Actually should show student name or just text
-        // For now using showLukeLine but changing label to 'Student' would be better
-        // But showLukeLine hardcodes LUKE.
-        // I will just use updateDialogue for custom speaker if needed, but existing showLukeLine is convenient for temporary text.
-        // Let's modify showLukeLine slightly or just use it as is (Luke thinking about what they said? No.)
-
-        // Let's implement a proper speech bubble or reuse dialogue box with 'Student'
-        dialogueLine.textContent = nearStudent.text;
-        dialogueLabel.textContent = nearStudent.name || "STUDENT";
-        dialogueLabel.classList.remove("dialogue__label--hidden");
-        dialoguePrompt.textContent = "";
-        dialogueBox.classList.add("dialogue--active");
-        dialogueBox.classList.remove("dialogue--hidden");
-
-        if (tempDialogueTimeout) clearTimeout(tempDialogueTimeout);
-        tempDialogueTimeout = setTimeout(() => {
-            tempDialogueTimeout = null;
-            updateDialogue();
-        }, 2000);
+        showTemporaryDialogue(nearStudent.text, nearStudent.name || "STUDENT");
         return;
     }
 

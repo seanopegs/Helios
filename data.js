@@ -1,8 +1,7 @@
 window.initialGameData = {
   dialogue: [
     { text: "okay Luke", speaker: "LUKE" },
-    { text: "this is your final chance", speaker: "LUKE" },
-    { text: "Use WASD to reach the door at the top.", speaker: "" }
+    { text: "this is your final chance", speaker: "LUKE" }
   ],
   levels: {
     classroom: {
