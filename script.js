@@ -22,7 +22,7 @@ let selectedObject = null;
 let isDragging = false;
 let isDraggingSpawn = false;
 let isDraggingInteraction = false;
-let isResizingInteraction = false;
+let resizeHandle = null;
 let dragOffset = { x: 0, y: 0 };
 
 const player = {
@@ -95,6 +95,30 @@ function normalizeGameData(data) {
                      area: { x: -10, y: item.height, width: item.width + 20, height: 40 }
                  };
                  // Clean up old props if you want, or keep for safety. keeping for now.
+            }
+
+            // Migration for Bed
+            if (item.type === 'bed' && !item.interaction) {
+                item.interaction = {
+                    enabled: true,
+                    type: 'sequence',
+                    conversations: [
+                        [{ speaker: 'LUKE', text: "it's not the right time to sleep" }]
+                    ],
+                    area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 }
+                };
+            }
+
+            // Migration for Cupboard
+            if (item.type === 'cupboard' && !item.interaction) {
+                 item.interaction = {
+                    enabled: true,
+                    type: 'sequence',
+                    conversations: [
+                        [{ speaker: 'LUKE', text: "why?" }]
+                    ],
+                    area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 }
+                };
             }
         });
     });
@@ -244,7 +268,8 @@ function checkCollision(x, y) {
 }
 
 function handleMovement() {
-  if (stage < 2) return;
+  // Block movement if dialogue is active
+  if (dialogueBox.classList.contains("dialogue--active")) return;
   if (player.isSitting) return;
 
   let dx = 0;
@@ -1019,8 +1044,22 @@ function drawDevOverlay() {
             ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
             ctx.fillRect(ix - camera.x, iy - camera.y, area.width, area.height);
 
-            // Handle handles? Maybe just rely on props panel or mouse dragging inside
-            // Let's add small handles for resizing visually if needed, but for now simple box
+            // Draw Resize Handles (Corners)
+            const handleSize = 6;
+            ctx.fillStyle = "white";
+            ctx.strokeStyle = "green";
+
+            const handles = [
+                { x: ix, y: iy }, // TL
+                { x: ix + area.width, y: iy }, // TR
+                { x: ix, y: iy + area.height }, // BL
+                { x: ix + area.width, y: iy + area.height } // BR
+            ];
+
+            handles.forEach(h => {
+                ctx.fillRect(h.x - handleSize/2 - camera.x, h.y - handleSize/2 - camera.y, handleSize, handleSize);
+                ctx.strokeRect(h.x - handleSize/2 - camera.x, h.y - handleSize/2 - camera.y, handleSize, handleSize);
+            });
         }
     }
 }
@@ -1261,12 +1300,31 @@ canvas.addEventListener("mousedown", (e) => {
       const ix = selectedObject.x + area.x;
       const iy = selectedObject.y + area.y;
 
-      // Bottom-right corner for resize (10x10 handle area)
-      if (mx >= ix + area.width - 10 && mx <= ix + area.width + 10 &&
-          my >= iy + area.height - 10 && my <= iy + area.height + 10) {
-          isResizingInteraction = true;
-          dragOffset.x = mx - (ix + area.width); // Offset from corner
-          dragOffset.y = my - (iy + area.height);
+      const handleSize = 10;
+
+      // Check handles
+      // TL
+      if (Math.abs(mx - ix) <= handleSize && Math.abs(my - iy) <= handleSize) {
+          resizeHandle = 'tl';
+          dragOffset = { x: mx - ix, y: my - iy }; // Offset from handle center
+          return;
+      }
+      // TR
+      if (Math.abs(mx - (ix + area.width)) <= handleSize && Math.abs(my - iy) <= handleSize) {
+          resizeHandle = 'tr';
+          dragOffset = { x: mx - (ix + area.width), y: my - iy };
+          return;
+      }
+      // BL
+      if (Math.abs(mx - ix) <= handleSize && Math.abs(my - (iy + area.height)) <= handleSize) {
+          resizeHandle = 'bl';
+          dragOffset = { x: mx - ix, y: my - (iy + area.height) };
+          return;
+      }
+      // BR
+      if (Math.abs(mx - (ix + area.width)) <= handleSize && Math.abs(my - (iy + area.height)) <= handleSize) {
+          resizeHandle = 'br';
+          dragOffset = { x: mx - (ix + area.width), y: my - (iy + area.height) };
           return;
       }
 
@@ -1406,18 +1464,55 @@ canvas.addEventListener("mousemove", (e) => {
         return;
     }
 
-    if (isResizingInteraction && selectedObject) {
+    if (resizeHandle && selectedObject) {
         const area = selectedObject.interaction.area;
-        const newW = Math.max(10, Math.round(mx - dragOffset.x - (selectedObject.x + area.x))); // Logic check: mx = ix + w + off
-        // Actually: mx = (obj.x + area.x + w) + off
-        // w = mx - off - obj.x - area.x
-        const newH = Math.max(10, Math.round(my - dragOffset.y - (selectedObject.y + area.y)));
+        const ix = selectedObject.x + area.x;
+        const iy = selectedObject.y + area.y;
+        const right = ix + area.width;
+        const bottom = iy + area.height;
 
-        // Simpler: dragOffset is from corner.
-        // current corner = mx - dragOffset.
-        // width = current corner x - start x
-        area.width = Math.max(10, Math.round((mx - dragOffset.x) - (selectedObject.x + area.x)));
-        area.height = Math.max(10, Math.round((my - dragOffset.y) - (selectedObject.y + area.y)));
+        const mouseX = mx - dragOffset.x;
+        const mouseY = my - dragOffset.y;
+
+        if (resizeHandle === 'br') {
+            area.width = Math.max(10, Math.round(mouseX - ix));
+            area.height = Math.max(10, Math.round(mouseY - iy));
+        } else if (resizeHandle === 'bl') {
+            const newRight = ix + area.width; // Fixed right edge
+            // newLeft = mouseX
+            // width = right - newLeft
+            const newW = newRight - mouseX;
+            if (newW >= 10) {
+                 area.x = Math.round(mouseX - selectedObject.x);
+                 area.width = newW;
+            }
+            area.height = Math.max(10, Math.round(mouseY - iy));
+        } else if (resizeHandle === 'tr') {
+            const newBottom = iy + area.height; // Fixed bottom edge
+            // newTop = mouseY
+            // height = bottom - newTop
+            const newH = newBottom - mouseY;
+            if (newH >= 10) {
+                area.y = Math.round(mouseY - selectedObject.y);
+                area.height = newH;
+            }
+            area.width = Math.max(10, Math.round(mouseX - ix));
+        } else if (resizeHandle === 'tl') {
+             const newRight = ix + area.width;
+             const newBottom = iy + area.height;
+
+             const newW = newRight - mouseX;
+             const newH = newBottom - mouseY;
+
+             if (newW >= 10) {
+                 area.x = Math.round(mouseX - selectedObject.x);
+                 area.width = newW;
+             }
+             if (newH >= 10) {
+                 area.y = Math.round(mouseY - selectedObject.y);
+                 area.height = newH;
+             }
+        }
 
         updatePropPanel();
         return;
@@ -1441,13 +1536,13 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("mouseup", () => {
-    if (isDragging || isDraggingSpawn || isDraggingInteraction || isResizingInteraction) {
+    if (isDragging || isDraggingSpawn || isDraggingInteraction || resizeHandle) {
         saveLocal();
     }
     isDragging = false;
     isDraggingSpawn = false;
     isDraggingInteraction = false;
-    isResizingInteraction = false;
+    resizeHandle = null;
 });
 
 function updatePropPanel() {
