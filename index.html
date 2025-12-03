@@ -26,13 +26,33 @@
   <div id="texture-editor" class="modal hidden">
     <div class="modal-content">
       <h3>Texture Editor</h3>
-      <div class="editor-controls">
-        <input type="color" id="paint-color" value="#000000">
-        <button id="paint-clear" class="dev-btn-small">Clear</button>
+      <div class="editor-toolbar">
+         <div class="tool-group">
+            <label>Size:</label>
+            <input type="number" id="paint-width" style="width:50px" title="Width"> x
+            <input type="number" id="paint-height" style="width:50px" title="Height">
+         </div>
+         <div class="tool-group">
+            <label>Brush:</label>
+            <input type="range" id="paint-size" min="1" max="20" value="1" title="Brush Size">
+            <span id="paint-size-val">1</span>px
+         </div>
+         <div class="tool-group">
+             <input type="color" id="paint-color" value="#000000" title="Color">
+             <button id="paint-tool-brush" class="tool-btn active" title="Brush">B</button>
+             <button id="paint-tool-eraser" class="tool-btn" title="Eraser">E</button>
+         </div>
+         <div class="tool-group">
+             <button id="paint-clear" class="dev-btn-small">Clear</button>
+         </div>
       </div>
-      <canvas id="paint-canvas" width="64" height="64"></canvas>
+
+      <div style="overflow: auto; max-width: 100%; max-height: 70vh; display:flex; justify-content:center;">
+          <canvas id="paint-canvas" width="64" height="64"></canvas>
+      </div>
+
       <div class="editor-actions">
-          <button id="paint-save" class="dev-btn">Save Texture</button>
+          <button id="paint-save" class="dev-btn">Save Texture & Resize Object</button>
           <button id="paint-cancel" class="dev-btn-danger">Cancel</button>
       </div>
     </div>
