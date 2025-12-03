@@ -81,44 +81,52 @@ function loadLevel(name, targetDoorId) {
 function normalizeGameData(data) {
     if (!data.levels) return;
     Object.values(data.levels).forEach(level => {
+        // Doors
+        if (level.doors) {
+            level.doors.forEach(door => {
+                if (door.priority === undefined) door.priority = 1;
+            });
+        }
+
         if (!level.furniture) return;
         level.furniture.forEach(item => {
-            // Migration for old student text
-            if (item.type === 'student' && item.text && !item.interaction) {
-                 item.interaction = {
-                     enabled: true,
-                     type: 'sequence',
-                     // Conversations -> Array of Conversation(Array of Lines)
-                     conversations: [
-                         [{ speaker: item.name || 'STUDENT', text: item.text }]
-                     ],
-                     area: { x: -10, y: item.height, width: item.width + 20, height: 40 }
-                 };
-                 // Clean up old props if you want, or keep for safety. keeping for now.
+            // Ensure interaction object exists if legacy properties exist
+            if (!item.interaction) {
+                 if (item.type === 'student' && item.text) {
+                     item.interaction = {
+                         enabled: true,
+                         type: 'sequence',
+                         conversations: [
+                             [{ speaker: item.name || 'STUDENT', text: item.text }]
+                         ],
+                         area: { x: -10, y: item.height, width: item.width + 20, height: 40 }
+                     };
+                 } else if (item.type === 'bed') {
+                    item.interaction = {
+                        enabled: true,
+                        type: 'sequence',
+                        conversations: [
+                            [{ speaker: 'LUKE', text: "it's not the right time to sleep" }]
+                        ],
+                        area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 }
+                    };
+                 } else if (item.type === 'cupboard') {
+                     item.interaction = {
+                        enabled: true,
+                        type: 'sequence',
+                        conversations: [
+                            [{ speaker: 'LUKE', text: "why?" }]
+                        ],
+                        area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 }
+                    };
+                 }
             }
 
-            // Migration for Bed
-            if (item.type === 'bed' && !item.interaction) {
-                item.interaction = {
-                    enabled: true,
-                    type: 'sequence',
-                    conversations: [
-                        [{ speaker: 'LUKE', text: "it's not the right time to sleep" }]
-                    ],
-                    area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 }
-                };
-            }
-
-            // Migration for Cupboard
-            if (item.type === 'cupboard' && !item.interaction) {
-                 item.interaction = {
-                    enabled: true,
-                    type: 'sequence',
-                    conversations: [
-                        [{ speaker: 'LUKE', text: "why?" }]
-                    ],
-                    area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 }
-                };
+            // Normalize Interaction Properties
+            if (item.interaction) {
+                if (item.interaction.priority === undefined) item.interaction.priority = 1;
+                // Initialize runtime state if missing (not saved in JSON usually, but good to have structure)
+                if (!item.interaction.state) item.interaction.state = { count: 0 };
             }
         });
     });
@@ -1132,7 +1140,9 @@ function handleInteraction() {
         return;
     }
 
-    // New Interaction System
+    const candidates = [];
+
+    // 1. Check Furniture Interactions
     for (const item of room.furniture) {
          if (item.interaction && item.interaction.enabled && item.interaction.conversations && item.interaction.conversations.length > 0) {
              const area = item.interaction.area || { x: 0, y: 0, width: item.width, height: item.height };
@@ -1142,77 +1152,156 @@ function handleInteraction() {
              if (player.x >= ix && player.x <= ix + area.width &&
                  player.y >= iy && player.y <= iy + area.height) {
 
-                 const convos = item.interaction.conversations;
-                 let selectedConvo = [];
+                 candidates.push({
+                     type: 'furniture',
+                     obj: item,
+                     priority: item.interaction.priority || 1
+                 });
+             }
+         }
 
-                 if (item.interaction.type === 'random') {
-                     const idx = Math.floor(Math.random() * convos.length);
-                     selectedConvo = convos[idx];
-                 } else {
-                     selectedConvo = convos[0];
-                 }
-
-                 if (selectedConvo && selectedConvo.length > 0) {
-                     dialogue = JSON.parse(JSON.stringify(selectedConvo));
-                     stage = 0;
-                     updateDialogue();
-                     return;
-                 }
+         // Legacy 'text' property fallback (only if no interaction obj)
+         if (item.text && !item.interaction) {
+             // Treat as proximity
+             const anchorX = item.x + item.width / 2;
+             const anchorY = item.y + item.height;
+             const dist = Math.hypot(player.x - anchorX, player.y - anchorY);
+             if (dist < 40) {
+                 candidates.push({
+                     type: 'legacy_text',
+                     obj: item,
+                     priority: 1
+                 });
              }
          }
     }
 
-    const nearStudent = findNearbyFurniture(['student'], 40);
-    if (nearStudent && nearStudent.text && !nearStudent.interaction) {
-        showTemporaryDialogue(nearStudent.text, nearStudent.name || "STUDENT");
-        return;
-    }
-
-    // Check for Luke's seat
+    // 2. Check Luke's Seat
     const desks = room.furniture.filter(f => f.type === 'desk');
     for (const desk of desks) {
         if (desk.id === 'player_seat') {
             const dist = Math.hypot(player.x - (desk.x + desk.width/2), player.y - (desk.y + desk.height));
             if (dist < 50) {
-                player.isSitting = true;
-                player.x = desk.x + 23 + 12; // desk.x + 23 (student left) + 12 (center)
-                player.y = desk.y + 34 + 36; // desk.y + studentYOffset + height
-                player.facing = 'up';
-                return;
+                 candidates.push({
+                     type: 'sit',
+                     obj: desk,
+                     priority: desk.interaction ? (desk.interaction.priority || 1) : 1
+                 });
             }
         }
     }
 
-    const nearBed = findNearbyFurniture(['bed']);
-    if (nearBed) {
-        showLukeLine("it's not the right time to sleep");
-        return;
-    }
-
-    const nearCupboard = findNearbyFurniture(['cupboard'], 50);
-    if (nearCupboard) {
-        showLukeLine("why?");
-        return;
-    }
-
+    // 3. Check Doors
     const door = getNearestDoor(60);
-    if (door && door.target) {
-        // Parse "Room:ID" format or Legacy "Room" format
-        const parts = door.target.split(':');
+    if (door && (door.target || door.targetDoorId)) {
+        candidates.push({
+            type: 'door',
+            obj: door,
+            priority: door.priority || 1
+        });
+    }
+
+    if (candidates.length === 0) return;
+
+    // Sort by Priority (Desc)
+    candidates.sort((a, b) => b.priority - a.priority);
+
+    // Pick from top tier
+    const maxP = candidates[0].priority;
+    const topCandidates = candidates.filter(c => c.priority === maxP);
+    const selected = topCandidates[Math.floor(Math.random() * topCandidates.length)];
+
+    executeInteraction(selected);
+}
+
+function executeInteraction(target) {
+    if (target.type === 'sit') {
+        const desk = target.obj;
+        player.isSitting = true;
+        player.x = desk.x + 23 + 12;
+        player.y = desk.y + 34 + 36;
+        player.facing = 'up';
+        return;
+    }
+
+    if (target.type === 'legacy_text') {
+        showTemporaryDialogue(target.obj.text, target.obj.name || "STUDENT");
+        return;
+    }
+
+    if (target.type === 'door') {
+        const door = target.obj;
+        const parts = (door.target || '').split(':');
         let targetRoom = parts[0].trim();
         let targetId = parts[1] ? parts[1].trim() : null;
 
-        // Legacy fallback: if targetDoorId property exists, use it
-        if (!targetId && door.targetDoorId) {
-            targetId = door.targetDoorId;
+        if (!targetId && door.targetDoorId) targetId = door.targetDoorId;
+
+        if (targetRoom) {
+             loadLevel(targetRoom, targetId);
+             if (!targetId && door.targetSpawn) {
+                  player.x = door.targetSpawn.x;
+                  player.y = door.targetSpawn.y;
+             }
+        }
+        return;
+    }
+
+    if (target.type === 'furniture') {
+        const item = target.obj;
+        const interaction = item.interaction;
+
+        // Ensure state exists
+        if (!interaction.state) interaction.state = { count: 0 };
+        const count = interaction.state.count;
+
+        // Filter valid conversations based on conditions
+        const validConvos = interaction.conversations.filter(c => {
+            // Handle array legacy format (always valid unless specific logic needed, treated as default)
+            if (Array.isArray(c)) return true;
+
+            // Check conditions
+            if (c.reqCount !== undefined && count !== parseInt(c.reqCount)) return false;
+            if (c.minCount !== undefined && count < parseInt(c.minCount)) return false;
+            if (c.maxCount !== undefined && count > parseInt(c.maxCount)) return false;
+            if (c.once && c.seen) return false;
+
+            return true;
+        });
+
+        if (validConvos.length === 0) return;
+
+        let selectedConvo = null;
+
+        // Selection Logic
+        if (interaction.type === 'random') {
+            const idx = Math.floor(Math.random() * validConvos.length);
+            selectedConvo = validConvos[idx];
+        } else {
+            // Sequence / Default (First valid match)
+            selectedConvo = validConvos[0];
         }
 
-        loadLevel(targetRoom, targetId);
+        if (selectedConvo) {
+            // Unwrap lines
+            let lines = [];
+            if (Array.isArray(selectedConvo)) {
+                lines = selectedConvo;
+            } else {
+                lines = selectedConvo.lines;
+                // Mark as seen
+                selectedConvo.seen = true;
+            }
 
-        // Manual override (legacy support)
-        if (!targetId && door.targetSpawn) {
-             player.x = door.targetSpawn.x;
-             player.y = door.targetSpawn.y;
+            if (lines && lines.length > 0) {
+                dialogue = JSON.parse(JSON.stringify(lines));
+                stage = 0;
+                updateDialogue();
+
+                // Increment global interaction count
+                interaction.state.count++;
+                saveLocal();
+            }
         }
     }
 }
@@ -1251,7 +1340,11 @@ document.addEventListener("keydown", (event) => {
     keys.add(key);
   }
   if (key === " ") {
-      handleInteraction();
+      if (dialogueBox.classList.contains("dialogue--active")) {
+          advanceDialogue();
+      } else {
+          handleInteraction();
+      }
   }
   if (isDeveloperMode && (key === 'delete' || key === 'backspace')) {
       // Avoid deleting when typing in input fields
@@ -1625,6 +1718,7 @@ function updatePropPanel() {
         if (e.target.checked) {
              if (!selectedObject.interaction) selectedObject.interaction = {};
              selectedObject.interaction.enabled = true;
+             if (!selectedObject.interaction.priority) selectedObject.interaction.priority = 1;
              if (!selectedObject.interaction.type) selectedObject.interaction.type = 'sequence';
              if (!selectedObject.interaction.conversations) selectedObject.interaction.conversations = [ [] ];
              if (!selectedObject.interaction.area) selectedObject.interaction.area = { x: 0, y: selectedObject.height, width: selectedObject.width, height: 40 };
@@ -1641,6 +1735,22 @@ function updatePropPanel() {
     interactHeader.appendChild(lbl);
     extra.appendChild(interactHeader);
 
+    // Global Priority (For all objects)
+    // Add Priority Input if interactable or Door
+    if ((selectedObject.interaction && selectedObject.interaction.enabled) || selectedObject.type === 'door') {
+         const priVal = selectedObject.type === 'door' ? (selectedObject.priority || 1) : (selectedObject.interaction.priority || 1);
+         const priDiv = document.createElement("div");
+         priDiv.className = "dev-prop-row";
+         priDiv.innerHTML = `<label>Priority</label> <input type="number" value="${priVal}" style="width:50px">`;
+         priDiv.querySelector("input").onchange = (e) => {
+             const v = parseInt(e.target.value);
+             if (selectedObject.type === 'door') selectedObject.priority = v;
+             else selectedObject.interaction.priority = v;
+             saveLocal();
+         };
+         extra.appendChild(priDiv);
+    }
+
     if (selectedObject.interaction && selectedObject.interaction.enabled) {
         const iObj = selectedObject.interaction;
 
@@ -1649,6 +1759,19 @@ function updatePropPanel() {
         addPropInput(extra, "Area Y", iObj.area.y, v => iObj.area.y = parseInt(v));
         addPropInput(extra, "Area W", iObj.area.width, v => iObj.area.width = parseInt(v));
         addPropInput(extra, "Area H", iObj.area.height, v => iObj.area.height = parseInt(v));
+
+        // Interaction Count & Reset
+        const countDiv = document.createElement("div");
+        countDiv.className = "dev-prop-row";
+        countDiv.style.fontSize = "11px";
+        if (!iObj.state) iObj.state = { count: 0 };
+        countDiv.innerHTML = `<span>Count: ${iObj.state.count}</span>`;
+        const rstBtn = document.createElement("button");
+        rstBtn.textContent = "Reset";
+        rstBtn.className = "btn-xs";
+        rstBtn.onclick = () => { iObj.state.count = 0; saveLocal(); updatePropPanel(); };
+        countDiv.appendChild(rstBtn);
+        extra.appendChild(countDiv);
 
         // Interaction Type
         const typeRow = document.createElement("div");
@@ -1665,7 +1788,15 @@ function updatePropPanel() {
         const convList = document.createElement("div");
         convList.style.marginTop = "5px";
 
-        iObj.conversations.forEach((convo, idx) => {
+        iObj.conversations.forEach((convoItem, idx) => {
+            let lines = [];
+            let isAdvanced = !Array.isArray(convoItem);
+            if (isAdvanced) {
+                lines = convoItem.lines;
+            } else {
+                lines = convoItem;
+            }
+
             const cDiv = document.createElement("div");
             cDiv.style.background = "rgba(0,0,0,0.2)";
             cDiv.style.padding = "4px";
@@ -1684,9 +1815,65 @@ function updatePropPanel() {
                 updatePropPanel();
             };
 
+            // Advanced Conditions UI
+            const condDiv = document.createElement("div");
+            condDiv.style.display = "flex";
+            condDiv.style.gap = "4px";
+            condDiv.style.fontSize = "10px";
+            condDiv.style.marginBottom = "4px";
+            condDiv.style.flexWrap = "wrap";
+
+            const ensureObject = () => {
+                if (!isAdvanced) {
+                    const newObj = { lines: [...convoItem] };
+                    iObj.conversations[idx] = newObj;
+                    isAdvanced = true;
+                    // Update reference for closure
+                    convoItem = newObj;
+                    return newObj;
+                }
+                return iObj.conversations[idx];
+            };
+
+            const makeIn = (lbl, prop, ph) => {
+                const w = document.createElement("span");
+                w.textContent = lbl;
+                const inp = document.createElement("input");
+                inp.style.width = "20px";
+                inp.placeholder = ph || "";
+                if (isAdvanced && convoItem[prop] !== undefined) inp.value = convoItem[prop];
+                inp.onchange = (e) => {
+                    const o = ensureObject();
+                    if (e.target.value === "") delete o[prop];
+                    else o[prop] = e.target.value;
+                    saveLocal();
+                };
+                w.appendChild(inp);
+                return w;
+            };
+
+            condDiv.appendChild(makeIn("Req:", "reqCount"));
+            condDiv.appendChild(makeIn("Min:", "minCount"));
+            condDiv.appendChild(makeIn("Max:", "maxCount"));
+
+            const onceLbl = document.createElement("label");
+            onceLbl.textContent = "Once";
+            const onceChk = document.createElement("input");
+            onceChk.type = "checkbox";
+            if (isAdvanced && convoItem.once) onceChk.checked = true;
+            onceChk.onchange = (e) => {
+                const o = ensureObject();
+                o.once = e.target.checked;
+                saveLocal();
+            };
+            onceLbl.prepend(onceChk);
+            condDiv.appendChild(onceLbl);
+
+            cDiv.appendChild(condDiv);
+
             // Lines
             const linesDiv = document.createElement("div");
-            convo.forEach((line, lIdx) => {
+            lines.forEach((line, lIdx) => {
                  const lDiv = document.createElement("div");
                  lDiv.style.marginBottom = "2px";
                  lDiv.style.display = "flex";
@@ -1707,7 +1894,7 @@ function updatePropPanel() {
                  const delBtn = document.createElement("button");
                  delBtn.textContent = "-";
                  delBtn.onclick = () => {
-                     convo.splice(lIdx, 1);
+                     lines.splice(lIdx, 1);
                      saveLocal();
                      updatePropPanel();
                  };
@@ -1723,7 +1910,8 @@ function updatePropPanel() {
             addLineBtn.textContent = "+ Line";
             addLineBtn.className = "btn-xs";
             addLineBtn.onclick = () => {
-                 convo.push({ speaker: selectedObject.name || "NPC", text: "..." });
+                 const target = isAdvanced ? iObj.conversations[idx].lines : iObj.conversations[idx];
+                 target.push({ speaker: selectedObject.name || "NPC", text: "..." });
                  saveLocal();
                  updatePropPanel();
             };
