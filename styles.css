@@ -223,11 +223,9 @@ body {
   background-size: 20px 20px;
   border: 1px solid #999;
   cursor: crosshair;
-  /* Remove fixed width/height so it scales naturally or via JS */
-  max-width: 90vw;
-  max-height: 60vh;
   image-rendering: pixelated;
   box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  transform-origin: top left; /* Zoom from top-left corner */
 }
 
 .editor-toolbar {

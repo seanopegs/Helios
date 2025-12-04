@@ -63,12 +63,23 @@ function loadLevel(name, targetDoorId) {
   }
 
   if (!spawned) {
-      player.x = room.spawn.x;
-      player.y = room.spawn.y;
+      if (room.spawn && typeof room.spawn.x === 'number' && typeof room.spawn.y === 'number') {
+          player.x = room.spawn.x;
+          player.y = room.spawn.y;
+      } else {
+          // Fallback to center
+          player.x = room.width / 2;
+          player.y = room.height / 2;
+      }
   }
+
+  // Sanity check
+  if (!isFinite(player.x)) player.x = 100;
+  if (!isFinite(player.y)) player.y = 100;
 
   camera.x = 0;
   camera.y = 0;
+  handleMovement(); // Snap camera immediately
 
   let title = "Helios - Luke's Room";
   if (name === 'lecture') title = "Helios - Classroom";
@@ -332,6 +343,10 @@ function handleMovement() {
 
   camera.x = Math.max(0, Math.min(camTargetX, maxCamX));
   camera.y = Math.max(0, Math.min(camTargetY, maxCamY));
+
+  // NaN Guard
+  if (!isFinite(camera.x)) camera.x = 0;
+  if (!isFinite(camera.y)) camera.y = 0;
 }
 
 function drawRoom() {
@@ -1520,6 +1535,15 @@ let isPainting = false;
 let paintMode = 'brush'; // 'brush' or 'eraser'
 let lastPaintX = 0;
 let lastPaintY = 0;
+let zoomLevel = 1;
+
+function updateZoom() {
+    // Zoom via CSS width/height for display only
+    // This allows the canvas internal resolution to remain 1:1 with object size
+    paintCanvas.style.width = (paintCanvas.width * zoomLevel) + "px";
+    paintCanvas.style.height = (paintCanvas.height * zoomLevel) + "px";
+    document.getElementById("paint-zoom-val").textContent = Math.round(zoomLevel * 100) + "%";
+}
 
 function captureObjectTexture(item) {
     const cvs = document.createElement("canvas");
@@ -1558,6 +1582,8 @@ function resizePaintCanvas(w, h, preserveContent = true) {
         // User asked "can resize dimension". Usually implies extending the canvas.
         // So keeping 1:1 is correct.
     }
+
+    updateZoom(); // Apply current zoom to new dimensions
 }
 
 document.getElementById("dev-edit-texture").addEventListener("click", () => {
@@ -1571,6 +1597,10 @@ document.getElementById("dev-edit-texture").addEventListener("click", () => {
     // Resize canvas
     paintCanvas.width = selectedObject.width;
     paintCanvas.height = selectedObject.height;
+
+    // Reset Zoom
+    zoomLevel = 1;
+    updateZoom();
 
     // Load existing texture or capture procedural
     paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
@@ -1603,6 +1633,16 @@ document.getElementById("paint-height").addEventListener("change", (e) => {
 
 document.getElementById("paint-size").addEventListener("input", (e) => {
     document.getElementById("paint-size-val").textContent = e.target.value;
+});
+
+document.getElementById("paint-zoom-in").addEventListener("click", () => {
+    zoomLevel = Math.min(8, zoomLevel * 2); // Max 800%
+    updateZoom();
+});
+
+document.getElementById("paint-zoom-out").addEventListener("click", () => {
+    zoomLevel = Math.max(0.25, zoomLevel / 2); // Min 25%
+    updateZoom();
 });
 
 // Tools
@@ -1643,6 +1683,7 @@ document.getElementById("paint-save").addEventListener("click", () => {
 // Painting interaction
 function getPaintPos(e) {
     const rect = paintCanvas.getBoundingClientRect();
+    // Use the actual visual ratio
     const scaleX = paintCanvas.width / rect.width;
     const scaleY = paintCanvas.height / rect.height;
     return {
