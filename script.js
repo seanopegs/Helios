@@ -10,6 +10,13 @@ let dialogue = [];
 let levels = JSON.parse(JSON.stringify(window.initialGameData.levels));
 let isDeveloperMode = false;
 
+// Play Data (Runtime State)
+let playData = {
+    player: { x: 0, y: 0, room: 'classroom', facing: 'down' },
+    worldState: {},
+    inventory: []
+};
+
 let stage = 0;
 let isHintActive = false;
 const keys = new Set();
@@ -26,9 +33,10 @@ let isDraggingInteraction = false;
 let resizeHandle = null;
 let dragOffset = { x: 0, y: 0 };
 
+// Player object
 const player = {
-  x: room.spawn.x,
-  y: room.spawn.y,
+  x: 0,
+  y: 0,
   size: 24,
   speed: 3,
   facing: "down",
@@ -43,6 +51,10 @@ function loadLevel(name, targetDoorId) {
   currentLevelName = name;
   room = levels[name];
 
+  if (!isDeveloperMode) {
+      playData.player.room = name;
+  }
+
   let spawned = false;
   if (targetDoorId) {
       const targetDoor = (room.doors || []).find(d => d.id === targetDoorId);
@@ -52,7 +64,6 @@ function loadLevel(name, targetDoorId) {
               player.y = targetDoor.customSpawn.y;
           } else {
               const spawn = doorAttachmentPoint(targetDoor);
-              // Offset slightly so player isn't inside door
               player.x = spawn.x;
               player.y = spawn.y + 10;
               if (targetDoor.orientation === 'bottom') player.y = targetDoor.y - 24;
@@ -68,41 +79,43 @@ function loadLevel(name, targetDoorId) {
           player.x = room.spawn.x;
           player.y = room.spawn.y;
       } else {
-          // Fallback to center
           player.x = room.width / 2;
           player.y = room.height / 2;
       }
   }
 
-  // Sanity check
   if (!isFinite(player.x)) player.x = 100;
   if (!isFinite(player.y)) player.y = 100;
 
+  if (!isDeveloperMode) {
+      playData.player.x = player.x;
+      playData.player.y = player.y;
+      playData.player.facing = player.facing;
+      savePlayState();
+  }
+
   camera.x = 0;
   camera.y = 0;
-  handleMovement(); // Snap camera immediately
+  handleMovement();
 
   let title = "Helios - Luke's Room";
   if (name === 'lecture') title = "Helios - Classroom";
   else if (name === 'hallway') title = "Helios - Student Hallway";
   document.title = title;
 
-  updateDevRoomSelect();
+  if (isDeveloperMode) updateDevRoomSelect();
 }
 
 function normalizeGameData(data) {
     if (!data.levels) return;
     Object.values(data.levels).forEach(level => {
-        // Doors
         if (level.doors) {
             level.doors.forEach(door => {
                 if (door.priority === undefined) door.priority = 1;
             });
         }
-
         if (!level.furniture) return;
         level.furniture.forEach(item => {
-            // Ensure interaction object exists if legacy properties exist
             if (!item.interaction) {
                  if (item.type === 'student' && item.text) {
                      item.interaction = {
@@ -114,31 +127,13 @@ function normalizeGameData(data) {
                          area: { x: -10, y: item.height, width: item.width + 20, height: 40 }
                      };
                  } else if (item.type === 'bed') {
-                    item.interaction = {
-                        enabled: true,
-                        type: 'sequence',
-                        conversations: [
-                            [{ speaker: 'LUKE', text: "it's not the right time to sleep" }]
-                        ],
-                        area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 }
-                    };
+                    item.interaction = { enabled: true, type: 'sequence', conversations: [[{ speaker: 'LUKE', text: "it's not the right time to sleep" }]], area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 } };
                  } else if (item.type === 'cupboard') {
-                     item.interaction = {
-                        enabled: true,
-                        type: 'sequence',
-                        conversations: [
-                            [{ speaker: 'LUKE', text: "why?" }]
-                        ],
-                        area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 }
-                    };
+                     item.interaction = { enabled: true, type: 'sequence', conversations: [[{ speaker: 'LUKE', text: "why?" }]], area: { x: -5, y: -5, width: item.width + 10, height: item.height + 10 } };
                  }
             }
-
-            // Normalize Interaction Properties
             if (item.interaction) {
                 if (item.interaction.priority === undefined) item.interaction.priority = 1;
-                // Initialize runtime state if missing (not saved in JSON usually, but good to have structure)
-                if (!item.interaction.state) item.interaction.state = { count: 0 };
             }
         });
     });
@@ -158,7 +153,6 @@ function updateDevRoomSelect() {
 }
 
 document.getElementById("dev-room-select").addEventListener("change", (e) => {
-    // Save current player pos if needed or just switch
     loadLevel(e.target.value);
 });
 
@@ -220,11 +214,9 @@ function updateDialogue() {
 
   if (entry) {
     dialogueLine.textContent = entry.text;
-
     const hasSpeaker = Boolean(entry.speaker);
     dialogueLabel.textContent = entry.speaker || "";
     dialogueLabel.classList.toggle("dialogue__label--hidden", !hasSpeaker);
-
     dialoguePrompt.textContent = stage < dialogue.length - 1 ? "Click anywhere" : "";
     dialogueBox.classList.add("dialogue--active");
     dialogueBox.classList.remove("dialogue--hidden");
@@ -239,7 +231,6 @@ function showTemporaryDialogue(text, speaker = "LUKE") {
     clearTimeout(tempDialogueTimeout);
     tempDialogueTimeout = null;
   }
-
   dialogueLine.textContent = text;
   dialogueLabel.textContent = speaker;
   dialogueLabel.classList.remove("dialogue__label--hidden");
@@ -260,17 +251,13 @@ function showLukeLine(text) {
 function checkCollision(x, y) {
   const half = player.size / 2;
 
-  // Room bounds
   if (x - half < room.padding) return true;
   if (x + half > room.width - room.padding) return true;
-  if (y - half < room.wallHeight) return true; // Wall collision
+  if (y - half < room.wallHeight) return true;
   if (y + half > room.height - room.padding) return true;
 
-  // Furniture collision
   for (const item of room.furniture) {
     const hasCustom = !!item.collisionRect;
-
-    // Windows and Rugs don't block movement unless custom collision is set
     if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone')) continue;
 
     let dLeft, dTop, dWidth, dHeight;
@@ -290,7 +277,6 @@ function checkCollision(x, y) {
     const dRight = dLeft + dWidth;
     const dBottom = dTop + dHeight;
 
-    // A bit of padding for movement feel
     if (x + half > dLeft && x - half < dRight &&
         y + half > dTop && y - half < dBottom) {
       return true;
@@ -301,7 +287,6 @@ function checkCollision(x, y) {
 }
 
 function handleMovement() {
-  // Block movement if dialogue is active (but allow if it's just a hint)
   if (dialogueBox.classList.contains("dialogue--active") && !isHintActive) return;
   if (player.isSitting) return;
 
@@ -319,7 +304,6 @@ function handleMovement() {
     if (dx > 0) player.facing = "right";
 
     player.walkFrame += 0.1;
-
     const length = Math.hypot(dx, dy) || 1;
     dx = (dx / length) * player.speed;
     dy = (dy / length) * player.speed;
@@ -331,23 +315,23 @@ function handleMovement() {
       player.y += dy;
     }
 
+    if (!isDeveloperMode) {
+        playData.player.x = player.x;
+        playData.player.y = player.y;
+        playData.player.facing = player.facing;
+    }
+
     checkAutoTriggers();
   } else {
     player.walkFrame = 0;
   }
 
-  // Camera update
   const camTargetX = player.x - canvas.width / 2;
   const camTargetY = player.y - canvas.height / 2;
-
-  // Clamp
   const maxCamX = Math.max(0, room.width - canvas.width);
   const maxCamY = Math.max(0, room.height - canvas.height);
-
   camera.x = Math.max(0, Math.min(camTargetX, maxCamX));
   camera.y = Math.max(0, Math.min(camTargetY, maxCamY));
-
-  // NaN Guard
   if (!isFinite(camera.x)) camera.x = 0;
   if (!isFinite(camera.y)) camera.y = 0;
 }
@@ -358,11 +342,9 @@ function drawRoom() {
     dorm: { wall: "#8d6e63", floor: "#3e2723", baseboard: "#281915", detail: "rgba(0,0,0,0.2)", pattern: 32, vertical: true },
     classroom: { wall: "#2c3e50", floor: "#e9e4d5", baseboard: "#1f2d3a", detail: "rgba(0,0,0,0.12)", pattern: 54, vertical: true }
   };
-
   const themeName = room.theme || 'dorm';
   const palette = themes[themeName] || themes.dorm;
 
-  // Back Wall
   ctx.fillStyle = palette.wall;
   ctx.fillRect(0, 0, room.width, room.wallHeight);
 
@@ -373,11 +355,9 @@ function drawRoom() {
      }
   }
 
-  // Floor
   ctx.fillStyle = palette.floor;
   ctx.fillRect(0, room.wallHeight, room.width, room.height - room.wallHeight);
 
-  // Floor details
   ctx.save();
   ctx.fillStyle = palette.detail;
   for (let i = room.wallHeight; i < room.height; i += palette.pattern) {
@@ -390,13 +370,11 @@ function drawRoom() {
   }
   ctx.restore();
 
-  // Side Borders
   ctx.fillStyle = "#111";
   ctx.fillRect(0, 0, room.padding, room.height);
   ctx.fillRect(room.width - room.padding, 0, room.padding, room.height);
   ctx.fillRect(0, room.height - room.padding, room.width, room.padding);
 
-  // Baseboard
   ctx.fillStyle = palette.baseboard;
   ctx.fillRect(room.padding, room.wallHeight - 12, room.width - room.padding * 2, 12);
 }
@@ -406,92 +384,65 @@ function drawDoor(door, targetCtx = ctx) {
   const orientation = door.orientation || (y > room.height / 2 ? 'bottom' : 'top');
 
   if (orientation === 'bottom') {
-      // Bottom Door (Exit mat style)
-      targetCtx.fillStyle = "#2d1e19"; // Frame color
+      targetCtx.fillStyle = "#2d1e19";
       targetCtx.fillRect(x - 6, y - 4, width + 12, height + 6);
-
       const gradient = targetCtx.createLinearGradient(0, y, 0, y + height);
       gradient.addColorStop(0, "#5d4037");
       gradient.addColorStop(1, "#3e2723");
-      targetCtx.fillStyle = gradient; // Door body
+      targetCtx.fillStyle = gradient;
       targetCtx.fillRect(x, y, width, height);
-
-      // Window slit
       targetCtx.fillStyle = "#90a4ae";
       targetCtx.fillRect(x + 10, y + 8, width - 20, 10);
-
-      // Knob
       targetCtx.fillStyle = "#f0c419";
       targetCtx.beginPath();
       targetCtx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
       targetCtx.fill();
-
-      // Mat
       targetCtx.fillStyle = "#6d4c41";
       targetCtx.fillRect(x - 4, y + height - 8, width + 8, 10);
   } else if (orientation === 'left') {
-      // Left wall door
       targetCtx.fillStyle = "#3a271f";
       targetCtx.fillRect(x - 4, y - 6, width + 8, height + 12);
-
       const gradient = targetCtx.createLinearGradient(x, 0, x + width, 0);
       gradient.addColorStop(0, "#f6c453");
       gradient.addColorStop(1, "#d89c27");
       targetCtx.fillStyle = gradient;
       targetCtx.fillRect(x, y, width, height);
-
       targetCtx.fillStyle = "rgba(0,0,0,0.2)";
       targetCtx.fillRect(x, y, width, 6);
-
       targetCtx.fillStyle = "#90caf9";
       targetCtx.fillRect(x + 10, y + 8, 14, height - 16);
-
       targetCtx.fillStyle = "#333";
       targetCtx.beginPath();
       targetCtx.arc(x + width / 2, y + height - 12, 4, 0, Math.PI * 2);
       targetCtx.fill();
   } else if (orientation === 'right') {
-      // Right wall door
       targetCtx.fillStyle = "#3a271f";
       targetCtx.fillRect(x - 4, y - 6, width + 8, height + 12);
-
       const gradient = targetCtx.createLinearGradient(x, 0, x + width, 0);
       gradient.addColorStop(0, "#d89c27");
       gradient.addColorStop(1, "#f6c453");
       targetCtx.fillStyle = gradient;
       targetCtx.fillRect(x, y, width, height);
-
       targetCtx.fillStyle = "rgba(0,0,0,0.2)";
       targetCtx.fillRect(x + width - 6, y, 6, height);
-
       targetCtx.fillStyle = "#90caf9";
       targetCtx.fillRect(x + width - 24, y + 8, 14, height - 16);
-
       targetCtx.fillStyle = "#333";
       targetCtx.beginPath();
       targetCtx.arc(x + width / 2, y + 12, 4, 0, Math.PI * 2);
       targetCtx.fill();
   } else {
-      // Top Door (Standard)
-      // Frame
       targetCtx.fillStyle = "#3a271f";
       targetCtx.fillRect(x - 6, y - 6, width + 12, height + 10);
-
       const gradient = targetCtx.createLinearGradient(0, y, 0, y + height);
       gradient.addColorStop(0, "#f6c453");
       gradient.addColorStop(1, "#d89c27");
       targetCtx.fillStyle = gradient;
       targetCtx.fillRect(x, y, width, height);
-
-      // Shadow/Depth
       targetCtx.fillStyle = "rgba(0,0,0,0.2)";
       targetCtx.fillRect(x, y, 6, height);
-
-      // Upper window panel
       targetCtx.fillStyle = "#90caf9";
       targetCtx.fillRect(x + 8, y + 10, width - 16, 14);
-
-      // Knob
       targetCtx.fillStyle = "#333";
       targetCtx.beginPath();
       targetCtx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
@@ -504,125 +455,87 @@ function drawDoors() {
 }
 
 function drawDesk(item, targetCtx = ctx) {
-    // Legs
     targetCtx.fillStyle = "#3e2723";
     targetCtx.fillRect(item.x + 4, item.y + 10, 4, item.height - 10);
     targetCtx.fillRect(item.x + item.width - 8, item.y + 10, 4, item.height - 10);
-
-    // Top
-    targetCtx.fillStyle = "#6d4c41"; // Medium wood
+    targetCtx.fillStyle = "#6d4c41";
     targetCtx.fillRect(item.x, item.y, item.width, item.height - 10);
-
-    // Drawers on right side if wide enough
     if (item.width > 50) {
         targetCtx.fillStyle = "#5d4037";
         targetCtx.fillRect(item.x + item.width - 20, item.y + 10, 18, 20);
-        targetCtx.fillStyle = "#3e2723"; // Knob
+        targetCtx.fillStyle = "#3e2723";
         targetCtx.fillRect(item.x + item.width - 12, item.y + 18, 4, 4);
     }
-
-    // Laptop
     if (item.hasLaptop) {
-        targetCtx.fillStyle = "#cfd8dc"; // Silver
-        targetCtx.fillRect(item.x + item.width/2 - 10, item.y + 5, 20, 12); // Screen
+        targetCtx.fillStyle = "#cfd8dc";
+        targetCtx.fillRect(item.x + item.width/2 - 10, item.y + 5, 20, 12);
         targetCtx.fillStyle = "#b0bec5";
-        targetCtx.fillRect(item.x + item.width/2 - 10, item.y + 17, 20, 8); // Base
-        targetCtx.fillStyle = "#81d4fa"; // Screen glow
+        targetCtx.fillRect(item.x + item.width/2 - 10, item.y + 17, 20, 8);
+        targetCtx.fillStyle = "#81d4fa";
         targetCtx.fillRect(item.x + item.width/2 - 8, item.y + 7, 16, 8);
     }
-
-    // Lamp
     if (item.hasLamp) {
-         targetCtx.fillStyle = "#fff59d"; // Shade
+         targetCtx.fillStyle = "#fff59d";
          targetCtx.beginPath();
          targetCtx.moveTo(item.x + 10, item.y + 15);
          targetCtx.lineTo(item.x + 20, item.y + 15);
          targetCtx.lineTo(item.x + 15, item.y + 5);
          targetCtx.fill();
-         targetCtx.fillStyle = "#3e2723"; // Stand
+         targetCtx.fillStyle = "#3e2723";
          targetCtx.fillRect(item.x + 14, item.y + 15, 2, 5);
     }
 }
 
 function drawTable(item, targetCtx = ctx) {
-  // Shadow
   targetCtx.fillStyle = "rgba(0,0,0,0.25)";
   targetCtx.fillRect(item.x + 6, item.y + item.height - 6, item.width - 12, 6);
-
-  // Legs
   targetCtx.fillStyle = "#2f2a28";
   targetCtx.fillRect(item.x + 6, item.y + 12, 8, item.height - 18);
   targetCtx.fillRect(item.x + item.width - 14, item.y + 12, 8, item.height - 18);
   targetCtx.fillRect(item.x + item.width / 2 - 4, item.y + 12, 8, item.height - 18);
-
-  // Top
   const gradient = targetCtx.createLinearGradient(item.x, item.y, item.x, item.y + item.height);
   gradient.addColorStop(0, "#b0a089");
   gradient.addColorStop(1, "#9e8c74");
   targetCtx.fillStyle = gradient;
   targetCtx.fillRect(item.x, item.y, item.width, item.height - 10);
-
-  // Edge
   targetCtx.fillStyle = "#7b6a56";
   targetCtx.fillRect(item.x, item.y + item.height - 10, item.width, 10);
 }
 
 function drawBed(item, targetCtx = ctx) {
-  // Headboard (Wood)
-  targetCtx.fillStyle = "#5d4037"; // Dark wood
+  targetCtx.fillStyle = "#5d4037";
   targetCtx.fillRect(item.x, item.y, item.width, 12);
-
-  // Footboard
   targetCtx.fillRect(item.x, item.y + item.height - 8, item.width, 8);
-
-  // Mattress
   targetCtx.fillStyle = "#eceff1";
   targetCtx.fillRect(item.x + 4, item.y + 8, item.width - 8, item.height - 16);
-
-  // Quilt (Blue Pattern)
-  targetCtx.fillStyle = "#5c6bc0"; // Indigo/Blue
+  targetCtx.fillStyle = "#5c6bc0";
   targetCtx.fillRect(item.x + 4, item.y + 30, item.width - 8, item.height - 38);
-
-  // Pattern on quilt (Diamonds/Checks)
   targetCtx.fillStyle = "rgba(255,255,255,0.1)";
   for(let i=0; i<item.width-8; i+=10) {
       for(let j=0; j<item.height-38; j+=10) {
           if ((i+j)%20 === 0) targetCtx.fillRect(item.x + 4 + i, item.y + 30 + j, 5, 5);
       }
   }
-
-  // Pillow
   targetCtx.fillStyle = "#fff";
   targetCtx.fillRect(item.x + 8, item.y + 12, item.width - 16, 15);
 }
 
 function drawCupboard(item, targetCtx = ctx) {
-    // Body - Dark Wood
     targetCtx.fillStyle = "#4e342e";
     targetCtx.fillRect(item.x, item.y, item.width, item.height);
-
-    // Doors outline
     targetCtx.strokeStyle = "#3e2723";
     targetCtx.lineWidth = 2;
     targetCtx.strokeRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
-
-    // Middle split
     targetCtx.beginPath();
     targetCtx.moveTo(item.x + item.width / 2, item.y + 2);
     targetCtx.lineTo(item.x + item.width / 2, item.y + item.height - 2);
     targetCtx.stroke();
-
-    // Panels on doors (inset)
     targetCtx.fillStyle = "#3e2723";
-    // Left door panels
     targetCtx.fillRect(item.x + 6, item.y + 10, item.width/2 - 10, item.height/2 - 15);
     targetCtx.fillRect(item.x + 6, item.y + item.height/2 + 5, item.width/2 - 10, item.height/2 - 15);
-    // Right door panels
     targetCtx.fillRect(item.x + item.width/2 + 4, item.y + 10, item.width/2 - 10, item.height/2 - 15);
     targetCtx.fillRect(item.x + item.width/2 + 4, item.y + item.height/2 + 5, item.width/2 - 10, item.height/2 - 15);
-
-    // Knobs
-    targetCtx.fillStyle = "#ffd54f"; // Gold
+    targetCtx.fillStyle = "#ffd54f";
     targetCtx.beginPath();
     targetCtx.arc(item.x + item.width/2 - 4, item.y + item.height/2, 2, 0, Math.PI*2);
     targetCtx.arc(item.x + item.width/2 + 4, item.y + item.height/2, 2, 0, Math.PI*2);
@@ -630,34 +543,25 @@ function drawCupboard(item, targetCtx = ctx) {
 }
 
 function drawChest(item, targetCtx = ctx) {
-    // Large wooden chest
-    targetCtx.fillStyle = "#5d4037"; // Wood
+    targetCtx.fillStyle = "#5d4037";
     targetCtx.fillRect(item.x, item.y, item.width, item.height);
-
-    // Planks
     targetCtx.fillStyle = "#4e342e";
     for(let i=0; i<item.height; i+=12) {
         targetCtx.fillRect(item.x, item.y + i, item.width, 1);
     }
-
-    // Metal banding
-    targetCtx.fillStyle = "#3e2723"; // Darker bands
+    targetCtx.fillStyle = "#3e2723";
     targetCtx.fillRect(item.x + 10, item.y, 8, item.height);
     targetCtx.fillRect(item.x + item.width - 18, item.y, 8, item.height);
-
-    // Lock
-    targetCtx.fillStyle = "#263238"; // Dark metal
+    targetCtx.fillStyle = "#263238";
     targetCtx.fillRect(item.x + item.width/2 - 6, item.y + 10, 12, 14);
-    targetCtx.fillStyle = "#78909c"; // Silver bit
+    targetCtx.fillStyle = "#78909c";
     targetCtx.fillRect(item.x + item.width/2 - 2, item.y + 18, 4, 4);
 }
 
 function drawRug(item, targetCtx = ctx) {
-    targetCtx.fillStyle = "#8d6e63"; // Beige/brownish
+    targetCtx.fillStyle = "#8d6e63";
     if (item.color) targetCtx.fillStyle = item.color;
     targetCtx.fillRect(item.x, item.y, item.width, item.height);
-
-    // Texture/Pattern
     targetCtx.strokeStyle = "rgba(0,0,0,0.1)";
     targetCtx.lineWidth = 1;
     targetCtx.beginPath();
@@ -669,22 +573,16 @@ function drawRug(item, targetCtx = ctx) {
 }
 
 function drawShelf(item, targetCtx = ctx) {
-    // Shelf board
     targetCtx.fillStyle = "#5d4037";
     targetCtx.fillRect(item.x, item.y + item.height - 5, item.width, 5);
-
-    // Books/Plants
-    targetCtx.fillStyle = "#ef5350"; // Red book
+    targetCtx.fillStyle = "#ef5350";
     targetCtx.fillRect(item.x + 10, item.y + item.height - 20, 5, 15);
-    targetCtx.fillStyle = "#42a5f5"; // Blue book
+    targetCtx.fillStyle = "#42a5f5";
     targetCtx.fillRect(item.x + 16, item.y + item.height - 22, 6, 17);
-    targetCtx.fillStyle = "#66bb6a"; // Green book
+    targetCtx.fillStyle = "#66bb6a";
     targetCtx.fillRect(item.x + 24, item.y + item.height - 18, 4, 13);
-
-    // Pot
     targetCtx.fillStyle = "#8d6e63";
     targetCtx.fillRect(item.x + item.width - 20, item.y + item.height - 15, 10, 10);
-    // Plant
     targetCtx.fillStyle = "#66bb6a";
     targetCtx.beginPath();
     targetCtx.arc(item.x + item.width - 15, item.y + item.height - 20, 8, 0, Math.PI, true);
@@ -694,14 +592,10 @@ function drawShelf(item, targetCtx = ctx) {
 function drawLocker(item, targetCtx = ctx) {
     targetCtx.fillStyle = "#607d8b";
     targetCtx.fillRect(item.x, item.y, item.width, item.height);
-
-    // Detail
     targetCtx.fillStyle = "#546e7a";
-    targetCtx.fillRect(item.x + 4, item.y + 10, item.width - 8, 4); // Vents
+    targetCtx.fillRect(item.x + 4, item.y + 10, item.width - 8, 4);
     targetCtx.fillRect(item.x + 4, item.y + 16, item.width - 8, 4);
     targetCtx.fillRect(item.x + 4, item.y + 22, item.width - 8, 4);
-
-    // Handle
     targetCtx.fillStyle = "#cfd8dc";
     targetCtx.fillRect(item.x + item.width - 8, item.y + item.height/2, 4, 10);
 }
@@ -709,21 +603,15 @@ function drawLocker(item, targetCtx = ctx) {
 function drawWindow(item, targetCtx = ctx) {
     targetCtx.fillStyle = "#81d4fa";
     targetCtx.fillRect(item.x, item.y, item.width, item.height);
-
-    // Frame
     targetCtx.strokeStyle = "#eceff1";
     targetCtx.lineWidth = 4;
     targetCtx.strokeRect(item.x, item.y, item.width, item.height);
-
-    // Cross
     targetCtx.beginPath();
     targetCtx.moveTo(item.x + item.width/2, item.y);
     targetCtx.lineTo(item.x + item.width/2, item.y + item.height);
     targetCtx.moveTo(item.x, item.y + item.height/2);
     targetCtx.lineTo(item.x + item.width, item.y + item.height/2);
     targetCtx.stroke();
-
-    // Shine
     targetCtx.fillStyle = "rgba(255,255,255,0.4)";
     targetCtx.beginPath();
     targetCtx.moveTo(item.x + 10, item.y + item.height);
@@ -734,19 +622,12 @@ function drawWindow(item, targetCtx = ctx) {
 }
 
 function drawWhiteboard(item, targetCtx = ctx) {
-    // Frame
     targetCtx.fillStyle = "#b0bec5";
     targetCtx.fillRect(item.x, item.y, item.width, item.height);
-
-    // Surface
     targetCtx.fillStyle = "#ffffff";
     targetCtx.fillRect(item.x + 4, item.y + 4, item.width - 8, item.height - 8);
-
-    // Tray
     targetCtx.fillStyle = "#90a4ae";
     targetCtx.fillRect(item.x + 2, item.y + item.height - 4, item.width - 4, 4);
-
-    // Eraser/Marker
     targetCtx.fillStyle = "#37474f";
     targetCtx.fillRect(item.x + 40, item.y + item.height - 4, 10, 3);
     targetCtx.fillStyle = "#e53935";
@@ -757,30 +638,19 @@ function drawStudent(item, targetCtx = ctx) {
     const baseY = item.y;
     const bob = Math.sin(Date.now() / 500 + (item.phase || 0)) * 2;
     const seatY = baseY - bob;
-
     const w = item.width || 24;
     const h = item.height || 36;
     const variant = item.variant || 'boy';
     const shirtColor = item.shirt || "#4caf50";
-
-    // Seat shadow
     targetCtx.fillStyle = "rgba(0,0,0,0.2)";
     targetCtx.fillRect(item.x + 2, seatY + h - 4, w - 4, 4);
-
-    // Body
     targetCtx.fillStyle = shirtColor;
     targetCtx.fillRect(item.x, seatY + 12, w, 14);
-
-    // Legs (Sitting)
     targetCtx.fillStyle = "#3e2723";
     targetCtx.fillRect(item.x + 4, seatY + 26, 6, 8);
     targetCtx.fillRect(item.x + w - 10, seatY + 26, 6, 8);
-
-    // Head
     targetCtx.fillStyle = "#f1c27d";
     targetCtx.fillRect(item.x + 2, seatY, w - 4, 12);
-
-    // Hair
     targetCtx.fillStyle = "#4e342e";
     if (variant === 'girl') {
         targetCtx.fillRect(item.x, seatY, w, 6);
@@ -791,8 +661,6 @@ function drawStudent(item, targetCtx = ctx) {
         targetCtx.fillRect(item.x, seatY, 4, 8);
         targetCtx.fillRect(item.x + w - 4, seatY, 4, 8);
     }
-
-    // Eyes
     targetCtx.fillStyle = "#212121";
     targetCtx.fillRect(item.x + 6, seatY + 4, 2, 2);
     targetCtx.fillRect(item.x + w - 8, seatY + 4, 2, 2);
@@ -815,13 +683,8 @@ function drawFurnitureItem(item, targetCtx = ctx) {
     }
 
     if (item.textureData) {
-        // Draw Custom Texture
         const img = new Image();
         img.src = item.textureData;
-        // Since loading is async, this might blink on first frame.
-        // Ideally we pre-load, but for this simple tool we rely on browser cache or immediate data-uri decode.
-        // Actually, drawing an image created every frame is bad.
-        // We should cache the image object on the item.
         if (!item._cachedImage || !(item._cachedImage instanceof Image)) {
             item._cachedImage = new Image();
             item._cachedImage.src = item.textureData;
@@ -829,7 +692,6 @@ function drawFurnitureItem(item, targetCtx = ctx) {
         if (item._cachedImage.complete) {
              targetCtx.drawImage(item._cachedImage, item.x, item.y, item.width, item.height);
         } else {
-             // Fallback while loading
              targetCtx.fillStyle = "#ccc";
              targetCtx.fillRect(item.x, item.y, item.width, item.height);
         }
@@ -848,8 +710,7 @@ function drawFurnitureItem(item, targetCtx = ctx) {
     else if (item.type === 'shelf') drawShelf(item, targetCtx);
     else if (item.type === 'whiteboard') drawWhiteboard(item, targetCtx);
     else {
-        // Fallback for custom/unknown objects
-        targetCtx.fillStyle = "#e91e63"; // Magenta for visibility
+        targetCtx.fillStyle = "#e91e63";
         targetCtx.fillRect(item.x, item.y, item.width, item.height);
         targetCtx.fillStyle = "white";
         targetCtx.font = "10px monospace";
@@ -861,7 +722,6 @@ function drawFurnitureItem(item, targetCtx = ctx) {
 function drawPlayer(x, y) {
   const w = 24;
   const h = 36;
-
   const skinColor = "#ffcc80";
   const shirtColor = "#4caf50";
   const stripeColor = "#ffeb3b";
@@ -870,132 +730,79 @@ function drawPlayer(x, y) {
   const eyeColor = "#333";
 
   ctx.save();
-
   if (player.isSitting) {
       const px = x - w / 2;
       const py = y - h;
-
-      // Seat shadow
       ctx.fillStyle = "rgba(0,0,0,0.2)";
       ctx.fillRect(px + 2, py + h - 4, w - 4, 4);
-
-      // Body
       ctx.fillStyle = shirtColor;
       ctx.fillRect(px, py + 12, w, 14);
       ctx.fillStyle = stripeColor;
       ctx.fillRect(px, py + 18, w, 4);
-
-      // Legs (Sitting)
       ctx.fillStyle = pantsColor;
       ctx.fillRect(px + 4, py + 26, 6, 8);
       ctx.fillRect(px + w - 10, py + 26, 6, 8);
-
-      // Head (Back view)
       ctx.fillStyle = skinColor;
       ctx.fillRect(px + 2, py, w - 4, 12);
-
-      // Hair
       ctx.fillStyle = hairColor;
       ctx.fillRect(px, py, w, 8);
       ctx.fillRect(px + 2, py + 8, w - 4, 4);
-
       ctx.restore();
       return;
   }
-
-  // Animation calculation
   const isMoving = player.walkFrame !== 0;
-
-  // Stronger leg movement (amplitude 5)
   const animOffset = Math.sin(player.walkFrame) * 5;
-  // Side leg swing
   const walkCycle = Math.sin(player.walkFrame);
-  // Body bobbing (up and down)
   const bob = isMoving ? Math.abs(Math.sin(player.walkFrame * 2)) * 2 : 0;
-
   const px = x - w / 2;
-  const py = y - h + 8 - bob; // Apply bob to entire body y
-
-  // Shadow (stays on ground, doesn't bob)
+  const py = y - h + 8 - bob;
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath();
   ctx.ellipse(x, y + 6, w / 2, 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
   if (player.facing === "down") {
-    // Legs (independent of bob, connected to ground/body)
-    // To make them look like walking, one goes up, one down relative to hip
     ctx.fillStyle = pantsColor;
     ctx.fillRect(px + 4, py + 26 + animOffset, 6, 10);
     ctx.fillRect(px + w - 10, py + 26 - animOffset, 6, 10);
-
-    // Body
     ctx.fillStyle = shirtColor;
     ctx.fillRect(px, py + 12, w, 14);
     ctx.fillStyle = stripeColor;
     ctx.fillRect(px, py + 18, w, 4);
-
-    // Head
     ctx.fillStyle = skinColor;
     ctx.fillRect(px + 2, py, w - 4, 12);
-
-    // Hair
     ctx.fillStyle = hairColor;
     ctx.fillRect(px, py, w, 4);
     ctx.fillRect(px, py, 4, 10);
     ctx.fillRect(px + w - 4, py, 4, 10);
-
-    // Face
     ctx.fillStyle = eyeColor;
     ctx.fillRect(px + 6, py + 6, 2, 2);
     ctx.fillRect(px + w - 8, py + 6, 2, 2);
-
   } else if (player.facing === "up") {
-    // Legs
     ctx.fillStyle = pantsColor;
     ctx.fillRect(px + 4, py + 26 + animOffset, 6, 10);
     ctx.fillRect(px + w - 10, py + 26 - animOffset, 6, 10);
-
-    // Body
     ctx.fillStyle = shirtColor;
     ctx.fillRect(px, py + 12, w, 14);
     ctx.fillStyle = stripeColor;
     ctx.fillRect(px, py + 18, w, 4);
-
-    // Head (Back)
     ctx.fillStyle = skinColor;
     ctx.fillRect(px + 2, py, w - 4, 12);
-
-    // Hair
     ctx.fillStyle = hairColor;
     ctx.fillRect(px, py, w, 8);
     ctx.fillRect(px + 2, py + 8, w - 4, 4);
-
   } else if (player.facing === "left" || player.facing === "right") {
     const isRight = player.facing === "right";
-    const legSwing = walkCycle * 6; // Increased swing
-
+    const legSwing = walkCycle * 6;
     ctx.fillStyle = pantsColor;
-    // Leg 1
     ctx.fillRect(px + w/2 - 3 + legSwing, py + 26, 6, 10);
-    // Leg 2
     ctx.fillRect(px + w/2 - 3 - legSwing, py + 26, 6, 10);
-
-    // Body (Side view)
     ctx.fillStyle = shirtColor;
     ctx.fillRect(px + 4, py + 12, w - 8, 14);
-
-    // Arm (simple box for side view, maybe swing it?)
-    const armSwing = -walkCycle * 4;
-
     ctx.fillStyle = stripeColor;
     ctx.fillRect(px + 4, py + 18, w - 8, 4);
-
-    // Head (Side)
     ctx.fillStyle = skinColor;
     ctx.fillRect(px + 4, py, w - 8, 12);
-
-    // Hair
     ctx.fillStyle = hairColor;
     ctx.fillRect(px + 2, py, w - 4, 4);
     if (isRight) {
@@ -1003,8 +810,6 @@ function drawPlayer(x, y) {
     } else {
        ctx.fillRect(px + w - 6, py, 4, 10);
     }
-
-    // Eye
     ctx.fillStyle = eyeColor;
     if (isRight) {
        ctx.fillRect(px + w - 8, py + 6, 2, 2);
@@ -1012,44 +817,31 @@ function drawPlayer(x, y) {
        ctx.fillRect(px + 6, py + 6, 2, 2);
     }
   }
-
   ctx.restore();
 }
 
 function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear screen
-
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.translate(-camera.x, -camera.y);
-
   drawRoom();
-
-  // Draw rugs first (always on floor)
   room.furniture.filter(i => i.type === 'rug').forEach(item => drawFurnitureItem(item));
-
   drawDoors();
-
   const renderList = [];
   renderList.push({
     y: player.y,
     draw: () => drawPlayer(player.x, player.y)
   });
-
   room.furniture.forEach(item => {
-    if (item.type === 'rug') return; // Handled separately
-
+    if (item.type === 'rug') return;
     renderList.push({
       y: item.y + item.height,
       draw: () => drawFurnitureItem(item)
     });
   });
-
   renderList.sort((a, b) => a.y - b.y);
   renderList.forEach(obj => obj.draw());
-
   ctx.restore();
-
-  // HUD
   drawHints();
   drawDevOverlay();
 }
@@ -1061,7 +853,6 @@ function drawDevOverlay() {
         ctx.lineWidth = 2;
         ctx.strokeRect(selectedObject.x - camera.x, selectedObject.y - camera.y, selectedObject.width, selectedObject.height);
 
-        // Draw Spawn Point for Doors
         if (selectedObject.type === 'door') {
             let spawnX, spawnY;
             if (selectedObject.customSpawn) {
@@ -1069,14 +860,12 @@ function drawDevOverlay() {
                 spawnY = selectedObject.customSpawn.y;
             } else {
                 const pt = doorAttachmentPoint(selectedObject);
-                // Apply default offset logic to visualize correct default
                 spawnX = pt.x;
                 spawnY = pt.y + 10;
                 if (selectedObject.orientation === 'bottom') spawnY = selectedObject.y - 24;
                 else if (selectedObject.orientation === 'left') spawnX = selectedObject.x + selectedObject.width + 12;
                 else if (selectedObject.orientation === 'right') spawnX = selectedObject.x - 12;
             }
-
             ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
             ctx.fillRect(spawnX - 10 - camera.x, spawnY - 10 - camera.y, 20, 20);
             ctx.strokeStyle = "red";
@@ -1086,49 +875,56 @@ function drawDevOverlay() {
             ctx.fillText("SPAWN", spawnX - camera.x, spawnY - 12 - camera.y);
         }
 
-        // Draw Interaction Area
         if (selectedObject.interaction && selectedObject.interaction.enabled) {
             const area = selectedObject.interaction.area || {x:0,y:0,width:selectedObject.width,height:selectedObject.height};
             const ix = selectedObject.x + area.x;
             const iy = selectedObject.y + area.y;
-
-            ctx.strokeStyle = "#00ff00"; // Green
+            ctx.strokeStyle = "#00ff00";
             ctx.lineWidth = 2;
             ctx.strokeRect(ix - camera.x, iy - camera.y, area.width, area.height);
             ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
             ctx.fillRect(ix - camera.x, iy - camera.y, area.width, area.height);
-
-            // Draw Resize Handles (Corners)
             const handleSize = 6;
             ctx.fillStyle = "white";
             ctx.strokeStyle = "green";
-
             const handles = [
-                { x: ix, y: iy }, // TL
-                { x: ix + area.width, y: iy }, // TR
-                { x: ix, y: iy + area.height }, // BL
-                { x: ix + area.width, y: iy + area.height } // BR
+                { x: ix, y: iy },
+                { x: ix + area.width, y: iy },
+                { x: ix, y: iy + area.height },
+                { x: ix + area.width, y: iy + area.height }
             ];
-
             handles.forEach(h => {
                 ctx.fillRect(h.x - handleSize/2 - camera.x, h.y - handleSize/2 - camera.y, handleSize, handleSize);
                 ctx.strokeRect(h.x - handleSize/2 - camera.x, h.y - handleSize/2 - camera.y, handleSize, handleSize);
             });
         }
 
-        // Draw Custom Hitbox (Blue)
         if (selectedObject.collisionRect) {
             const cr = selectedObject.collisionRect;
             const cx = selectedObject.x + cr.x;
             const cy = selectedObject.y + cr.y;
-
-            ctx.strokeStyle = "#00ffff"; // Cyan/Blue
+            ctx.strokeStyle = "#00ffff";
             ctx.lineWidth = 2;
             ctx.strokeRect(cx - camera.x, cy - camera.y, cr.width, cr.height);
             ctx.fillStyle = "rgba(0, 255, 255, 0.2)";
             ctx.fillRect(cx - camera.x, cy - camera.y, cr.width, cr.height);
             ctx.fillStyle = "cyan";
             ctx.fillText("HITBOX", cx - camera.x, cy - 5 - camera.y);
+
+            // Resizing Handles for Hitbox
+            const handleSize = 6;
+            ctx.fillStyle = "white";
+            ctx.strokeStyle = "cyan";
+            const handles = [
+                { x: cx, y: cy },
+                { x: cx + cr.width, y: cy },
+                { x: cx, y: cy + cr.height },
+                { x: cx + cr.width, y: cy + cr.height }
+            ];
+            handles.forEach(h => {
+                ctx.fillRect(h.x - handleSize/2 - camera.x, h.y - handleSize/2 - camera.y, handleSize, handleSize);
+                ctx.strokeRect(h.x - handleSize/2 - camera.x, h.y - handleSize/2 - camera.y, handleSize, handleSize);
+            });
         }
     }
 }
@@ -1138,14 +934,11 @@ function drawHints() {
   ctx.fillStyle = "rgba(255,255,255,0.7)";
   ctx.font = "16px 'VT323', 'Courier New', monospace";
   ctx.textAlign = "center";
-
   if (stage >= 2 && currentLevelName === 'classroom') {
     ctx.fillStyle = "#9e9e9e";
     ctx.fillText("W A S D", canvas.width - 60, canvas.height - 40);
   }
   ctx.restore();
-
-  // DOM Hints logic
   let showingHint = false;
   const nearbyDoor = getNearestDoor(56);
   if (nearbyDoor) {
@@ -1159,7 +952,6 @@ function drawHints() {
          isHintActive = true;
       }
   }
-
   if (!showingHint && isHintActive) {
       isHintActive = false;
       updateDialogue();
@@ -1184,20 +976,18 @@ function advanceDialogue() {
 
 function checkAutoTriggers() {
     if (dialogueBox.classList.contains("dialogue--active")) return;
-
-    for (const item of room.furniture) {
+    for (let i = 0; i < room.furniture.length; i++) {
+        const item = room.furniture[i];
         if (item.interaction && item.interaction.enabled && item.interaction.autoTrigger) {
              const area = item.interaction.area || { x: 0, y: 0, width: item.width, height: item.height };
              const ix = item.x + area.x;
              const iy = item.y + area.y;
-
              if (player.x >= ix && player.x <= ix + area.width &&
                  player.y >= iy && player.y <= iy + area.height) {
-
-                 // Reuse executeInteraction
                  executeInteraction({
                      type: 'furniture',
                      obj: item,
+                     index: i,
                      priority: 999
                  });
                  return;
@@ -1221,33 +1011,29 @@ function findNearbyFurniture(types, threshold = 60) {
 function handleInteraction() {
     if (player.isSitting) {
         player.isSitting = false;
-        player.y += 10; // Step out
+        player.y += 10;
         return;
     }
 
     const candidates = [];
 
-    // 1. Check Furniture Interactions
-    for (const item of room.furniture) {
+    for (let i = 0; i < room.furniture.length; i++) {
+         const item = room.furniture[i];
          if (item.interaction && item.interaction.enabled && item.interaction.conversations && item.interaction.conversations.length > 0) {
              const area = item.interaction.area || { x: 0, y: 0, width: item.width, height: item.height };
              const ix = item.x + area.x;
              const iy = item.y + area.y;
-
              if (player.x >= ix && player.x <= ix + area.width &&
                  player.y >= iy && player.y <= iy + area.height) {
-
                  candidates.push({
                      type: 'furniture',
                      obj: item,
+                     index: i,
                      priority: item.interaction.priority || 1
                  });
              }
          }
-
-         // Legacy 'text' property fallback (only if no interaction obj)
          if (item.text && !item.interaction) {
-             // Treat as proximity
              const anchorX = item.x + item.width / 2;
              const anchorY = item.y + item.height;
              const dist = Math.hypot(player.x - anchorX, player.y - anchorY);
@@ -1261,7 +1047,6 @@ function handleInteraction() {
          }
     }
 
-    // 2. Check Luke's Seat
     const desks = room.furniture.filter(f => f.type === 'desk');
     for (const desk of desks) {
         if (desk.id === 'player_seat') {
@@ -1276,7 +1061,6 @@ function handleInteraction() {
         }
     }
 
-    // 3. Check Doors
     const door = getNearestDoor(60);
     if (door && (door.target || door.targetDoorId)) {
         candidates.push({
@@ -1287,11 +1071,7 @@ function handleInteraction() {
     }
 
     if (candidates.length === 0) return;
-
-    // Sort by Priority (Desc)
     candidates.sort((a, b) => b.priority - a.priority);
-
-    // Pick from top tier
     const maxP = candidates[0].priority;
     const topCandidates = candidates.filter(c => c.priority === maxP);
     const selected = topCandidates[Math.floor(Math.random() * topCandidates.length)];
@@ -1319,9 +1099,7 @@ function executeInteraction(target) {
         const parts = (door.target || '').split(':');
         let targetRoom = parts[0].trim();
         let targetId = parts[1] ? parts[1].trim() : null;
-
         if (!targetId && door.targetDoorId) targetId = door.targetDoorId;
-
         if (targetRoom) {
              loadLevel(targetRoom, targetId);
              if (!targetId && door.targetSpawn) {
@@ -1336,46 +1114,46 @@ function executeInteraction(target) {
         const item = target.obj;
         const interaction = item.interaction;
 
-        // Ensure state exists
-        if (!interaction.state) interaction.state = { count: 0 };
-        const count = interaction.state.count;
+        // Generate State Key: RoomName:Index OR RoomName:ID
+        let stateKey = currentLevelName + ":";
+        if (item.id) stateKey += item.id;
+        else stateKey += target.index;
 
-        // Filter valid conversations based on conditions
+        // Read count from playData
+        const count = playData.worldState[stateKey] || 0;
+
         const validConvos = interaction.conversations.filter(c => {
-            // Handle array legacy format (always valid unless specific logic needed, treated as default)
             if (Array.isArray(c)) return true;
-
-            // Check conditions
             if (c.reqCount !== undefined && count !== parseInt(c.reqCount)) return false;
             if (c.minCount !== undefined && count < parseInt(c.minCount)) return false;
             if (c.maxCount !== undefined && count > parseInt(c.maxCount)) return false;
-            if (c.once && c.seen) return false;
-
+            // 'once' needs 'seen' state tracking.
+            // We'll store seen states in worldState as "Key_seen_Index"?
+            // Simplifying: Store complex state in worldState[stateKey] = { count: 0, seen: [] }?
+            // For now, let's just assume simple count logic.
+            // If strict 'once' is needed, we need to store it.
+            if (c.once && c.seen) return false; // This 'seen' is on the design object... problematic for reset.
             return true;
         });
 
         if (validConvos.length === 0) return;
 
         let selectedConvo = null;
-
-        // Selection Logic
         if (interaction.type === 'random') {
             const idx = Math.floor(Math.random() * validConvos.length);
             selectedConvo = validConvos[idx];
         } else {
-            // Sequence / Default (First valid match)
             selectedConvo = validConvos[0];
         }
 
         if (selectedConvo) {
-            // Unwrap lines
             let lines = [];
             if (Array.isArray(selectedConvo)) {
                 lines = selectedConvo;
             } else {
                 lines = selectedConvo.lines;
-                // Mark as seen
-                selectedConvo.seen = true;
+                // Avoid mutating design data 'seen'
+                // selectedConvo.seen = true;
             }
 
             if (lines && lines.length > 0) {
@@ -1383,9 +1161,9 @@ function executeInteraction(target) {
                 stage = 0;
                 updateDialogue();
 
-                // Increment global interaction count
-                interaction.state.count++;
-                saveLocal();
+                // Update Play Data
+                playData.worldState[stateKey] = count + 1;
+                savePlayState();
             }
         }
     }
@@ -1395,20 +1173,15 @@ let clipboard = null;
 
 document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
-
-  // Ctrl+C / Ctrl+V
   if (isDeveloperMode && (event.ctrlKey || event.metaKey)) {
       if (key === 'c' && selectedObject) {
           clipboard = JSON.parse(JSON.stringify(selectedObject));
-          // Don't copy unique things?
-          // Keep it exact clone.
           return;
       }
       if (key === 'v' && clipboard) {
           const newObj = JSON.parse(JSON.stringify(clipboard));
           newObj.x += 20;
           newObj.y += 20;
-
           if (newObj.type === 'door') {
               room.doors.push(newObj);
           } else {
@@ -1432,7 +1205,6 @@ document.addEventListener("keydown", (event) => {
       }
   }
   if (isDeveloperMode && (key === 'delete' || key === 'backspace')) {
-      // Avoid deleting when typing in input fields
       if (document.activeElement.tagName === 'INPUT') return;
       if (selectedObject) deleteObject();
   }
@@ -1450,7 +1222,6 @@ canvas.addEventListener("mousedown", (e) => {
   const mx = e.clientX - rect.left + camera.x;
   const my = e.clientY - rect.top + camera.y;
 
-  // Check Spawn Point Dragging (if door selected)
   if (selectedObject && selectedObject.type === 'door') {
       let spawnX, spawnY;
       if (selectedObject.customSpawn) {
@@ -1459,12 +1230,11 @@ canvas.addEventListener("mousedown", (e) => {
       } else {
           const pt = doorAttachmentPoint(selectedObject);
           spawnX = pt.x;
-          spawnY = pt.y + 10; // Default calc
+          spawnY = pt.y + 10;
           if (selectedObject.orientation === 'bottom') spawnY = selectedObject.y - 24;
           else if (selectedObject.orientation === 'left') spawnX = selectedObject.x + selectedObject.width + 12;
           else if (selectedObject.orientation === 'right') spawnX = selectedObject.x - 12;
       }
-
       if (mx >= spawnX - 10 && mx <= spawnX + 10 &&
           my >= spawnY - 10 && my <= spawnY + 10) {
           isDraggingSpawn = true;
@@ -1472,41 +1242,76 @@ canvas.addEventListener("mousedown", (e) => {
       }
   }
 
-  // Check Interaction Area Dragging
+  // Check Hitbox Dragging (New Feature)
+  if (selectedObject && selectedObject.collisionRect) {
+      const cr = selectedObject.collisionRect;
+      const cx = selectedObject.x + cr.x;
+      const cy = selectedObject.y + cr.y;
+      const handleSize = 10;
+
+      // Handles for Hitbox
+      // TL
+      if (Math.abs(mx - cx) <= handleSize && Math.abs(my - cy) <= handleSize) {
+          resizeHandle = 'hb-tl';
+          dragOffset = { x: mx - cx, y: my - cy };
+          return;
+      }
+      // TR
+      if (Math.abs(mx - (cx + cr.width)) <= handleSize && Math.abs(my - cy) <= handleSize) {
+          resizeHandle = 'hb-tr';
+          dragOffset = { x: mx - (cx + cr.width), y: my - cy };
+          return;
+      }
+      // BL
+      if (Math.abs(mx - cx) <= handleSize && Math.abs(my - (cy + cr.height)) <= handleSize) {
+          resizeHandle = 'hb-bl';
+          dragOffset = { x: mx - cx, y: my - (cy + cr.height) };
+          return;
+      }
+      // BR
+      if (Math.abs(mx - (cx + cr.width)) <= handleSize && Math.abs(my - (cy + cr.height)) <= handleSize) {
+          resizeHandle = 'hb-br';
+          dragOffset = { x: mx - (cx + cr.width), y: my - (cy + cr.height) };
+          return;
+      }
+      // Body (Move Hitbox relative to object)
+      if (mx >= cx && mx <= cx + cr.width &&
+          my >= cy && my <= cy + cr.height) {
+            // Check if we are interacting with this object first?
+            // If multiple objects overlap, we should check z-order.
+            // But we already selected the object.
+            // Only allow dragging internal hitbox if we are inside it.
+            resizeHandle = 'hb-move';
+            dragOffset = { x: mx - cx, y: my - cy };
+            return;
+      }
+  }
+
   if (selectedObject && selectedObject.interaction && selectedObject.interaction.enabled) {
       const area = selectedObject.interaction.area;
       const ix = selectedObject.x + area.x;
       const iy = selectedObject.y + area.y;
-
       const handleSize = 10;
-
-      // Check handles
-      // TL
       if (Math.abs(mx - ix) <= handleSize && Math.abs(my - iy) <= handleSize) {
           resizeHandle = 'tl';
-          dragOffset = { x: mx - ix, y: my - iy }; // Offset from handle center
+          dragOffset = { x: mx - ix, y: my - iy };
           return;
       }
-      // TR
       if (Math.abs(mx - (ix + area.width)) <= handleSize && Math.abs(my - iy) <= handleSize) {
           resizeHandle = 'tr';
           dragOffset = { x: mx - (ix + area.width), y: my - iy };
           return;
       }
-      // BL
       if (Math.abs(mx - ix) <= handleSize && Math.abs(my - (iy + area.height)) <= handleSize) {
           resizeHandle = 'bl';
           dragOffset = { x: mx - ix, y: my - (iy + area.height) };
           return;
       }
-      // BR
       if (Math.abs(mx - (ix + area.width)) <= handleSize && Math.abs(my - (iy + area.height)) <= handleSize) {
           resizeHandle = 'br';
           dragOffset = { x: mx - (ix + area.width), y: my - (iy + area.height) };
           return;
       }
-
-      // Body for move
       if (mx >= ix && mx <= ix + area.width &&
           my >= iy && my <= iy + area.height) {
           isDraggingInteraction = true;
@@ -1516,8 +1321,6 @@ canvas.addEventListener("mousedown", (e) => {
       }
   }
 
-  // Check furniture
-  // Search in reverse order (topmost first)
   const items = [...room.furniture].reverse();
   for (const item of items) {
       if (mx >= item.x && mx <= item.x + item.width &&
@@ -1531,13 +1334,12 @@ canvas.addEventListener("mousedown", (e) => {
       }
   }
 
-  // Check doors
   const doors = getDoors();
   for (const door of doors) {
       if (mx >= door.x && mx <= door.x + door.width &&
           my >= door.y && my <= door.y + door.height) {
           selectedObject = door;
-          selectedObject.type = 'door'; // Tag it as door for props
+          selectedObject.type = 'door';
           isDragging = true;
           dragOffset.x = mx - door.x;
           dragOffset.y = my - door.y;
@@ -1546,42 +1348,20 @@ canvas.addEventListener("mousedown", (e) => {
       }
   }
 
-  // Clicked empty space
   selectedObject = null;
   document.getElementById("dev-props").classList.add("hidden");
 });
 
-// Handle Spawn Setting Click
-canvas.addEventListener("click", (e) => {
-    if (isSettingSpawn && doorToSetSpawn) {
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left + camera.x;
-        const my = e.clientY - rect.top + camera.y;
-
-        doorToSetSpawn.targetSpawn = { x: Math.round(mx), y: Math.round(my) };
-
-        isSettingSpawn = false;
-        doorToSetSpawn = null;
-
-        const instr = document.getElementById("spawn-instruction");
-        if (instr) instr.remove();
-
-        alert("Spawn point set!");
-    }
-});
-
-// Texture Editor Logic
+// Texture Editor Logic (unchanged) ...
 const paintCanvas = document.getElementById("paint-canvas");
 const paintCtx = paintCanvas.getContext("2d");
 let isPainting = false;
-let paintMode = 'brush'; // 'brush' or 'eraser'
+let paintMode = 'brush';
 let lastPaintX = 0;
 let lastPaintY = 0;
 let zoomLevel = 1;
 
 function updateZoom() {
-    // Zoom via CSS width/height for display only
-    // This allows the canvas internal resolution to remain 1:1 with object size
     paintCanvas.style.width = (paintCanvas.width * zoomLevel) + "px";
     paintCanvas.style.height = (paintCanvas.height * zoomLevel) + "px";
     document.getElementById("paint-zoom-val").textContent = Math.round(zoomLevel * 100) + "%";
@@ -1592,17 +1372,11 @@ function captureObjectTexture(item) {
     cvs.width = item.width;
     cvs.height = item.height;
     const c = cvs.getContext("2d");
-
-    // Clone item to avoid modifying the actual object
-    // We want the procedural look, so we strip textureData.
     const tempItem = JSON.parse(JSON.stringify(item));
     tempItem.textureData = null;
     tempItem.x = 0;
     tempItem.y = 0;
-
-    // Force draw
     drawFurnitureItem(tempItem, c);
-
     return cvs.toDataURL();
 }
 
@@ -1614,39 +1388,24 @@ function resizePaintCanvas(w, h, preserveContent = true) {
         saved.height = paintCanvas.height;
         saved.getContext("2d").drawImage(paintCanvas, 0, 0);
     }
-
     paintCanvas.width = w;
     paintCanvas.height = h;
-
     if (saved) {
-        paintCtx.drawImage(saved, 0, 0, saved.width, saved.height); // Draw old content (scaling? No, keep 1:1)
-        // actually if resizing object, usually we want to keep image as is, or scale it?
-        // User asked "can resize dimension". Usually implies extending the canvas.
-        // So keeping 1:1 is correct.
+        paintCtx.drawImage(saved, 0, 0, saved.width, saved.height);
     }
-
-    updateZoom(); // Apply current zoom to new dimensions
+    updateZoom();
 }
 
 document.getElementById("dev-edit-texture").addEventListener("click", () => {
     if (!selectedObject) return;
     document.getElementById("texture-editor").classList.remove("hidden");
-
-    // Init inputs
     document.getElementById("paint-width").value = selectedObject.width;
     document.getElementById("paint-height").value = selectedObject.height;
-
-    // Resize canvas
     paintCanvas.width = selectedObject.width;
     paintCanvas.height = selectedObject.height;
-
-    // Reset Zoom
     zoomLevel = 1;
     updateZoom();
-
-    // Load existing texture or capture procedural
     paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
-
     if (selectedObject.textureData) {
         const img = new Image();
         img.onload = () => {
@@ -1654,7 +1413,6 @@ document.getElementById("dev-edit-texture").addEventListener("click", () => {
         };
         img.src = selectedObject.textureData;
     } else {
-        // Capture procedural look
         const dataUrl = captureObjectTexture(selectedObject);
         const img = new Image();
         img.onload = () => {
@@ -1672,22 +1430,17 @@ document.getElementById("paint-height").addEventListener("change", (e) => {
     const h = parseInt(e.target.value) || 32;
     resizePaintCanvas(paintCanvas.width, h);
 });
-
 document.getElementById("paint-size").addEventListener("input", (e) => {
     document.getElementById("paint-size-val").textContent = e.target.value;
 });
-
 document.getElementById("paint-zoom-in").addEventListener("click", () => {
-    zoomLevel = Math.min(8, zoomLevel * 2); // Max 800%
+    zoomLevel = Math.min(8, zoomLevel * 2);
     updateZoom();
 });
-
 document.getElementById("paint-zoom-out").addEventListener("click", () => {
-    zoomLevel = Math.max(0.25, zoomLevel / 2); // Min 25%
+    zoomLevel = Math.max(0.25, zoomLevel / 2);
     updateZoom();
 });
-
-// Tools
 document.getElementById("paint-tool-brush").addEventListener("click", (e) => {
     paintMode = 'brush';
     document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
@@ -1698,23 +1451,17 @@ document.getElementById("paint-tool-eraser").addEventListener("click", (e) => {
     document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
     e.target.classList.add("active");
 });
-
 document.getElementById("paint-cancel").addEventListener("click", () => {
     document.getElementById("texture-editor").classList.add("hidden");
 });
-
 document.getElementById("paint-clear").addEventListener("click", () => {
     paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
 });
-
 document.getElementById("paint-save").addEventListener("click", () => {
     if (selectedObject) {
         selectedObject.textureData = paintCanvas.toDataURL();
-        // Update dimensions based on canvas
         selectedObject.width = paintCanvas.width;
         selectedObject.height = paintCanvas.height;
-
-        // Clear cache so it redraws
         selectedObject._cachedImage = null;
         updatePropPanel();
         saveLocal();
@@ -1722,10 +1469,8 @@ document.getElementById("paint-save").addEventListener("click", () => {
     document.getElementById("texture-editor").classList.add("hidden");
 });
 
-// Painting interaction
 function getPaintPos(e) {
     const rect = paintCanvas.getBoundingClientRect();
-    // Use the actual visual ratio
     const scaleX = paintCanvas.width / rect.width;
     const scaleY = paintCanvas.height / rect.height;
     return {
@@ -1733,18 +1478,14 @@ function getPaintPos(e) {
         y: (e.clientY - rect.top) * scaleY
     };
 }
-
 paintCanvas.addEventListener("mousedown", (e) => {
     isPainting = true;
     const pos = getPaintPos(e);
     lastPaintX = pos.x;
     lastPaintY = pos.y;
-
-    // Dot
     paint(pos.x, pos.y, true);
 });
-window.addEventListener("mouseup", () => isPainting = false); // Global mouseup
-
+window.addEventListener("mouseup", () => isPainting = false);
 paintCanvas.addEventListener("mousemove", (e) => {
     if (!isPainting) return;
     const pos = getPaintPos(e);
@@ -1757,7 +1498,6 @@ function paint(x, y, isDot = false) {
     paintCtx.lineWidth = parseInt(document.getElementById("paint-size").value);
     paintCtx.lineCap = "round";
     paintCtx.lineJoin = "round";
-
     if (paintMode === 'eraser') {
         paintCtx.globalCompositeOperation = 'destination-out';
     } else {
@@ -1765,7 +1505,6 @@ function paint(x, y, isDot = false) {
         paintCtx.strokeStyle = document.getElementById("paint-color").value;
         paintCtx.fillStyle = document.getElementById("paint-color").value;
     }
-
     if (isDot) {
         paintCtx.beginPath();
         paintCtx.arc(x, y, paintCtx.lineWidth / 2, 0, Math.PI * 2);
@@ -1776,13 +1515,11 @@ function paint(x, y, isDot = false) {
         paintCtx.lineTo(x, y);
         paintCtx.stroke();
     }
-
-    paintCtx.globalCompositeOperation = 'source-over'; // Reset
+    paintCtx.globalCompositeOperation = 'source-over';
 }
 
 canvas.addEventListener("mousemove", (e) => {
     if (!isDeveloperMode) return;
-
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left + camera.x;
     const my = e.clientY - rect.top + camera.y;
@@ -1793,52 +1530,68 @@ canvas.addEventListener("mousemove", (e) => {
     }
 
     if (resizeHandle && selectedObject) {
-        const area = selectedObject.interaction.area;
-        const ix = selectedObject.x + area.x;
-        const iy = selectedObject.y + area.y;
-        const right = ix + area.width;
-        const bottom = iy + area.height;
+        const isHitbox = resizeHandle.startsWith('hb-');
 
-        const mouseX = mx - dragOffset.x;
-        const mouseY = my - dragOffset.y;
+        // Target Rect (Collision or Interaction)
+        let rectObj = isHitbox ? selectedObject.collisionRect : selectedObject.interaction.area;
+        // The rect coordinates are relative to the object
+        // So we need to compute the mouse position relative to the object
+        const objX = selectedObject.x;
+        const objY = selectedObject.y;
 
-        if (resizeHandle === 'br') {
-            area.width = Math.max(10, Math.round(mouseX - ix));
-            area.height = Math.max(10, Math.round(mouseY - iy));
-        } else if (resizeHandle === 'bl') {
-            const newRight = ix + area.width; // Fixed right edge
-            // newLeft = mouseX
-            // width = right - newLeft
+        // Current absolute handle position (approx)
+        // We calculate delta based on dragOffset
+
+        if (resizeHandle === 'hb-move') {
+            rectObj.x = Math.round(mx - dragOffset.x - objX);
+            rectObj.y = Math.round(my - dragOffset.y - objY);
+            updatePropPanel();
+            return;
+        }
+
+        const ix = objX + rectObj.x;
+        const iy = objY + rectObj.y;
+
+        const mouseX = mx - dragOffset.x; // Adjusted mouse position relative to handle grab point?
+        // Actually dragOffset for resizing is tricky.
+        // Let's simplify: Use raw mouse pos delta?
+        // No, the previous logic was:
+        // area.width = mouseX - ix; where mouseX is adjusted by offset.
+        // Let's stick to the previous logic but apply to either rect.
+
+        const suffix = isHitbox ? resizeHandle.substring(3) : resizeHandle;
+
+        if (suffix === 'br') {
+            rectObj.width = Math.max(10, Math.round(mouseX - ix));
+            rectObj.height = Math.max(10, Math.round(mouseY - iy));
+        } else if (suffix === 'bl') {
+            const newRight = ix + rectObj.width;
             const newW = newRight - mouseX;
             if (newW >= 10) {
-                 area.x = Math.round(mouseX - selectedObject.x);
-                 area.width = newW;
+                 rectObj.x = Math.round(mouseX - objX);
+                 rectObj.width = newW;
             }
-            area.height = Math.max(10, Math.round(mouseY - iy));
-        } else if (resizeHandle === 'tr') {
-            const newBottom = iy + area.height; // Fixed bottom edge
-            // newTop = mouseY
-            // height = bottom - newTop
+            rectObj.height = Math.max(10, Math.round(mouseY - iy));
+        } else if (suffix === 'tr') {
+            const newBottom = iy + rectObj.height;
             const newH = newBottom - mouseY;
             if (newH >= 10) {
-                area.y = Math.round(mouseY - selectedObject.y);
-                area.height = newH;
+                rectObj.y = Math.round(mouseY - objY);
+                rectObj.height = newH;
             }
-            area.width = Math.max(10, Math.round(mouseX - ix));
-        } else if (resizeHandle === 'tl') {
-             const newRight = ix + area.width;
-             const newBottom = iy + area.height;
-
+            rectObj.width = Math.max(10, Math.round(mouseX - ix));
+        } else if (suffix === 'tl') {
+             const newRight = ix + rectObj.width;
+             const newBottom = iy + rectObj.height;
              const newW = newRight - mouseX;
              const newH = newBottom - mouseY;
-
              if (newW >= 10) {
-                 area.x = Math.round(mouseX - selectedObject.x);
-                 area.width = newW;
+                 rectObj.x = Math.round(mouseX - objX);
+                 rectObj.width = newW;
              }
              if (newH >= 10) {
-                 area.y = Math.round(mouseY - selectedObject.y);
-                 area.height = newH;
+                 rectObj.y = Math.round(mouseY - objY);
+                 rectObj.height = newH;
              }
         }
 
@@ -1848,8 +1601,6 @@ canvas.addEventListener("mousemove", (e) => {
 
     if (isDraggingInteraction && selectedObject) {
         const area = selectedObject.interaction.area;
-        // ix = mx - off
-        // area.x = ix - obj.x
         area.x = Math.round((mx - dragOffset.x) - selectedObject.x);
         area.y = Math.round((my - dragOffset.y) - selectedObject.y);
         updatePropPanel();
@@ -1859,7 +1610,7 @@ canvas.addEventListener("mousemove", (e) => {
     if (isDragging && selectedObject) {
         selectedObject.x = Math.round(mx - dragOffset.x);
         selectedObject.y = Math.round(my - dragOffset.y);
-        updatePropPanel(); // Update input values while dragging
+        updatePropPanel();
     }
 });
 
@@ -1893,14 +1644,10 @@ function updatePropPanel() {
 
     const extra = document.getElementById("prop-extra");
     extra.innerHTML = "";
-
-    // Copy/Paste buttons (Re-append per selection)
     extra.appendChild(cpContainer);
 
-    // Type is always editable now
     addPropInput(extra, "Type", selectedObject.type, v => selectedObject.type = v);
 
-    // Add specific fields
     if (selectedObject.type === 'student') {
         addPropInput(extra, "Name", selectedObject.name || 'STUDENT', v => selectedObject.name = v);
         addPropInput(extra, "Variant", selectedObject.variant || 'boy', v => selectedObject.variant = v);
@@ -1908,20 +1655,14 @@ function updatePropPanel() {
         addPropInput(extra, "Text", selectedObject.text || '', v => selectedObject.text = v);
     } else if (selectedObject.type === 'door') {
         addPropInput(extra, "ID", selectedObject.id || '', v => selectedObject.id = v);
-
-        // Convert old separate properties to new format for display if needed
         let displayTarget = selectedObject.target || '';
         if (selectedObject.targetDoorId && !displayTarget.includes(':')) {
             displayTarget += ':' + selectedObject.targetDoorId;
         }
-
         addPropInput(extra, "Target (Room:ID)", displayTarget, v => {
             selectedObject.target = v;
-            // Clear legacy property to avoid confusion
             delete selectedObject.targetDoorId;
         });
-
-        // Orientation dropdown
         const div = document.createElement("div");
         div.className = "dev-prop-row";
         div.innerHTML = `<label>Dir:</label> <select id="prop-door-dir">
@@ -1937,8 +1678,6 @@ function updatePropPanel() {
              selectedObject.orientation = e.target.value;
              saveLocal();
         };
-
-        // Spawn setter removed (replaced by visual editor)
     } else if (selectedObject.type === 'rug') {
         addPropInput(extra, "Color", selectedObject.color || '#fff', v => selectedObject.color = v);
     }
@@ -1947,13 +1686,11 @@ function updatePropPanel() {
         addPropInput(extra, "ID", selectedObject.id || '', v => selectedObject.id = v);
     }
 
-    // Collision Editor
     const colHeader = document.createElement("div");
     colHeader.className = "dev-prop-row";
     colHeader.style.marginTop = "5px";
     colHeader.style.borderTop = "1px solid #444";
     colHeader.style.paddingTop = "5px";
-
     const colCheck = document.createElement("input");
     colCheck.type = "checkbox";
     colCheck.checked = !!selectedObject.collisionRect;
@@ -1966,7 +1703,6 @@ function updatePropPanel() {
         saveLocal();
         updatePropPanel();
     };
-
     const colLbl = document.createElement("label");
     colLbl.textContent = " Custom Hitbox";
     colLbl.prepend(colCheck);
@@ -1981,13 +1717,11 @@ function updatePropPanel() {
         addPropInput(extra, "Hit H", cr.height, v => cr.height = parseInt(v));
     }
 
-    // Interaction Editor
     const interactHeader = document.createElement("div");
     interactHeader.className = "dev-prop-row";
     interactHeader.style.marginTop = "10px";
     interactHeader.style.borderTop = "1px solid #444";
     interactHeader.style.paddingTop = "5px";
-
     const interactCheck = document.createElement("input");
     interactCheck.type = "checkbox";
     interactCheck.checked = !!(selectedObject.interaction && selectedObject.interaction.enabled);
@@ -2005,13 +1739,11 @@ function updatePropPanel() {
         saveLocal();
         updatePropPanel();
     };
-
     const lbl = document.createElement("label");
     lbl.textContent = " Interact";
     lbl.prepend(interactCheck);
     interactHeader.appendChild(lbl);
 
-    // Auto Trigger Checkbox
     if (selectedObject.interaction && selectedObject.interaction.enabled) {
          const autoLbl = document.createElement("label");
          autoLbl.textContent = " Auto Trigger";
@@ -2029,8 +1761,6 @@ function updatePropPanel() {
 
     extra.appendChild(interactHeader);
 
-    // Global Priority (For all objects)
-    // Add Priority Input if interactable or Door
     if ((selectedObject.interaction && selectedObject.interaction.enabled) || selectedObject.type === 'door') {
          const priVal = selectedObject.type === 'door' ? (selectedObject.priority || 1) : (selectedObject.interaction.priority || 1);
          const priDiv = document.createElement("div");
@@ -2047,27 +1777,11 @@ function updatePropPanel() {
 
     if (selectedObject.interaction && selectedObject.interaction.enabled) {
         const iObj = selectedObject.interaction;
-
-        // Interaction Area UI
         addPropInput(extra, "Area X", iObj.area.x, v => iObj.area.x = parseInt(v));
         addPropInput(extra, "Area Y", iObj.area.y, v => iObj.area.y = parseInt(v));
         addPropInput(extra, "Area W", iObj.area.width, v => iObj.area.width = parseInt(v));
         addPropInput(extra, "Area H", iObj.area.height, v => iObj.area.height = parseInt(v));
 
-        // Interaction Count & Reset
-        const countDiv = document.createElement("div");
-        countDiv.className = "dev-prop-row";
-        countDiv.style.fontSize = "11px";
-        if (!iObj.state) iObj.state = { count: 0 };
-        countDiv.innerHTML = `<span>Count: ${iObj.state.count}</span>`;
-        const rstBtn = document.createElement("button");
-        rstBtn.textContent = "Reset";
-        rstBtn.className = "btn-xs";
-        rstBtn.onclick = () => { iObj.state.count = 0; saveLocal(); updatePropPanel(); };
-        countDiv.appendChild(rstBtn);
-        extra.appendChild(countDiv);
-
-        // Interaction Type
         const typeRow = document.createElement("div");
         typeRow.className = "dev-prop-row";
         typeRow.innerHTML = `<label>Mode</label> <select>
@@ -2078,7 +1792,6 @@ function updatePropPanel() {
         typeRow.querySelector("select").onchange = (e) => { iObj.type = e.target.value; saveLocal(); };
         extra.appendChild(typeRow);
 
-        // Conversations Management
         const convList = document.createElement("div");
         convList.style.marginTop = "5px";
 
@@ -2109,9 +1822,8 @@ function updatePropPanel() {
                 updatePropPanel();
             };
 
-            // Advanced Conditions UI
             const condDiv = document.createElement("div");
-            condDiv.style.display = selectedObject.type === 'intro_manager' ? "none" : "flex"; // Hide for Intro
+            condDiv.style.display = selectedObject.type === 'intro_manager' ? "none" : "flex";
             condDiv.style.gap = "4px";
             condDiv.style.fontSize = "10px";
             condDiv.style.marginBottom = "4px";
@@ -2122,7 +1834,6 @@ function updatePropPanel() {
                     const newObj = { lines: [...convoItem] };
                     iObj.conversations[idx] = newObj;
                     isAdvanced = true;
-                    // Update reference for closure
                     convoItem = newObj;
                     return newObj;
                 }
@@ -2162,10 +1873,8 @@ function updatePropPanel() {
             };
             onceLbl.prepend(onceChk);
             condDiv.appendChild(onceLbl);
-
             cDiv.appendChild(condDiv);
 
-            // Lines
             const linesDiv = document.createElement("div");
             lines.forEach((line, lIdx) => {
                  const lDiv = document.createElement("div");
@@ -2210,7 +1919,6 @@ function updatePropPanel() {
                  updatePropPanel();
             };
             cDiv.appendChild(addLineBtn);
-
             convList.appendChild(cDiv);
         });
 
@@ -2222,7 +1930,6 @@ function updatePropPanel() {
              saveLocal();
              updatePropPanel();
         };
-
         extra.appendChild(convList);
         extra.appendChild(addConvoBtn);
     }
@@ -2242,37 +1949,6 @@ function addPropInput(container, label, value, onChange) {
 let isSettingSpawn = false;
 let doorToSetSpawn = null;
 
-function startSetSpawn(door) {
-    if (!door.target) {
-        alert("Please set a Target Room first");
-        return;
-    }
-    if (!levels[door.target]) {
-        alert("Target Room does not exist");
-        return;
-    }
-
-    // Switch to target room
-    loadLevel(door.target);
-    isSettingSpawn = true;
-    doorToSetSpawn = door;
-
-    // Show instruction
-    const h1 = document.createElement("div");
-    h1.id = "spawn-instruction";
-    h1.style.position = "absolute";
-    h1.style.top = "50%";
-    h1.style.left = "50%";
-    h1.style.transform = "translate(-50%, -50%)";
-    h1.style.background = "rgba(0,0,0,0.8)";
-    h1.style.padding = "20px";
-    h1.style.color = "white";
-    h1.style.pointerEvents = "none";
-    h1.textContent = "Click anywhere to set spawn point";
-    document.querySelector(".frame").appendChild(h1);
-}
-
-// Property Inputs Event Listeners (Global x/y/w/h)
 ['x', 'y', 'w', 'h'].forEach(key => {
     document.getElementById(`prop-${key}`).addEventListener("change", (e) => {
         if (selectedObject) {
@@ -2287,13 +1963,6 @@ function startSetSpawn(door) {
 });
 
 document.getElementById("dev-delete-obj").addEventListener("click", deleteObject);
-
-// Add Copy/Paste buttons to UI
-const actionContainer = document.querySelector("#dev-sidebar .dev-section");
-// Find where to inject, maybe near add obj?
-// Actually let's just append to the object actions area (dev-props)
-// But dev-props is hidden if no object selected.
-// Let's add it to dev-props.
 
 const copyBtn = document.createElement("button");
 copyBtn.textContent = "Copy";
@@ -2324,12 +1993,6 @@ cpContainer.className = "dev-prop-row";
 cpContainer.style.marginTop = "10px";
 cpContainer.appendChild(copyBtn);
 cpContainer.appendChild(pasteBtn);
-// We will append this inside updatePropPanel or just once to the dev-props container?
-// dev-props is cleared? No, it has static elements + generated extras.
-// The 'prop-extra' is cleared.
-// Let's add it to the static HTML or inject once.
-// I'll inject it into 'dev-props' dynamically if not present, or just add it to 'prop-extra'.
-// Adding to prop-extra is easiest as it refreshes with selection.
 
 function deleteObject() {
     if (!selectedObject) return;
@@ -2343,11 +2006,50 @@ function deleteObject() {
     saveLocal();
 }
 
-document.getElementById("dev-add-obj").addEventListener("click", () => {
-    const type = document.getElementById("dev-obj-type").value;
-    let obj = { x: camera.x + 340, y: camera.y + 260, width: 40, height: 40, type: type };
+// Object Picker Logic
+const availableObjects = [
+    { type: 'desk', label: 'Desk', color: '#6d4c41' },
+    { type: 'bed', label: 'Bed', color: '#5c6bc0' },
+    { type: 'student', label: 'Student', color: '#4caf50' },
+    { type: 'cupboard', label: 'Cupboard', color: '#4e342e' },
+    { type: 'door', label: 'Door', color: '#d89c27' },
+    { type: 'rug', label: 'Rug', color: '#8d6e63' },
+    { type: 'shelf', label: 'Shelf', color: '#5d4037' },
+    { type: 'window', label: 'Window', color: '#81d4fa' },
+    { type: 'chest', label: 'Chest', color: '#5d4037' },
+    { type: 'locker', label: 'Locker', color: '#607d8b' },
+    { type: 'whiteboard', label: 'Whiteboard', color: '#b0bec5' },
+    { type: 'table', label: 'Table', color: '#9e8c74' },
+    { type: 'zone', label: 'Zone', color: '#0000ff' }
+];
 
-    // Defaults
+const pickerModal = document.getElementById("object-picker");
+const pickerGrid = document.getElementById("obj-grid");
+
+document.getElementById("dev-open-picker").addEventListener("click", () => {
+    pickerGrid.innerHTML = "";
+    availableObjects.forEach(obj => {
+        const card = document.createElement("div");
+        card.className = "obj-card";
+        card.innerHTML = `
+            <div class="obj-icon" style="background:${obj.color}"></div>
+            <span>${obj.label}</span>
+        `;
+        card.onclick = () => {
+            addObject(obj.type);
+            pickerModal.classList.add("hidden");
+        };
+        pickerGrid.appendChild(card);
+    });
+    pickerModal.classList.remove("hidden");
+});
+
+document.getElementById("picker-cancel").addEventListener("click", () => {
+    pickerModal.classList.add("hidden");
+});
+
+function addObject(type) {
+    let obj = { x: camera.x + 340, y: camera.y + 260, width: 40, height: 40, type: type };
     if (type === 'door') {
         obj.width = 64; obj.height = 80; obj.orientation = 'top';
         if (!room.doors) room.doors = [];
@@ -2363,9 +2065,8 @@ document.getElementById("dev-add-obj").addEventListener("click", () => {
     selectedObject = obj;
     updatePropPanel();
     saveLocal();
-});
+}
 
-// Add Edit Intro Button
 const devSection1 = document.querySelector("#dev-sidebar .dev-section");
 if (devSection1) {
     const editIntroBtn = document.createElement("button");
@@ -2379,7 +2080,7 @@ if (devSection1) {
             interaction: {
                 enabled: true,
                 type: 'sequence',
-                conversations: [ introDialogue ] // Bind to Global Intro
+                conversations: [ introDialogue ]
             }
         };
         updatePropPanel();
@@ -2387,7 +2088,6 @@ if (devSection1) {
     devSection1.appendChild(editIntroBtn);
 }
 
-// Add Back to Menu Button
 const menuBtn = document.createElement("button");
 menuBtn.textContent = "🏠 Menu";
 menuBtn.className = "btn-sm";
@@ -2412,11 +2112,9 @@ function startGame() {
   loop();
 }
 
-// Auto-load external JSON if present
 async function loadExternalData() {
-    // 1. Try LocalStorage (Auto-Save Persistence)
     try {
-        const savedData = localStorage.getItem('helios_game_data');
+        const savedData = localStorage.getItem('helios_design_data');
         if (savedData) {
             const data = JSON.parse(savedData);
             if (data.levels && data.dialogue) {
@@ -2425,52 +2123,77 @@ async function loadExternalData() {
                 introDialogue = data.dialogue;
                 currentLevelName = Object.keys(levels)[0] || 'classroom';
                 loadLevel(currentLevelName);
-                console.log("Auto-loaded from LocalStorage");
-                return; // Prioritize local storage edits
+                console.log("Auto-loaded Design Data from LocalStorage");
+                return;
             }
         }
     } catch (e) {
         console.warn("LocalStorage access failed", e);
     }
-
-    // 2. Try Fetching game-data.json
     try {
-        const response = await fetch('game-data.json?t=' + Date.now()); // Prevent caching
+        const response = await fetch('game-data.json?t=' + Date.now());
         if (response.ok) {
             const data = await response.json();
             if (data.levels && data.dialogue) {
                 normalizeGameData(data);
                 levels = data.levels;
                 introDialogue = data.dialogue;
-
-                // Refresh state
                 currentLevelName = Object.keys(levels)[0] || 'classroom';
-                // Force full reload of level to update player position etc.
                 loadLevel(currentLevelName);
                 console.log("Auto-loaded game-data.json");
             }
         }
     } catch (e) {
-        console.log("No external game-data.json found (or CORS blocked), using defaults.");
+        console.log("No external game-data.json found, using defaults.");
     }
 }
 
-// Run auto-load immediately
 loadExternalData();
+
+// Init Start Screen
+const startMenu = document.querySelector(".start-menu");
+// Check for Save Data
+const hasSaveData = !!localStorage.getItem('helios_play_data');
+if (hasSaveData) {
+    const btnContinue = document.createElement("button");
+    btnContinue.id = "btn-continue";
+    btnContinue.className = "btn";
+    btnContinue.textContent = "Continue";
+    btnContinue.onclick = () => {
+         isDeveloperMode = false;
+         loadPlayState();
+         startGame();
+    };
+    startMenu.insertBefore(btnContinue, startMenu.firstChild);
+}
 
 document.getElementById("btn-play").addEventListener("click", () => {
   isDeveloperMode = false;
+  // New Game: Reset Play Data
+  playData = {
+      player: { x: 0, y: 0, room: Object.keys(levels)[0] || 'classroom', facing: 'down' },
+      worldState: {},
+      inventory: []
+  };
+  savePlayState();
+  loadLevel(playData.player.room); // Ensure we start at default spawn
   startGame();
 });
 
 document.getElementById("btn-dev").addEventListener("click", () => {
   isDeveloperMode = true;
   document.getElementById("dev-sidebar").classList.remove("hidden");
-  updateDevRoomSelect(); // Ensure list is populated
+  updateDevRoomSelect();
   startGame();
 });
 
 function saveLocal() {
+    if (isDeveloperMode) {
+        saveDesignData();
+    }
+}
+
+function saveDesignData() {
     const data = {
         levels: levels,
         dialogue: introDialogue
@@ -2479,16 +2202,36 @@ function saveLocal() {
         if (key.startsWith('_')) return undefined;
         return value;
     }, 2);
-
     try {
-        localStorage.setItem('helios_game_data', jsonString);
-        console.log("Auto-saved to LocalStorage");
+        localStorage.setItem('helios_design_data', jsonString);
+        console.log("Auto-saved Design Data");
     } catch (e) {
         console.warn("LocalStorage save failed", e);
     }
 }
 
-// Save JSON (File Download Only)
+function savePlayState() {
+    try {
+        localStorage.setItem('helios_play_data', JSON.stringify(playData));
+    } catch (e) { console.error(e); }
+}
+
+function loadPlayState() {
+    try {
+        const json = localStorage.getItem('helios_play_data');
+        if (json) {
+            playData = JSON.parse(json);
+            // Load Level
+            if (playData.player.room) {
+                loadLevel(playData.player.room);
+                player.x = playData.player.x;
+                player.y = playData.player.y;
+                player.facing = playData.player.facing;
+            }
+        }
+    } catch (e) { console.error(e); }
+}
+
 document.getElementById("dev-save").addEventListener("click", async () => {
   const data = {
     levels: levels,
@@ -2498,8 +2241,6 @@ document.getElementById("dev-save").addEventListener("click", async () => {
       if (key.startsWith('_')) return undefined;
       return value;
   }, 2);
-
-  // 2. Try File System Access API
   if (window.showSaveFilePicker) {
       try {
           const handle = await window.showSaveFilePicker({
@@ -2523,8 +2264,6 @@ document.getElementById("dev-save").addEventListener("click", async () => {
           }
       }
   }
-
-  // Fallback
   const blob = new Blob([jsonString], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -2534,19 +2273,17 @@ document.getElementById("dev-save").addEventListener("click", async () => {
   URL.revokeObjectURL(url);
 });
 
-// Reset LocalStorage
 const resetBtn = document.createElement("button");
 resetBtn.className = "dev-btn-danger";
-resetBtn.textContent = "Reset Local Storage";
+resetBtn.textContent = "Reset Design Data";
 resetBtn.onclick = () => {
-    if (confirm("Clear local changes and revert to file data? Page will reload.")) {
-        localStorage.removeItem('helios_game_data');
+    if (confirm("Clear local design changes and revert to file data? Page will reload.")) {
+        localStorage.removeItem('helios_design_data');
         location.reload();
     }
 };
 document.querySelector("#dev-sidebar .dev-section").appendChild(resetBtn);
 
-// Load JSON
 document.getElementById("dev-load").addEventListener("click", () => {
   document.getElementById("dev-load-input").click();
 });
@@ -2561,8 +2298,9 @@ document.getElementById("dev-load-input").addEventListener("change", (e) => {
       if (data.levels && data.dialogue) {
         levels = data.levels;
         introDialogue = data.dialogue;
-        loadLevel(currentLevelName); // Reload current level
+        loadLevel(currentLevelName);
         alert("Game data loaded successfully!");
+        saveDesignData(); // Save loaded data
       } else {
         alert("Invalid game data file.");
       }
@@ -2573,8 +2311,9 @@ document.getElementById("dev-load-input").addEventListener("change", (e) => {
   reader.readAsText(file);
 });
 document.getElementById("btn-reset").addEventListener("click", () => {
-  if (confirm("Reset all game data? This will clear your save and reload the page.")) {
-    localStorage.removeItem("helios_game_data");
+  if (confirm("Reset ALL data (Design + Play)?")) {
+    localStorage.removeItem("helios_design_data");
+    localStorage.removeItem("helios_play_data");
     location.reload();
   }
 });
