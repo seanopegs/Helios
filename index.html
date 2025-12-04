@@ -9,14 +9,13 @@
 <body>
   <div class="frame">
     <div id="start-screen" class="start-screen">
-      <button id="btn-reset" class="btn-reset" title="Reset Game Data">
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-      </button>
       <h1>Helios</h1>
       <div class="start-menu">
-        <button id="btn-play" class="btn">Play</button>
+        <button id="btn-continue" class="btn hidden">Continue</button>
+        <button id="btn-newgame" class="btn">New Game</button>
         <button id="btn-dev" class="btn">Developer Mode</button>
       </div>
+      <div class="version-tag">v0.2.0</div>
     </div>
     <canvas id="scene" width="680" height="520" aria-label="Room scene"></canvas>
     <div class="dialogue" id="dialogue">
@@ -26,6 +25,7 @@
     </div>
   </div>
 
+  <!-- Texture Editor Modal -->
   <div id="texture-editor" class="modal hidden">
     <div class="modal-content">
       <h3>Texture Editor</h3>
@@ -67,61 +67,76 @@
     </div>
   </div>
 
+  <!-- Object Picker Modal -->
+  <div id="obj-picker" class="modal hidden">
+      <div class="modal-content modal-large">
+          <h3>Add Object</h3>
+          <div class="obj-grid" id="obj-grid">
+              <!-- Populated by JS -->
+          </div>
+          <div class="obj-custom-input">
+              <label>Or create custom type:</label>
+              <input type="text" id="custom-obj-type" placeholder="e.g. alien_artifact">
+              <button id="btn-add-custom" class="dev-btn-small">Add Custom</button>
+          </div>
+          <button id="btn-close-picker" class="dev-btn-danger" style="margin-top: 20px;">Cancel</button>
+      </div>
+  </div>
+
+  <!-- Developer Sidebar -->
   <div id="dev-sidebar" class="dev-sidebar hidden">
     <h2>Developer Mode</h2>
 
     <div class="dev-section">
-      <button id="dev-save" class="dev-btn">Save JSON</button>
-      <input type="file" id="dev-load-input" accept=".json" style="display: none;" />
-      <button id="dev-load" class="dev-btn">Load JSON</button>
+      <div class="dev-row-group">
+          <button id="dev-save" class="dev-btn" data-tooltip="Download JSON File">💾 Export JSON</button>
+          <button id="dev-load" class="dev-btn" data-tooltip="Load JSON File">📂 Import JSON</button>
+          <input type="file" id="dev-load-input" accept=".json" style="display: none;" />
+      </div>
+      <div class="dev-row-group">
+           <button id="dev-reset-design" class="dev-btn-danger" data-tooltip="Revert to original game data">⚠️ Revert Data</button>
+      </div>
     </div>
 
-    <div class="dev-section">
-        <label>Room</label>
-        <select id="dev-room-select"></select>
-        <button id="dev-add-room" class="dev-btn-small">+ Room</button>
+    <div class="dev-section collapsible">
+        <h3 class="toggle-header">🗺️ Room</h3>
+        <div class="toggle-content">
+            <select id="dev-room-select" style="width:100%; margin-bottom: 5px;"></select>
+            <button id="dev-add-room" class="dev-btn-small">+ New Room</button>
+        </div>
     </div>
 
-    <div class="dev-section">
-      <h3>Add Object</h3>
-      <input type="text" id="dev-obj-type" list="obj-types" placeholder="Type (e.g. desk)">
-      <datalist id="obj-types">
-        <option value="desk">
-        <option value="student">
-        <option value="bed">
-        <option value="cupboard">
-        <option value="shelf">
-        <option value="rug">
-        <option value="chest">
-        <option value="locker">
-        <option value="window">
-        <option value="door">
-        <option value="whiteboard">
-        <option value="table">
-        <option value="zone">
-      </datalist>
-      <button id="dev-add-obj" class="dev-btn">Add</button>
+    <div class="dev-section collapsible">
+      <h3 class="toggle-header">📦 Objects</h3>
+      <div class="toggle-content">
+           <button id="dev-open-picker" class="dev-btn">Add Object...</button>
+      </div>
     </div>
 
     <div id="dev-props" class="dev-props hidden">
-        <h3>Properties</h3>
-        <div class="dev-prop-row">
-            <label>X:</label> <input type="number" id="prop-x">
-        </div>
-        <div class="dev-prop-row">
-            <label>Y:</label> <input type="number" id="prop-y">
-        </div>
-        <div class="dev-prop-row">
-            <label>W:</label> <input type="number" id="prop-w">
-        </div>
-        <div class="dev-prop-row">
-            <label>H:</label> <input type="number" id="prop-h">
+        <h3 class="toggle-header active">⚙️ Properties</h3>
+
+        <div class="dev-prop-grid">
+            <div class="dev-input-group">
+                <label>X</label> <input type="number" id="prop-x">
+            </div>
+            <div class="dev-input-group">
+                <label>Y</label> <input type="number" id="prop-y">
+            </div>
+            <div class="dev-input-group">
+                <label>W</label> <input type="number" id="prop-w">
+            </div>
+            <div class="dev-input-group">
+                <label>H</label> <input type="number" id="prop-h">
+            </div>
         </div>
 
         <div id="prop-extra"></div>
 
-        <button id="dev-delete-obj" class="dev-btn-danger">Delete Object</button>
-        <button id="dev-edit-texture" class="dev-btn">Edit Texture</button>
+        <div class="dev-actions-row">
+            <button id="dev-edit-texture" class="dev-btn">🎨 Texture</button>
+            <button id="dev-delete-obj" class="dev-btn-danger">🗑️ Delete</button>
+        </div>
     </div>
   </div>
   <script src="data.js"></script>
