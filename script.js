@@ -1007,7 +1007,7 @@ function draw() {
   drawRoom();
 
   // Draw rugs first (always on floor)
-  room.furniture.filter(i => i.type === 'rug').forEach(drawFurnitureItem);
+  room.furniture.filter(i => i.type === 'rug').forEach(item => drawFurnitureItem(item));
 
   drawDoors();
 
@@ -2464,4 +2464,10 @@ document.getElementById("dev-load-input").addEventListener("change", (e) => {
     }
   };
   reader.readAsText(file);
+});
+document.getElementById("btn-reset").addEventListener("click", () => {
+  if (confirm("Reset all game data? This will clear your save and reload the page.")) {
+    localStorage.removeItem("helios_game_data");
+    location.reload();
+  }
 });

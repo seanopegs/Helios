@@ -280,3 +280,28 @@ body {
 .btn:hover {
   background: #4e342e;
 }
+.btn-reset {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: transparent;
+  border: none;
+  color: #5d4037;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-reset:hover {
+  background: rgba(93, 64, 55, 0.2);
+  color: #f6c453;
+  transform: scale(1.1);
+}
+
+.btn-reset:active {
+  transform: scale(0.95);
+}
