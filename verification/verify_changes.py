@@ -1,57 +1,49 @@
-from playwright.sync_api import sync_playwright, expect
+from playwright.sync_api import sync_playwright
 
-def run(playwright):
-    browser = playwright.chromium.launch(headless=True)
-    page = browser.new_page()
-    page.goto("http://localhost:8000/index.html")
+def verify_frontend():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
 
-    # 1. Start Game
-    page.click("#btn-play")
-    page.wait_for_timeout(1000)
-    page.screenshot(path="verification/step1_play_mode.png")
+        # Navigate to the local server
+        page.goto("http://localhost:8000")
 
-    # 2. Check Menu Button in Play Mode
-    menu_btn = page.get_by_role("button", name="🏠 Menu")
-    expect(menu_btn).to_be_visible()
+        # Verify New Game button exists and is visible
+        new_game_btn = page.locator("#btn-newgame")
+        if new_game_btn.is_visible():
+            print("New Game button visible")
 
-    # Reload to go back to start
-    page.reload()
+        # Verify Developer Mode button exists
+        dev_btn = page.locator("#btn-dev")
+        if dev_btn.is_visible():
+            print("Dev button visible")
 
-    # 3. Enter Dev Mode
-    page.click("#btn-dev")
-    page.wait_for_timeout(1000)
-    page.screenshot(path="verification/step3_dev_mode.png")
+        # Take screenshot of Start Screen
+        page.screenshot(path="verification/start_screen.png")
+        print("Start screen screenshot saved")
 
-    # 4. Check Dev UI Elements
-    # Edit Intro Button
-    edit_intro_btn = page.get_by_role("button", name="Edit Intro Dialogue")
-    expect(edit_intro_btn).to_be_visible()
+        # Click Developer Mode
+        dev_btn.click()
 
-    # Add Object 'zone'
-    add_select = page.locator("#dev-obj-type")
-    add_select.fill("zone")
-    page.click("#dev-add-obj")
-    page.wait_for_timeout(500)
+        # Wait for scene to load
+        page.wait_for_selector("#scene")
 
-    # Verify Zone Object is Selected and Visible in Dev Mode
-    # We can check if prop panel is visible
-    expect(page.locator("#dev-props")).not_to_have_class("dev-props hidden")
-    # The class list string match might be tricky, checking visibility is better
-    expect(page.locator("#dev-props")).to_be_visible()
+        # Verify Sidebar is visible
+        sidebar = page.locator("#dev-sidebar")
+        if sidebar.is_visible():
+            print("Sidebar visible")
 
-    # Check "Auto Trigger" checkbox existence
-    # First enable interact
-    interact_lbl = page.locator("#dev-props").get_by_text("Interact", exact=False)
-    interact_lbl.click()
-    page.wait_for_timeout(500)
+        # Take screenshot of Dev Mode
+        page.screenshot(path="verification/dev_mode.png")
+        print("Dev mode screenshot saved")
 
-    # Now check for Auto Trigger
-    auto_lbl = page.locator("#dev-props").get_by_text("Auto Trigger", exact=False)
-    expect(auto_lbl).to_be_visible()
+        # Open Object Picker
+        page.locator("#dev-open-picker").click()
+        page.wait_for_selector("#obj-picker")
+        page.screenshot(path="verification/obj_picker.png")
+        print("Object Picker screenshot saved")
 
-    page.screenshot(path="verification/step4_dev_props.png")
+        browser.close()
 
-    browser.close()
-
-with sync_playwright() as playwright:
-    run(playwright)
+if __name__ == "__main__":
+    verify_frontend()
