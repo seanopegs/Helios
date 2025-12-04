@@ -5,7 +5,8 @@ const dialogueLabel = document.getElementById("dialogue-label");
 const dialogueLine = document.getElementById("dialogue-line");
 const dialoguePrompt = document.getElementById("dialogue-prompt");
 
-let dialogue = JSON.parse(JSON.stringify(window.initialGameData.dialogue));
+let introDialogue = JSON.parse(JSON.stringify(window.initialGameData.dialogue));
+let dialogue = [];
 let levels = JSON.parse(JSON.stringify(window.initialGameData.levels));
 let isDeveloperMode = false;
 
@@ -270,7 +271,7 @@ function checkCollision(x, y) {
     const hasCustom = !!item.collisionRect;
 
     // Windows and Rugs don't block movement unless custom collision is set
-    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf')) continue;
+    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone')) continue;
 
     let dLeft, dTop, dWidth, dHeight;
 
@@ -329,6 +330,8 @@ function handleMovement() {
     if (!checkCollision(player.x, player.y + dy)) {
       player.y += dy;
     }
+
+    checkAutoTriggers();
   } else {
     player.walkFrame = 0;
   }
@@ -796,6 +799,21 @@ function drawStudent(item, targetCtx = ctx) {
 }
 
 function drawFurnitureItem(item, targetCtx = ctx) {
+    if (item.type === 'zone') {
+        if (isDeveloperMode) {
+            targetCtx.strokeStyle = "rgba(0, 0, 255, 0.5)";
+            targetCtx.lineWidth = 1;
+            targetCtx.strokeRect(item.x, item.y, item.width, item.height);
+            targetCtx.fillStyle = "rgba(0, 0, 255, 0.1)";
+            targetCtx.fillRect(item.x, item.y, item.width, item.height);
+            targetCtx.fillStyle = "blue";
+            targetCtx.font = "10px monospace";
+            targetCtx.textAlign = "center";
+            targetCtx.fillText("ZONE", item.x + item.width/2, item.y + item.height/2);
+        }
+        return;
+    }
+
     if (item.textureData) {
         // Draw Custom Texture
         const img = new Image();
@@ -1162,6 +1180,30 @@ function advanceDialogue() {
     stage += 1;
     updateDialogue();
   }
+}
+
+function checkAutoTriggers() {
+    if (dialogueBox.classList.contains("dialogue--active")) return;
+
+    for (const item of room.furniture) {
+        if (item.interaction && item.interaction.enabled && item.interaction.autoTrigger) {
+             const area = item.interaction.area || { x: 0, y: 0, width: item.width, height: item.height };
+             const ix = item.x + area.x;
+             const iy = item.y + area.y;
+
+             if (player.x >= ix && player.x <= ix + area.width &&
+                 player.y >= iy && player.y <= iy + area.height) {
+
+                 // Reuse executeInteraction
+                 executeInteraction({
+                     type: 'furniture',
+                     obj: item,
+                     priority: 999
+                 });
+                 return;
+             }
+        }
+    }
 }
 
 // Interaction Handler
@@ -1836,6 +1878,14 @@ function updatePropPanel() {
     const p = document.getElementById("dev-props");
     p.classList.remove("hidden");
 
+    const propFields = ['prop-x', 'prop-y', 'prop-w', 'prop-h'];
+    propFields.forEach(id => {
+         const el = document.getElementById(id);
+         if (el && el.parentElement) {
+             el.parentElement.style.display = selectedObject.type === 'intro_manager' ? 'none' : 'block';
+         }
+    });
+
     document.getElementById("prop-x").value = selectedObject.x;
     document.getElementById("prop-y").value = selectedObject.y;
     document.getElementById("prop-w").value = selectedObject.width;
@@ -1960,6 +2010,23 @@ function updatePropPanel() {
     lbl.textContent = " Interact";
     lbl.prepend(interactCheck);
     interactHeader.appendChild(lbl);
+
+    // Auto Trigger Checkbox
+    if (selectedObject.interaction && selectedObject.interaction.enabled) {
+         const autoLbl = document.createElement("label");
+         autoLbl.textContent = " Auto Trigger";
+         autoLbl.style.marginLeft = "10px";
+         const autoCheck = document.createElement("input");
+         autoCheck.type = "checkbox";
+         autoCheck.checked = !!selectedObject.interaction.autoTrigger;
+         autoCheck.onchange = (e) => {
+             selectedObject.interaction.autoTrigger = e.target.checked;
+             saveLocal();
+         };
+         autoLbl.prepend(autoCheck);
+         interactHeader.appendChild(autoLbl);
+    }
+
     extra.appendChild(interactHeader);
 
     // Global Priority (For all objects)
@@ -2044,7 +2111,7 @@ function updatePropPanel() {
 
             // Advanced Conditions UI
             const condDiv = document.createElement("div");
-            condDiv.style.display = "flex";
+            condDiv.style.display = selectedObject.type === 'intro_manager' ? "none" : "flex"; // Hide for Intro
             condDiv.style.gap = "4px";
             condDiv.style.fontSize = "10px";
             condDiv.style.marginBottom = "4px";
@@ -2290,6 +2357,7 @@ document.getElementById("dev-add-obj").addEventListener("click", () => {
         if (type === 'desk') { obj.width = 70; obj.height = 60; }
         if (type === 'rug') { obj.width = 80; obj.height = 120; }
         if (type === 'bed') { obj.width = 60; obj.height = 100; }
+        if (type === 'zone') { obj.width = 100; obj.height = 100; }
         room.furniture.push(obj);
     }
     selectedObject = obj;
@@ -2297,10 +2365,49 @@ document.getElementById("dev-add-obj").addEventListener("click", () => {
     saveLocal();
 });
 
+// Add Edit Intro Button
+const devSection1 = document.querySelector("#dev-sidebar .dev-section");
+if (devSection1) {
+    const editIntroBtn = document.createElement("button");
+    editIntroBtn.textContent = "Edit Intro Dialogue";
+    editIntroBtn.className = "dev-btn";
+    editIntroBtn.style.marginTop = "10px";
+    editIntroBtn.onclick = () => {
+        selectedObject = {
+            type: 'intro_manager',
+            x: 0, y: 0, width: 0, height: 0,
+            interaction: {
+                enabled: true,
+                type: 'sequence',
+                conversations: [ introDialogue ] // Bind to Global Intro
+            }
+        };
+        updatePropPanel();
+    };
+    devSection1.appendChild(editIntroBtn);
+}
+
+// Add Back to Menu Button
+const menuBtn = document.createElement("button");
+menuBtn.textContent = "🏠 Menu";
+menuBtn.className = "btn-sm";
+menuBtn.style.position = "absolute";
+menuBtn.style.top = "10px";
+menuBtn.style.left = "10px";
+menuBtn.style.zIndex = "1000";
+menuBtn.onclick = () => {
+    if (confirm("Return to Main Menu? Unsaved progress in Play Mode will be lost.")) {
+        location.reload();
+    }
+};
+document.body.appendChild(menuBtn);
+
 canvas.addEventListener("click", advanceDialogue);
 
 function startGame() {
   document.getElementById("start-screen").style.display = "none";
+  dialogue = JSON.parse(JSON.stringify(introDialogue));
+  stage = 0;
   updateDialogue();
   loop();
 }
@@ -2315,7 +2422,7 @@ async function loadExternalData() {
             if (data.levels && data.dialogue) {
                 normalizeGameData(data);
                 levels = data.levels;
-                dialogue = data.dialogue;
+                introDialogue = data.dialogue;
                 currentLevelName = Object.keys(levels)[0] || 'classroom';
                 loadLevel(currentLevelName);
                 console.log("Auto-loaded from LocalStorage");
@@ -2334,7 +2441,7 @@ async function loadExternalData() {
             if (data.levels && data.dialogue) {
                 normalizeGameData(data);
                 levels = data.levels;
-                dialogue = data.dialogue;
+                introDialogue = data.dialogue;
 
                 // Refresh state
                 currentLevelName = Object.keys(levels)[0] || 'classroom';
@@ -2366,7 +2473,7 @@ document.getElementById("btn-dev").addEventListener("click", () => {
 function saveLocal() {
     const data = {
         levels: levels,
-        dialogue: dialogue
+        dialogue: introDialogue
     };
     const jsonString = JSON.stringify(data, (key, value) => {
         if (key.startsWith('_')) return undefined;
@@ -2385,7 +2492,7 @@ function saveLocal() {
 document.getElementById("dev-save").addEventListener("click", async () => {
   const data = {
     levels: levels,
-    dialogue: dialogue
+    dialogue: introDialogue
   };
   const jsonString = JSON.stringify(data, (key, value) => {
       if (key.startsWith('_')) return undefined;
@@ -2453,7 +2560,7 @@ document.getElementById("dev-load-input").addEventListener("change", (e) => {
       const data = JSON.parse(e.target.result);
       if (data.levels && data.dialogue) {
         levels = data.levels;
-        dialogue = data.dialogue;
+        introDialogue = data.dialogue;
         loadLevel(currentLevelName); // Reload current level
         alert("Game data loaded successfully!");
       } else {
