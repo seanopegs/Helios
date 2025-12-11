@@ -9,12 +9,12 @@
 <body>
   <div class="frame">
     <div id="start-screen" class="start-screen">
-      <button id="btn-reset" class="btn-reset" title="Reset Game Data">
+      <button id="btn-reset" class="btn-reset" title="Reset All Data">
         <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
       </button>
       <h1>Helios</h1>
       <div class="start-menu">
-        <button id="btn-play" class="btn">Play</button>
+        <button id="btn-play" class="btn">New Game</button>
         <button id="btn-dev" class="btn">Developer Mode</button>
       </div>
     </div>
@@ -67,40 +67,34 @@
     </div>
   </div>
 
+  <div id="object-picker" class="modal hidden">
+      <div class="modal-content" style="width: 400px;">
+          <h3>Add Object</h3>
+          <div id="obj-grid" class="obj-grid"></div>
+          <button id="picker-cancel" class="dev-btn-danger">Cancel</button>
+      </div>
+  </div>
+
   <div id="dev-sidebar" class="dev-sidebar hidden">
     <h2>Developer Mode</h2>
 
     <div class="dev-section">
-      <button id="dev-save" class="dev-btn">Save JSON</button>
+      <button id="dev-save" class="dev-btn" data-tooltip="Save Design to File">Save JSON</button>
       <input type="file" id="dev-load-input" accept=".json" style="display: none;" />
-      <button id="dev-load" class="dev-btn">Load JSON</button>
+      <button id="dev-load" class="dev-btn" data-tooltip="Load Design from File">Load JSON</button>
     </div>
 
     <div class="dev-section">
-        <label>Room</label>
-        <select id="dev-room-select"></select>
-        <button id="dev-add-room" class="dev-btn-small">+ Room</button>
+        <h3>Room</h3>
+        <div class="dev-prop-row">
+            <select id="dev-room-select" style="flex:1"></select>
+            <button id="dev-add-room" class="btn-xs" style="margin-left:4px">+</button>
+        </div>
     </div>
 
     <div class="dev-section">
-      <h3>Add Object</h3>
-      <input type="text" id="dev-obj-type" list="obj-types" placeholder="Type (e.g. desk)">
-      <datalist id="obj-types">
-        <option value="desk">
-        <option value="student">
-        <option value="bed">
-        <option value="cupboard">
-        <option value="shelf">
-        <option value="rug">
-        <option value="chest">
-        <option value="locker">
-        <option value="window">
-        <option value="door">
-        <option value="whiteboard">
-        <option value="table">
-        <option value="zone">
-      </datalist>
-      <button id="dev-add-obj" class="dev-btn">Add</button>
+      <h3>Objects</h3>
+      <button id="dev-open-picker" class="dev-btn">Add Object...</button>
     </div>
 
     <div id="dev-props" class="dev-props hidden">
