@@ -9,12 +9,14 @@ let introDialogue = JSON.parse(JSON.stringify(window.initialGameData.dialogue));
 let dialogue = [];
 let levels = JSON.parse(JSON.stringify(window.initialGameData.levels));
 let isDeveloperMode = false;
+let isGameActive = false;
 
 // Play Data (Runtime State)
 let playData = {
     player: { x: 0, y: 0, room: 'classroom', facing: 'down' },
     worldState: {},
-    inventory: []
+    inventory: [],
+    introSeen: false
 };
 
 let stage = 0;
@@ -32,6 +34,9 @@ let isDraggingSpawn = false;
 let isDraggingInteraction = false;
 let resizeHandle = null;
 let dragOffset = { x: 0, y: 0 };
+
+let cutscene = null;
+let globalDarkness = 0;
 
 // Player object
 const player = {
@@ -87,7 +92,7 @@ function loadLevel(name, targetDoorId) {
   if (!isFinite(player.x)) player.x = 100;
   if (!isFinite(player.y)) player.y = 100;
 
-  if (!isDeveloperMode) {
+  if (!isDeveloperMode && isGameActive) {
       playData.player.x = player.x;
       playData.player.y = player.y;
       playData.player.facing = player.facing;
@@ -223,6 +228,14 @@ function updateDialogue() {
   } else {
     dialogueBox.classList.remove("dialogue--active");
     dialogueBox.classList.add("dialogue--hidden");
+    if (!playData.introSeen && dialogue.length > 0) {
+        playData.introSeen = true;
+        savePlayState();
+    }
+    if (window.onDialogueEnd) {
+        window.onDialogueEnd();
+        window.onDialogueEnd = null;
+    }
   }
 }
 
@@ -287,47 +300,58 @@ function checkCollision(x, y) {
 }
 
 function handleMovement() {
-  if (dialogueBox.classList.contains("dialogue--active") && !isHintActive) return;
-  if (player.isSitting) return;
+  const inputBlocked = (dialogueBox.classList.contains("dialogue--active") && !isHintActive) ||
+                       player.isSitting ||
+                       (cutscene && cutscene.active);
 
-  let dx = 0;
-  let dy = 0;
-  if (keys.has("w")) dy -= 1;
-  if (keys.has("s")) dy += 1;
-  if (keys.has("a")) dx -= 1;
-  if (keys.has("d")) dx += 1;
+  if (!inputBlocked) {
+    let dx = 0;
+    let dy = 0;
+    if (keys.has("w")) dy -= 1;
+    if (keys.has("s")) dy += 1;
+    if (keys.has("a")) dx -= 1;
+    if (keys.has("d")) dx += 1;
 
-  if (dx !== 0 || dy !== 0) {
-    if (dy < 0) player.facing = "up";
-    if (dy > 0) player.facing = "down";
-    if (dx < 0) player.facing = "left";
-    if (dx > 0) player.facing = "right";
+    if (dx !== 0 || dy !== 0) {
+        if (dy < 0) player.facing = "up";
+        if (dy > 0) player.facing = "down";
+        if (dx < 0) player.facing = "left";
+        if (dx > 0) player.facing = "right";
 
-    player.walkFrame += 0.1;
-    const length = Math.hypot(dx, dy) || 1;
-    dx = (dx / length) * player.speed;
-    dy = (dy / length) * player.speed;
+        player.walkFrame += 0.1;
+        const length = Math.hypot(dx, dy) || 1;
+        dx = (dx / length) * player.speed;
+        dy = (dy / length) * player.speed;
 
-    if (!checkCollision(player.x + dx, player.y)) {
-      player.x += dx;
+        if (!checkCollision(player.x + dx, player.y)) {
+        player.x += dx;
+        }
+        if (!checkCollision(player.x, player.y + dy)) {
+        player.y += dy;
+        }
+
+        if (!isDeveloperMode) {
+            playData.player.x = player.x;
+            playData.player.y = player.y;
+            playData.player.facing = player.facing;
+        }
+
+        checkAutoTriggers();
+    } else {
+        player.walkFrame = 0;
     }
-    if (!checkCollision(player.x, player.y + dy)) {
-      player.y += dy;
-    }
-
-    if (!isDeveloperMode) {
-        playData.player.x = player.x;
-        playData.player.y = player.y;
-        playData.player.facing = player.facing;
-    }
-
-    checkAutoTriggers();
-  } else {
-    player.walkFrame = 0;
   }
 
-  const camTargetX = player.x - canvas.width / 2;
-  const camTargetY = player.y - canvas.height / 2;
+  let targetX = player.x;
+  let targetY = player.y;
+
+  if (cutscene && cutscene.active && cutscene.focus) {
+      targetX = cutscene.focus.x;
+      targetY = cutscene.focus.y;
+  }
+
+  const camTargetX = targetX - canvas.width / 2;
+  const camTargetY = targetY - canvas.height / 2;
   const maxCamX = Math.max(0, room.width - canvas.width);
   const maxCamY = Math.max(0, room.height - canvas.height);
   camera.x = Math.max(0, Math.min(camTargetX, maxCamX));
@@ -666,6 +690,53 @@ function drawStudent(item, targetCtx = ctx) {
     targetCtx.fillRect(item.x + w - 8, seatY + 4, 2, 2);
 }
 
+function drawTeacher(item, targetCtx = ctx) {
+    const baseY = item.y;
+    const bob = Math.sin(Date.now() / 500 + (item.phase || 0)) * 2;
+    const seatY = baseY - bob;
+    const w = item.width || 24;
+    const h = item.height || 36;
+
+    // Shadow
+    targetCtx.fillStyle = "rgba(0,0,0,0.2)";
+    targetCtx.fillRect(item.x + 2, seatY + h - 4, w - 4, 4);
+
+    // Body (Fancy Suit)
+    targetCtx.fillStyle = "#3e2723"; // Dark Brown Suit
+    targetCtx.fillRect(item.x, seatY + 12, w, 14);
+    // Tie
+    targetCtx.fillStyle = "#d32f2f";
+    targetCtx.fillRect(item.x + w/2 - 2, seatY + 14, 4, 8);
+
+    // Legs
+    targetCtx.fillStyle = "#212121";
+    targetCtx.fillRect(item.x + 4, seatY + 26, 6, 8);
+    targetCtx.fillRect(item.x + w - 10, seatY + 26, 6, 8);
+
+    // Head
+    targetCtx.fillStyle = "#f1c27d";
+    targetCtx.fillRect(item.x + 2, seatY, w - 4, 12);
+
+    // Eyes
+    targetCtx.fillStyle = "#212121";
+    targetCtx.fillRect(item.x + 6, seatY + 5, 2, 2);
+    targetCtx.fillRect(item.x + w - 8, seatY + 5, 2, 2);
+
+    // Mustache
+    targetCtx.fillStyle = "#5d4037";
+    targetCtx.fillRect(item.x + 6, seatY + 8, w - 12, 2);
+
+    // Cowboy Hat
+    targetCtx.fillStyle = "#5d4037";
+    // Brim
+    targetCtx.fillRect(item.x - 4, seatY - 2, w + 8, 4);
+    // Top
+    targetCtx.fillRect(item.x + 2, seatY - 8, w - 4, 6);
+    // Band
+    targetCtx.fillStyle = "#3e2723";
+    targetCtx.fillRect(item.x + 2, seatY - 3, w - 4, 2);
+}
+
 function drawFurnitureItem(item, targetCtx = ctx) {
     if (item.type === 'zone') {
         if (isDeveloperMode) {
@@ -705,6 +776,7 @@ function drawFurnitureItem(item, targetCtx = ctx) {
     else if (item.type === 'locker') drawLocker(item, targetCtx);
     else if (item.type === 'window') drawWindow(item, targetCtx);
     else if (item.type === 'student') drawStudent(item, targetCtx);
+    else if (item.type === 'teacher') drawTeacher(item, targetCtx);
     else if (item.type === 'chest') drawChest(item, targetCtx);
     else if (item.type === 'rug') drawRug(item, targetCtx);
     else if (item.type === 'shelf') drawShelf(item, targetCtx);
@@ -842,6 +914,14 @@ function draw() {
   renderList.sort((a, b) => a.y - b.y);
   renderList.forEach(obj => obj.draw());
   ctx.restore();
+
+  if (globalDarkness > 0) {
+      ctx.save();
+      ctx.fillStyle = `rgba(0, 0, 0, ${globalDarkness})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+  }
+
   drawHints();
   drawDevOverlay();
 }
@@ -959,9 +1039,84 @@ function drawHints() {
 }
 
 function loop() {
+  if (cutscene && cutscene.active && cutscene.update) {
+      cutscene.update();
+  }
   handleMovement();
   draw();
   requestAnimationFrame(loop);
+}
+
+function startLectureCutscene(seat) {
+    cutscene = { active: true, focus: null };
+    playData.worldState['lecture_seen'] = true;
+    savePlayState();
+
+    const door = room.doors.find(d => d.id === 'door_lecture_to_hall');
+    const startX = door ? door.x : 800;
+    const startY = door ? door.y + 40 : 200;
+
+    const teacher = {
+        type: 'teacher',
+        x: startX,
+        y: startY,
+        width: 24,
+        height: 36,
+        phase: 0
+    };
+    room.furniture.push(teacher);
+    cutscene.focus = teacher;
+
+    const targetX = 448;
+    const targetY = 130;
+
+    let phase = 'walk';
+
+    cutscene.update = () => {
+        if (phase === 'walk') {
+            const dx = targetX - teacher.x;
+            const dy = targetY - teacher.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist < 4) {
+                teacher.x = targetX;
+                teacher.y = targetY;
+                phase = 'sit';
+            } else {
+                const speed = 2;
+                teacher.x += (dx / dist) * speed;
+                teacher.y += (dy / dist) * speed;
+            }
+        } else if (phase === 'sit') {
+            phase = 'talk';
+
+            const conversation = [
+                { speaker: "TEACHER", text: "Okay guys, take your seats." },
+                { speaker: "TEACHER", text: "Today we are gonna learn some Algebra." },
+                { speaker: "TEACHER", text: "It is very important for your future." },
+                { speaker: "TEACHER", text: "So pay close attention..." }
+            ];
+
+            dialogue = conversation;
+            stage = 0;
+            updateDialogue();
+
+            window.onDialogueEnd = () => {
+                phase = 'lights_out';
+            };
+        } else if (phase === 'lights_out') {
+             if (globalDarkness < 1) {
+                 globalDarkness += 0.05;
+             } else {
+                 globalDarkness = 1;
+                 phase = 'end';
+                 setTimeout(() => {
+                     cutscene.active = false;
+                     cutscene = null;
+                 }, 1000);
+             }
+        }
+    };
 }
 
 function advanceDialogue() {
@@ -1086,6 +1241,10 @@ function executeInteraction(target) {
         player.x = desk.x + 23 + 12;
         player.y = desk.y + 34 + 36;
         player.facing = 'up';
+
+        if (desk.id === 'player_seat' && currentLevelName === 'lecture' && !playData.worldState['lecture_seen']) {
+             startLectureCutscene(desk);
+        }
         return;
     }
 
@@ -2105,10 +2264,13 @@ document.body.appendChild(menuBtn);
 canvas.addEventListener("click", advanceDialogue);
 
 function startGame() {
+  isGameActive = true;
   document.getElementById("start-screen").style.display = "none";
-  dialogue = JSON.parse(JSON.stringify(introDialogue));
-  stage = 0;
-  updateDialogue();
+  if (!playData.introSeen) {
+      dialogue = JSON.parse(JSON.stringify(introDialogue));
+      stage = 0;
+      updateDialogue();
+  }
   loop();
 }
 
@@ -2162,6 +2324,7 @@ if (hasSaveData) {
     btnContinue.onclick = () => {
          isDeveloperMode = false;
          loadPlayState();
+         if (playData.player.room) loadLevel(playData.player.room);
          startGame();
     };
     startMenu.insertBefore(btnContinue, startMenu.firstChild);
@@ -2173,7 +2336,8 @@ document.getElementById("btn-play").addEventListener("click", () => {
   playData = {
       player: { x: 0, y: 0, room: Object.keys(levels)[0] || 'classroom', facing: 'down' },
       worldState: {},
-      inventory: []
+      inventory: [],
+      introSeen: false
   };
   savePlayState();
   loadLevel(playData.player.room); // Ensure we start at default spawn
