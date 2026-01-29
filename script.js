@@ -1067,21 +1067,31 @@ function startLectureCutscene(seat) {
     room.furniture.push(teacher);
     cutscene.focus = teacher;
 
-    const targetX = 448;
-    const targetY = 130;
+    const waypoints = [
+        { x: 800, y: 220 }, // Move left to aisle
+        { x: 800, y: 130 }, // Move up aisle
+        { x: 448, y: 130 }  // Move left to seat
+    ];
+    let currentWaypointIndex = 0;
 
     let phase = 'walk';
 
     cutscene.update = () => {
         if (phase === 'walk') {
-            const dx = targetX - teacher.x;
-            const dy = targetY - teacher.y;
+            if (currentWaypointIndex >= waypoints.length) {
+                phase = 'sit';
+                return;
+            }
+
+            const target = waypoints[currentWaypointIndex];
+            const dx = target.x - teacher.x;
+            const dy = target.y - teacher.y;
             const dist = Math.hypot(dx, dy);
 
             if (dist < 4) {
-                teacher.x = targetX;
-                teacher.y = targetY;
-                phase = 'sit';
+                teacher.x = target.x;
+                teacher.y = target.y;
+                currentWaypointIndex++;
             } else {
                 const speed = 2;
                 teacher.x += (dx / dist) * speed;
