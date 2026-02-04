@@ -127,6 +127,28 @@ window.initialGameData = {
         { type: 'locker', x: 710, y: 700, width: 50, height: 100 },
         { type: 'rug', x: 420, y: 720, width: 120, height: 80, color: "#607d8b" }
       ]
+    },
+    principal_office: {
+      width: 600,
+      height: 600,
+      wallHeight: 96,
+      padding: 32,
+      theme: 'dorm',
+      doors: [
+        {
+          id: 'door_principal_to_hall',
+          x: 24, y: 300, width: 54, height: 90,
+          orientation: 'left',
+          target: 'hallway',
+          targetDoorId: 'door_hall_to_principal'
+        }
+      ],
+      spawn: { x: 100, y: 300 },
+      furniture: [
+          { type: 'desk', x: 400, y: 250, width: 100, height: 60, hasLamp: true },
+          { type: 'cupboard', x: 400, y: 100, width: 80, height: 120 },
+          { type: 'rug', x: 300, y: 300, width: 100, height: 100, color: '#5d4037' }
+      ]
     }
   }
 };

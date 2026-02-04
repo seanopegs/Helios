@@ -22,7 +22,7 @@ let playData = {
 let stage = 0;
 let isHintActive = false;
 const keys = new Set();
-const camera = { x: 0, y: 0 };
+const camera = { x: 0, y: 0, zoom: 1 };
 
 let currentLevelName = 'classroom';
 let room = levels[currentLevelName];
@@ -37,6 +37,8 @@ let dragOffset = { x: 0, y: 0 };
 
 let cutscene = null;
 let globalDarkness = 0;
+let particles = [];
+let screenShake = 0;
 
 // Player object
 const player = {
@@ -55,6 +57,45 @@ function loadLevel(name, targetDoorId) {
   if (!levels[name]) return;
   currentLevelName = name;
   room = levels[name];
+
+  // Horror Mode Hallway Changes
+  if (name === 'hallway' && playData.worldState.horrorActive && !room.isHorrorified) {
+       room.isHorrorified = true;
+
+       // Mess up furniture
+       room.furniture.forEach(item => {
+           if (item.type === 'locker') {
+               item.x += (Math.random() - 0.5) * 20;
+               item.y += (Math.random() - 0.5) * 10;
+           }
+       });
+
+       // Spawn Panic Students
+       for (let i = 0; i < 10; i++) {
+           room.furniture.push({
+               type: 'student',
+               x: 100 + Math.random() * 1000,
+               y: 100 + Math.random() * 300,
+               width: 24,
+               height: 36,
+               variant: Math.random() > 0.5 ? 'boy' : 'girl',
+               shirt: '#' + Math.floor(Math.random()*16777215).toString(16),
+               vx: (Math.random() - 0.5) * 8,
+               vy: (Math.random() - 0.5) * 8
+           });
+       }
+
+       // Add Principal Door
+       if (!room.doors.find(d => d.target === 'principal_office')) {
+           room.doors.push({
+              id: 'door_hall_to_principal',
+              x: 1340, y: 220, width: 54, height: 90,
+              orientation: 'right',
+              target: 'principal_office',
+              targetDoorId: 'door_principal_to_hall'
+           });
+       }
+  }
 
   if (!isDeveloperMode) {
       playData.player.room = name;
@@ -271,7 +312,7 @@ function checkCollision(x, y) {
 
   for (const item of room.furniture) {
     const hasCustom = !!item.collisionRect;
-    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone')) continue;
+    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone' || item.type === 'student' || item.type === 'teacher')) continue;
 
     let dLeft, dTop, dWidth, dHeight;
 
@@ -673,21 +714,32 @@ function drawStudent(item, targetCtx = ctx) {
     targetCtx.fillStyle = "#3e2723";
     targetCtx.fillRect(item.x + 4, seatY + 26, 6, 8);
     targetCtx.fillRect(item.x + w - 10, seatY + 26, 6, 8);
-    targetCtx.fillStyle = "#f1c27d";
-    targetCtx.fillRect(item.x + 2, seatY, w - 4, 12);
-    targetCtx.fillStyle = "#4e342e";
-    if (variant === 'girl') {
-        targetCtx.fillRect(item.x, seatY, w, 6);
-        targetCtx.fillRect(item.x, seatY, 4, 14);
-        targetCtx.fillRect(item.x + w - 4, seatY, 4, 14);
+
+    if (!item.headless) {
+        targetCtx.fillStyle = "#f1c27d";
+        targetCtx.fillRect(item.x + 2, seatY, w - 4, 12);
+        targetCtx.fillStyle = "#4e342e";
+        if (variant === 'girl') {
+            targetCtx.fillRect(item.x, seatY, w, 6);
+            targetCtx.fillRect(item.x, seatY, 4, 14);
+            targetCtx.fillRect(item.x + w - 4, seatY, 4, 14);
+        } else {
+            targetCtx.fillRect(item.x, seatY, w, 4);
+            targetCtx.fillRect(item.x, seatY, 4, 8);
+            targetCtx.fillRect(item.x + w - 4, seatY, 4, 8);
+        }
+        targetCtx.fillStyle = "#212121";
+        targetCtx.fillRect(item.x + 6, seatY + 4, 2, 2);
+        targetCtx.fillRect(item.x + w - 8, seatY + 4, 2, 2);
     } else {
-        targetCtx.fillRect(item.x, seatY, w, 4);
-        targetCtx.fillRect(item.x, seatY, 4, 8);
-        targetCtx.fillRect(item.x + w - 4, seatY, 4, 8);
+        // Neck/Gore
+        targetCtx.fillStyle = "#b71c1c";
+        targetCtx.fillRect(item.x + w/2 - 3, seatY + 10, 6, 4);
+        if (Math.random() > 0.5) {
+             targetCtx.fillStyle = "#e53935";
+             targetCtx.fillRect(item.x + w/2 - 2, seatY + 8, 4, 2);
+        }
     }
-    targetCtx.fillStyle = "#212121";
-    targetCtx.fillRect(item.x + 6, seatY + 4, 2, 2);
-    targetCtx.fillRect(item.x + w - 8, seatY + 4, 2, 2);
 }
 
 function drawTeacher(item, targetCtx = ctx) {
@@ -713,28 +765,38 @@ function drawTeacher(item, targetCtx = ctx) {
     targetCtx.fillRect(item.x + 4, seatY + 26, 6, 8);
     targetCtx.fillRect(item.x + w - 10, seatY + 26, 6, 8);
 
-    // Head
-    targetCtx.fillStyle = "#f1c27d";
-    targetCtx.fillRect(item.x + 2, seatY, w - 4, 12);
+    if (!item.headless) {
+        // Head
+        targetCtx.fillStyle = "#f1c27d";
+        targetCtx.fillRect(item.x + 2, seatY, w - 4, 12);
 
-    // Eyes
-    targetCtx.fillStyle = "#212121";
-    targetCtx.fillRect(item.x + 6, seatY + 5, 2, 2);
-    targetCtx.fillRect(item.x + w - 8, seatY + 5, 2, 2);
+        // Eyes
+        targetCtx.fillStyle = "#212121";
+        targetCtx.fillRect(item.x + 6, seatY + 5, 2, 2);
+        targetCtx.fillRect(item.x + w - 8, seatY + 5, 2, 2);
 
-    // Mustache
-    targetCtx.fillStyle = "#5d4037";
-    targetCtx.fillRect(item.x + 6, seatY + 8, w - 12, 2);
+        // Mustache
+        targetCtx.fillStyle = "#5d4037";
+        targetCtx.fillRect(item.x + 6, seatY + 8, w - 12, 2);
 
-    // Cowboy Hat
-    targetCtx.fillStyle = "#5d4037";
-    // Brim
-    targetCtx.fillRect(item.x - 4, seatY - 2, w + 8, 4);
-    // Top
-    targetCtx.fillRect(item.x + 2, seatY - 8, w - 4, 6);
-    // Band
-    targetCtx.fillStyle = "#3e2723";
-    targetCtx.fillRect(item.x + 2, seatY - 3, w - 4, 2);
+        // Cowboy Hat
+        targetCtx.fillStyle = "#5d4037";
+        // Brim
+        targetCtx.fillRect(item.x - 4, seatY - 2, w + 8, 4);
+        // Top
+        targetCtx.fillRect(item.x + 2, seatY - 8, w - 4, 6);
+        // Band
+        targetCtx.fillStyle = "#3e2723";
+        targetCtx.fillRect(item.x + 2, seatY - 3, w - 4, 2);
+    } else {
+        // Neck/Gore
+        targetCtx.fillStyle = "#b71c1c";
+        targetCtx.fillRect(item.x + w/2 - 3, seatY + 10, 6, 4);
+        if (Math.random() > 0.5) {
+             targetCtx.fillStyle = "#e53935";
+             targetCtx.fillRect(item.x + w/2 - 2, seatY + 8, 4, 2);
+        }
+    }
 }
 
 function drawFurnitureItem(item, targetCtx = ctx) {
@@ -892,9 +954,64 @@ function drawPlayer(x, y) {
   ctx.restore();
 }
 
+function createExplosion(x, y, color = "#e53935") {
+    for (let i = 0; i < 30; i++) {
+        particles.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 12,
+            vy: (Math.random() - 0.5) * 12,
+            life: 1.0,
+            color: color,
+            size: Math.random() * 5 + 2
+        });
+    }
+}
+
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.3; // Gravity
+        p.life -= 0.02;
+        if (p.life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+    if (screenShake > 0) {
+        screenShake *= 0.9;
+        if (screenShake < 0.5) screenShake = 0;
+    }
+}
+
+function drawParticles() {
+    particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+    });
+    ctx.globalAlpha = 1.0;
+}
+
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
+
+  // Screen Shake
+  if (screenShake > 0) {
+      const sx = (Math.random() - 0.5) * screenShake;
+      const sy = (Math.random() - 0.5) * screenShake;
+      ctx.translate(sx, sy);
+  }
+
+  // Zoom
+  if (camera.zoom && camera.zoom !== 1) {
+      ctx.translate(canvas.width/2, canvas.height/2);
+      ctx.scale(camera.zoom, camera.zoom);
+      ctx.translate(-canvas.width/2, -canvas.height/2);
+  }
+
   ctx.translate(-camera.x, -camera.y);
   drawRoom();
   room.furniture.filter(i => i.type === 'rug').forEach(item => drawFurnitureItem(item));
@@ -913,6 +1030,9 @@ function draw() {
   });
   renderList.sort((a, b) => a.y - b.y);
   renderList.forEach(obj => obj.draw());
+
+  drawParticles();
+
   ctx.restore();
 
   if (globalDarkness > 0) {
@@ -1042,6 +1162,7 @@ function loop() {
   if (cutscene && cutscene.active && cutscene.update) {
       cutscene.update();
   }
+  updateParticles();
   handleMovement();
   draw();
   requestAnimationFrame(loop);
@@ -1075,6 +1196,7 @@ function startLectureCutscene(seat) {
     let currentWaypointIndex = 0;
 
     let phase = 'walk';
+    let timer = 0;
 
     cutscene.update = () => {
         if (phase === 'walk') {
@@ -1112,21 +1234,95 @@ function startLectureCutscene(seat) {
             updateDialogue();
 
             window.onDialogueEnd = () => {
-                phase = 'lights_out';
+                phase = 'focus';
+                timer = 0;
             };
-        } else if (phase === 'lights_out') {
-             if (globalDarkness < 1) {
-                 globalDarkness += 0.05;
+        } else if (phase === 'focus') {
+             // Zoom in
+             if (camera.zoom < 2.5) {
+                 camera.zoom += 0.02;
+             }
+             // Keep focus on teacher
+             cutscene.focus = teacher;
+
+             timer++;
+             if (timer > 120) { // 2 seconds
+                 phase = 'explode';
+             }
+        } else if (phase === 'explode') {
+             createExplosion(teacher.x + teacher.width/2, teacher.y + 10, "#b71c1c");
+             createExplosion(teacher.x + teacher.width/2, teacher.y + 10, "#ffffff");
+             teacher.headless = true;
+             screenShake = 20;
+             globalDarkness = 0.6;
+             playData.worldState.horrorActive = true;
+
+             phase = 'shock';
+             timer = 0;
+        } else if (phase === 'shock') {
+             timer++;
+             if (timer > 60) {
+                 phase = 'restore_cam';
+             }
+        } else if (phase === 'restore_cam') {
+             if (camera.zoom > 1) {
+                 camera.zoom -= 0.05;
              } else {
-                 globalDarkness = 1;
+                 camera.zoom = 1;
                  phase = 'end';
-                 setTimeout(() => {
-                     cutscene.active = false;
-                     cutscene = null;
-                 }, 1000);
+                 cutscene.active = false;
+                 cutscene = null;
              }
         }
     };
+}
+
+function updateHorrorState() {
+    if (!playData.worldState.horrorActive) return;
+
+    // Ensure darkness
+    globalDarkness = 0.6;
+
+    // Students Logic
+    room.furniture.forEach(item => {
+        if ((item.type === 'student' || item.type === 'teacher') && !item.headless) {
+            // Panic Run (Teacher doesn't run, he's dead/headless usually, but if not...)
+            if (item.type === 'teacher') return; // Teacher stays put (headless)
+
+            if (!item.vx) item.vx = 0;
+            if (!item.vy) item.vy = 0;
+
+            // Change direction randomly
+            if (Math.random() < 0.1) {
+                item.vx = (Math.random() - 0.5) * 8;
+                item.vy = (Math.random() - 0.5) * 8;
+            }
+
+            let nextX = item.x + item.vx;
+            let nextY = item.y + item.vy;
+
+            // Simple Bounds Check
+            if (nextX < room.padding || nextX > room.width - room.padding - item.width) {
+                item.vx *= -1;
+                nextX = item.x + item.vx;
+            }
+            if (nextY < room.wallHeight || nextY > room.height - room.padding - item.height) {
+                item.vy *= -1;
+                nextY = item.y + item.vy;
+            }
+
+            item.x = nextX;
+            item.y = nextY;
+            item.phase = (item.phase || 0) + 0.5; // Faster bobbing
+
+            // Random Explosion
+            if (Math.random() < 0.005) {
+                createExplosion(item.x + item.width/2, item.y + 10, "#b71c1c");
+                item.headless = true;
+                screenShake = 10;
+            }
+        }
+    });
 }
 
 function advanceDialogue() {
