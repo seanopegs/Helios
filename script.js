@@ -64,24 +64,24 @@ function loadLevel(name, targetDoorId) {
 
        // Mess up furniture
        room.furniture.forEach(item => {
-           if (item.type === 'locker') {
-               item.x += (Math.random() - 0.5) * 20;
-               item.y += (Math.random() - 0.5) * 10;
+           if (item.type === 'locker' || item.type === 'window') {
+               item.x += (Math.random() - 0.5) * 60;
+               item.y += (Math.random() - 0.5) * 30;
            }
        });
 
        // Spawn Panic Students
-       for (let i = 0; i < 10; i++) {
+       for (let i = 0; i < 15; i++) {
            room.furniture.push({
                type: 'student',
-               x: 100 + Math.random() * 1000,
+               x: 100 + Math.random() * 1200,
                y: 100 + Math.random() * 300,
                width: 24,
                height: 36,
                variant: Math.random() > 0.5 ? 'boy' : 'girl',
                shirt: '#' + Math.floor(Math.random()*16777215).toString(16),
-               vx: (Math.random() - 0.5) * 8,
-               vy: (Math.random() - 0.5) * 8
+               vx: (Math.random() - 0.5) * 10,
+               vy: (Math.random() - 0.5) * 10
            });
        }
 
@@ -387,16 +387,23 @@ function handleMovement() {
   let targetY = player.y;
 
   if (cutscene && cutscene.active && cutscene.focus) {
-      targetX = cutscene.focus.x;
-      targetY = cutscene.focus.y;
+      targetX = cutscene.focus.x + (cutscene.focus.width || 0) / 2;
+      targetY = cutscene.focus.y + (cutscene.focus.height || 0) / 2;
   }
 
   const camTargetX = targetX - canvas.width / 2;
   const camTargetY = targetY - canvas.height / 2;
-  const maxCamX = Math.max(0, room.width - canvas.width);
-  const maxCamY = Math.max(0, room.height - canvas.height);
-  camera.x = Math.max(0, Math.min(camTargetX, maxCamX));
-  camera.y = Math.max(0, Math.min(camTargetY, maxCamY));
+
+  if (cutscene && cutscene.active) {
+       camera.x = camTargetX;
+       camera.y = camTargetY;
+  } else {
+       const maxCamX = Math.max(0, room.width - canvas.width);
+       const maxCamY = Math.max(0, room.height - canvas.height);
+       camera.x = Math.max(0, Math.min(camTargetX, maxCamX));
+       camera.y = Math.max(0, Math.min(camTargetY, maxCamY));
+  }
+
   if (!isFinite(camera.x)) camera.x = 0;
   if (!isFinite(camera.y)) camera.y = 0;
 }
@@ -1162,6 +1169,7 @@ function loop() {
   if (cutscene && cutscene.active && cutscene.update) {
       cutscene.update();
   }
+  updateHorrorState();
   updateParticles();
   handleMovement();
   draw();
@@ -1251,10 +1259,20 @@ function startLectureCutscene(seat) {
              }
         } else if (phase === 'explode') {
              createExplosion(teacher.x + teacher.width/2, teacher.y + 10, "#b71c1c");
-             createExplosion(teacher.x + teacher.width/2, teacher.y + 10, "#ffffff");
+             createExplosion(teacher.x + teacher.width/2, teacher.y + 10, "#ff0000");
+             createExplosion(teacher.x + teacher.width/2, teacher.y + 10, "#880e4f");
+
+             // Trigger immediate panic for students in the room
+             room.furniture.forEach(item => {
+                 if (item.type === 'student') {
+                     item.vx = (Math.random() - 0.5) * 10;
+                     item.vy = (Math.random() - 0.5) * 10;
+                 }
+             });
+
              teacher.headless = true;
-             screenShake = 20;
-             globalDarkness = 0.6;
+             screenShake = 30;
+             globalDarkness = 0.7;
              playData.worldState.horrorActive = true;
 
              phase = 'shock';
@@ -1281,21 +1299,22 @@ function updateHorrorState() {
     if (!playData.worldState.horrorActive) return;
 
     // Ensure darkness
-    globalDarkness = 0.6;
+    globalDarkness = 0.7;
 
     // Students Logic
     room.furniture.forEach(item => {
         if ((item.type === 'student' || item.type === 'teacher') && !item.headless) {
-            // Panic Run (Teacher doesn't run, he's dead/headless usually, but if not...)
-            if (item.type === 'teacher') return; // Teacher stays put (headless)
+            if (item.type === 'teacher') return;
 
-            if (!item.vx) item.vx = 0;
-            if (!item.vy) item.vy = 0;
+            if (!item.vx) {
+                item.vx = (Math.random() - 0.5) * 10;
+                item.vy = (Math.random() - 0.5) * 10;
+            }
 
-            // Change direction randomly
+            // Change direction randomly - Chaotic
             if (Math.random() < 0.1) {
-                item.vx = (Math.random() - 0.5) * 8;
-                item.vy = (Math.random() - 0.5) * 8;
+                item.vx = (Math.random() - 0.5) * 10;
+                item.vy = (Math.random() - 0.5) * 10;
             }
 
             let nextX = item.x + item.vx;
@@ -1313,11 +1332,12 @@ function updateHorrorState() {
 
             item.x = nextX;
             item.y = nextY;
-            item.phase = (item.phase || 0) + 0.5; // Faster bobbing
+            item.phase = (item.phase || 0) + 0.8; // Faster bobbing
 
-            // Random Explosion
-            if (Math.random() < 0.005) {
+            // Random Explosion (Occasional)
+            if (Math.random() < 0.001) {
                 createExplosion(item.x + item.width/2, item.y + 10, "#b71c1c");
+                createExplosion(item.x + item.width/2, item.y + 10, "#880e4f");
                 item.headless = true;
                 screenShake = 10;
             }
@@ -2547,6 +2567,7 @@ document.getElementById("btn-play").addEventListener("click", () => {
   };
   savePlayState();
   loadLevel(playData.player.room); // Ensure we start at default spawn
+  globalDarkness = 0; // Reset horror state visuals
   startGame();
 });
 
