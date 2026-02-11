@@ -88,6 +88,13 @@
           "orientation": "right",
           "target": "hallway",
           "targetDoorId": "door_hall_to_lecture"
+        },
+        {
+          "id": "door_lecture_to_principal_hall",
+          "x": 448, "y": 740, "width": 64, "height": 80,
+          "orientation": "bottom",
+          "target": "principal_hallway",
+          "targetDoorId": "door_hall_to_lecture"
         }
       ],
       "spawn": { "x": 460, "y": 520 },
@@ -128,6 +135,36 @@
         { "type": "rug", "x": 420, "y": 720, "width": 120, "height": 80, "color": "#607d8b" }
       ]
     },
+    "principal_hallway": {
+      "width": 400,
+      "height": 600,
+      "wallHeight": 96,
+      "padding": 32,
+      "theme": "hall",
+      "doors": [
+        {
+          "id": "door_hall_to_lecture",
+          "x": 168, "y": 18, "width": 64, "height": 80,
+          "orientation": "top",
+          "target": "lecture",
+          "targetDoorId": "door_lecture_to_principal_hall"
+        },
+        {
+          "id": "door_hall_to_principal",
+          "x": 168, "y": 520, "width": 64, "height": 80,
+          "orientation": "bottom",
+          "target": "principal_office",
+          "targetDoorId": "door_principal_to_hallway"
+        }
+      ],
+      "spawn": { "x": 200, "y": 100 },
+      "furniture": [
+         { "type": "window", "x": 20, "y": 20, "width": 100, "height": 50 },
+         { "type": "window", "x": 280, "y": 20, "width": 100, "height": 50 },
+         { "type": "locker", "x": 20, "y": 200, "width": 40, "height": 80 },
+         { "type": "locker", "x": 340, "y": 200, "width": 40, "height": 80 }
+      ]
+    },
     "principal_office": {
       "width": 600,
       "height": 600,
@@ -136,14 +173,14 @@
       "theme": "dorm",
       "doors": [
         {
-          "id": "door_principal_to_hall",
-          "x": 24, "y": 300, "width": 54, "height": 90,
-          "orientation": "left",
-          "target": "hallway",
+          "id": "door_principal_to_hallway",
+          "x": 268, "y": 18, "width": 64, "height": 80,
+          "orientation": "top",
+          "target": "principal_hallway",
           "targetDoorId": "door_hall_to_principal"
         }
       ],
-      "spawn": { "x": 100, "y": 300 },
+      "spawn": { "x": 300, "y": 300 },
       "furniture": [
           { "type": "desk", "x": 400, "y": 250, "width": 100, "height": 60, "hasLamp": true },
           { "type": "cupboard", "x": 400, "y": 100, "width": 80, "height": 120 },
