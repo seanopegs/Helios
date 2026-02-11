@@ -230,7 +230,7 @@ function getDoors() {
 function doorAttachmentPoint(door) {
   const orientation = door.orientation || 'top';
   if (orientation === 'bottom') {
-    return { x: door.x + door.width / 2, y: door.y + door.height };
+    return { x: door.x + door.width / 2, y: door.y + door.height / 2 };
   }
   if (orientation === 'left') {
     return { x: door.x + door.width, y: door.y + door.height / 2 };
