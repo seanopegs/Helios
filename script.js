@@ -85,16 +85,6 @@ function loadLevel(name, targetDoorId) {
            });
        }
 
-       // Add Principal Door
-       if (!room.doors.find(d => d.target === 'principal_office')) {
-           room.doors.push({
-              id: 'door_hall_to_principal',
-              x: 1340, y: 220, width: 54, height: 90,
-              orientation: 'right',
-              target: 'principal_office',
-              targetDoorId: 'door_principal_to_hall'
-           });
-       }
   }
 
   if (!isDeveloperMode) {
