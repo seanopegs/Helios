@@ -94,7 +94,8 @@
           "x": 448, "y": 740, "width": 64, "height": 80,
           "orientation": "bottom",
           "target": "principal_hallway",
-          "targetDoorId": "door_hall_to_lecture"
+          "targetDoorId": "door_hall_to_lecture",
+          "prompt": "ke terowongan bawah"
         }
       ],
       "spawn": { "x": 460, "y": 520 },
@@ -154,7 +155,8 @@
           "x": 168, "y": 520, "width": 64, "height": 80,
           "orientation": "bottom",
           "target": "principal_office",
-          "targetDoorId": "door_principal_to_hallway"
+          "targetDoorId": "door_principal_to_hallway",
+          "prompt": "ke principal office"
         }
       ],
       "spawn": { "x": 200, "y": 100 },
