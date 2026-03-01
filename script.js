@@ -39,6 +39,14 @@ let cutscene = null;
 let globalDarkness = 0;
 let particles = [];
 let screenShake = 0;
+let checkpointBeforeLecture = null;
+let officeTimer = {
+    active: false,
+    framesLeft: 0,
+    durationFrames: 30 * 60,
+    flashed: false
+};
+let deathSequence = null;
 
 // Player object
 const player = {
@@ -140,6 +148,105 @@ function loadLevel(name, targetDoorId) {
   document.title = title;
 
   if (isDeveloperMode) updateDevRoomSelect();
+
+  if (!isDeveloperMode) {
+      onLevelLoaded(name);
+  }
+}
+
+function onLevelLoaded(name) {
+    if (name === 'lecture' && !playData.worldState.lecture_seen) {
+        checkpointBeforeLecture = {
+            room: 'lecture',
+            x: player.x,
+            y: player.y,
+            facing: player.facing
+        };
+    }
+
+    if (name === 'principal_office' && playData.worldState.horrorActive) {
+        startOfficeTimer();
+    } else if (name !== 'principal_office') {
+        officeTimer.active = false;
+    }
+}
+
+function startOfficeTimer() {
+    officeTimer.active = true;
+    officeTimer.framesLeft = officeTimer.durationFrames;
+    officeTimer.flashed = false;
+}
+
+function triggerDeath(reason) {
+    if (deathSequence && deathSequence.active) return;
+    officeTimer.active = false;
+    player.walkFrame = 0;
+
+    deathSequence = {
+        active: true,
+        reason,
+        frame: 0,
+        zombieX: player.x + 220,
+        zombieY: player.y,
+        consumeProgress: 0,
+        finished: false
+    };
+}
+
+function updateDeathSequence() {
+    if (!deathSequence || !deathSequence.active) return;
+
+    deathSequence.frame += 1;
+    const dx = player.x - deathSequence.zombieX;
+    const dy = player.y - deathSequence.zombieY;
+    const dist = Math.hypot(dx, dy) || 1;
+
+    if (deathSequence.frame < 70) {
+        const rushSpeed = 7;
+        deathSequence.zombieX += (dx / dist) * rushSpeed;
+        deathSequence.zombieY += (dy / dist) * rushSpeed;
+        screenShake = Math.max(screenShake, 6);
+    } else {
+        deathSequence.consumeProgress = Math.min(1, deathSequence.consumeProgress + 0.03);
+        globalDarkness = Math.min(0.9, globalDarkness + 0.02);
+    }
+
+    if (deathSequence.frame % 5 === 0) {
+        createExplosion(player.x + (Math.random() - 0.5) * 16, player.y - 14 + (Math.random() - 0.5) * 12, "#7f0000");
+    }
+
+    if (deathSequence.frame > 170 && !deathSequence.finished) {
+        deathSequence.finished = true;
+        resetToLectureCheckpoint();
+    }
+}
+
+function resetToLectureCheckpoint() {
+    levels = JSON.parse(JSON.stringify(window.initialGameData.levels));
+    normalizeGameData({ levels });
+
+    playData.worldState.horrorActive = false;
+    playData.worldState.lecture_seen = false;
+    globalDarkness = 0;
+    particles = [];
+    cutscene = null;
+    deathSequence = null;
+    officeTimer.active = false;
+
+    const checkpoint = checkpointBeforeLecture || { room: 'lecture', x: 460, y: 520, facing: 'up' };
+    playData.player.room = checkpoint.room;
+    loadLevel(checkpoint.room);
+    player.x = checkpoint.x;
+    player.y = checkpoint.y;
+    player.facing = checkpoint.facing || 'up';
+    player.isSitting = false;
+
+    playData.player.x = player.x;
+    playData.player.y = player.y;
+    playData.player.facing = player.facing;
+    savePlayState();
+
+    showTemporaryDialogue("Kamu tewas. Ulang dari sebelum duduk di kelas!", "SYSTEM");
 }
 
 function normalizeGameData(data) {
@@ -333,7 +440,8 @@ function checkCollision(x, y) {
 function handleMovement() {
   const inputBlocked = (dialogueBox.classList.contains("dialogue--active") && !isHintActive) ||
                        player.isSitting ||
-                       (cutscene && cutscene.active);
+                       (cutscene && cutscene.active) ||
+                       (deathSequence && deathSequence.active);
 
   if (!inputBlocked) {
     let dx = 0;
@@ -402,7 +510,8 @@ function drawRoom() {
   const themes = {
     hall: { wall: "#3f5765", floor: "#cfd8dc", baseboard: "#1c262f", detail: "#b0bec5", pattern: 64, vertical: true },
     dorm: { wall: "#8d6e63", floor: "#3e2723", baseboard: "#281915", detail: "rgba(0,0,0,0.2)", pattern: 32, vertical: true },
-    classroom: { wall: "#2c3e50", floor: "#e9e4d5", baseboard: "#1f2d3a", detail: "rgba(0,0,0,0.12)", pattern: 54, vertical: true }
+    classroom: { wall: "#2c3e50", floor: "#e9e4d5", baseboard: "#1f2d3a", detail: "rgba(0,0,0,0.12)", pattern: 54, vertical: true },
+    office: { wall: "#5d463f", floor: "#2a1f1c", baseboard: "#1a1412", detail: "rgba(255,255,255,0.06)", pattern: 26, vertical: true }
   };
   const themeName = room.theme || 'dorm';
   const palette = themes[themeName] || themes.dorm;
@@ -439,6 +548,20 @@ function drawRoom() {
 
   ctx.fillStyle = palette.baseboard;
   ctx.fillRect(room.padding, room.wallHeight - 12, room.width - room.padding * 2, 12);
+
+  if (themeName === 'office') {
+      ctx.save();
+      for (let i = 0; i < 18; i++) {
+          const sx = (i * 41) % (room.width - 80) + room.padding;
+          const sy = room.wallHeight + ((i * 67) % (room.height - room.wallHeight - 40));
+          ctx.strokeStyle = "rgba(0,0,0,0.22)";
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx + 18, sy + 12);
+          ctx.stroke();
+      }
+      ctx.restore();
+  }
 }
 
 function drawDoor(door, targetCtx = ctx) {
@@ -796,6 +919,27 @@ function drawTeacher(item, targetCtx = ctx) {
     }
 }
 
+function drawDebris(item, targetCtx = ctx) {
+    targetCtx.fillStyle = "#4e342e";
+    targetCtx.fillRect(item.x, item.y, item.width, item.height);
+    targetCtx.fillStyle = "#3e2723";
+    targetCtx.fillRect(item.x + 4, item.y + 3, item.width - 8, Math.max(3, item.height - 6));
+    targetCtx.fillStyle = "rgba(255,255,255,0.12)";
+    targetCtx.fillRect(item.x + 2, item.y + 2, Math.max(6, item.width * 0.4), 2);
+}
+
+function drawVent(item, targetCtx = ctx) {
+    targetCtx.fillStyle = "#7b8b94";
+    targetCtx.fillRect(item.x, item.y, item.width, item.height);
+    targetCtx.fillStyle = "#455a64";
+    for (let i = 6; i < item.height - 4; i += 6) {
+        targetCtx.fillRect(item.x + 5, item.y + i, item.width - 10, 2);
+    }
+    targetCtx.strokeStyle = "#263238";
+    targetCtx.lineWidth = 2;
+    targetCtx.strokeRect(item.x, item.y, item.width, item.height);
+}
+
 function drawFurnitureItem(item, targetCtx = ctx) {
     if (item.type === 'zone') {
         if (isDeveloperMode) {
@@ -836,6 +980,8 @@ function drawFurnitureItem(item, targetCtx = ctx) {
     else if (item.type === 'window') drawWindow(item, targetCtx);
     else if (item.type === 'student') drawStudent(item, targetCtx);
     else if (item.type === 'teacher') drawTeacher(item, targetCtx);
+    else if (item.type === 'debris') drawDebris(item, targetCtx);
+    else if (item.type === 'vent') drawVent(item, targetCtx);
     else if (item.type === 'chest') drawChest(item, targetCtx);
     else if (item.type === 'rug') drawRug(item, targetCtx);
     else if (item.type === 'shelf') drawShelf(item, targetCtx);
@@ -1039,8 +1185,78 @@ function draw() {
       ctx.restore();
   }
 
+  drawOfficeTimer();
+  drawDeathSequence();
+
   drawHints();
   drawDevOverlay();
+}
+
+function drawOfficeTimer() {
+    if (!officeTimer.active) return;
+    const seconds = Math.max(0, Math.ceil(officeTimer.framesLeft / 60));
+    const isDanger = seconds <= 10;
+
+    ctx.save();
+    ctx.fillStyle = isDanger ? "rgba(183, 28, 28, 0.82)" : "rgba(33, 33, 33, 0.75)";
+    ctx.fillRect(canvas.width - 165, 14, 150, 52);
+    ctx.strokeStyle = isDanger ? "#ff5252" : "#eeeeee";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(canvas.width - 165, 14, 150, 52);
+    ctx.fillStyle = "#fff";
+    ctx.font = "18px 'VT323', monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("ESCAPE TIMER", canvas.width - 155, 33);
+    ctx.font = "30px 'VT323', monospace";
+    ctx.fillStyle = isDanger ? "#ffeb3b" : "#ffffff";
+    ctx.fillText(`${seconds}s`, canvas.width - 152, 60);
+
+    if (isDanger) {
+        const pulse = Math.abs(Math.sin(Date.now() / 140));
+        ctx.fillStyle = `rgba(183, 28, 28, ${0.12 + pulse * 0.18})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.restore();
+}
+
+function drawDeathSequence() {
+    if (!deathSequence || !deathSequence.active) return;
+
+    const zx = deathSequence.zombieX - camera.x;
+    const zy = deathSequence.zombieY - camera.y;
+    const px = player.x - camera.x;
+    const py = player.y - camera.y;
+    const bite = deathSequence.consumeProgress;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Zombie
+    ctx.fillStyle = "#1b5e20";
+    ctx.fillRect(zx - 12, zy - 34, 24, 36);
+    ctx.fillStyle = "#66bb6a";
+    ctx.fillRect(zx - 10, zy - 48, 20, 14);
+    ctx.fillStyle = "#b71c1c";
+    ctx.fillRect(zx - 9, zy - 30, 6, 3);
+
+    // Bite overlay on player
+    if (bite > 0) {
+        ctx.fillStyle = `rgba(183, 28, 28, ${0.2 + bite * 0.6})`;
+        ctx.beginPath();
+        ctx.arc(px, py - 14, 26 * bite + 8, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.fillStyle = "#ffeb3b";
+    ctx.font = "24px 'VT323', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("KAMU DIMAKAN...", canvas.width / 2, 50);
+    ctx.font = "16px 'VT323', monospace";
+    ctx.fillStyle = "#fff";
+    const reason = deathSequence.reason === 'timer' ? 'Waktu habis.' : 'Keluar dari kantor principal = mati.';
+    ctx.fillText(reason, canvas.width / 2, 72);
+    ctx.restore();
 }
 
 function drawDevOverlay() {
@@ -1127,6 +1343,7 @@ function drawDevOverlay() {
 }
 
 function drawHints() {
+  if (deathSequence && deathSequence.active) return;
   ctx.save();
   ctx.fillStyle = "rgba(255,255,255,0.7)";
   ctx.font = "16px 'VT323', 'Courier New', monospace";
@@ -1156,10 +1373,31 @@ function drawHints() {
   }
 }
 
+function updateOfficeTimer() {
+    if (!officeTimer.active) return;
+    officeTimer.framesLeft -= 1;
+
+    if (officeTimer.framesLeft <= 0) {
+        officeTimer.framesLeft = 0;
+        triggerDeath('timer');
+        return;
+    }
+
+    if (officeTimer.framesLeft <= 10 * 60) {
+        if (!officeTimer.flashed) {
+            showTemporaryDialogue("Cepat! waktu hampir habis!", "SYSTEM");
+            officeTimer.flashed = true;
+        }
+        screenShake = Math.max(screenShake, 1.5);
+    }
+}
+
 function loop() {
   if (cutscene && cutscene.active && cutscene.update) {
       cutscene.update();
   }
+  updateOfficeTimer();
+  updateDeathSequence();
   updateHorrorState();
   updateParticles();
   handleMovement();
@@ -1472,6 +1710,12 @@ function executeInteraction(target) {
 
     if (target.type === 'door') {
         const door = target.obj;
+
+        if (currentLevelName === 'principal_office' && door.id === 'door_principal_to_hallway') {
+            triggerDeath('door_exit');
+            return;
+        }
+
         const parts = (door.target || '').split(':');
         let targetRoom = parts[0].trim();
         let targetId = parts[1] ? parts[1].trim() : null;
@@ -1488,6 +1732,19 @@ function executeInteraction(target) {
 
     if (target.type === 'furniture') {
         const item = target.obj;
+
+        if (item.type === 'vent' && currentLevelName === 'principal_office') {
+            officeTimer.active = false;
+            showTemporaryDialogue("Merangkak lewat ventilasi...", "LUKE");
+            loadLevel('lecture');
+            player.x = 462;
+            player.y = 700;
+            playData.player.x = player.x;
+            playData.player.y = player.y;
+            savePlayState();
+            return;
+        }
+
         const interaction = item.interaction;
 
         // Generate State Key: RoomName:Index OR RoomName:ID
@@ -2549,6 +2806,11 @@ if (hasSaveData) {
 
 document.getElementById("btn-play").addEventListener("click", () => {
   isDeveloperMode = false;
+  deathSequence = null;
+  officeTimer.active = false;
+  checkpointBeforeLecture = null;
+  particles = [];
+  cutscene = null;
   // New Game: Reset Play Data
   playData = {
       player: { x: 0, y: 0, room: Object.keys(levels)[0] || 'classroom', facing: 'down' },
