@@ -187,7 +187,6 @@ window.initialGameData = {
           { type: 'desk', x: 340, y: 170, width: 180, height: 70, hasLamp: true, hasLaptop: true },
           { type: 'cupboard', x: 70, y: 112, width: 90, height: 120 },
           { type: 'cupboard', x: 470, y: 112, width: 90, height: 120 },
-          { type: 'window', x: 235, y: 20, width: 130, height: 52 },
           { type: 'table', x: 120, y: 330, width: 120, height: 60 },
           { type: 'table', x: 360, y: 380, width: 120, height: 60 },
           { type: 'locker', x: 280, y: 110, width: 46, height: 90 },
