@@ -59,6 +59,129 @@ const player = {
   isSitting: false
 };
 
+// Soundtrack Management
+let audioCtx = null;
+let currentOscillators = [];
+let currentSoundtrackMode = null;
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+function stopSoundtrack() {
+    currentOscillators.forEach(osc => {
+        if (osc.stop) {
+            try { osc.stop(); } catch(e) {}
+        }
+        if (osc.disconnect) {
+            osc.disconnect();
+        }
+    });
+    currentOscillators = [];
+}
+
+function playSoundtrack(mode) {
+    if (!audioCtx) return;
+    if (currentSoundtrackMode === mode) return;
+    stopSoundtrack();
+    currentSoundtrackMode = mode;
+
+    if (mode === 'normal') {
+        // Calm ambient drone
+        const frequencies = [110, 130.81, 164.81]; // A2, C3, E3 (Am)
+        frequencies.forEach((freq, idx) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+
+            // Slow modulation
+            const lfo = audioCtx.createOscillator();
+            lfo.type = 'sine';
+            lfo.frequency.value = 0.1 + (idx * 0.05);
+            const lfoGain = audioCtx.createGain();
+            lfoGain.gain.value = 0.05;
+
+            lfo.connect(lfoGain);
+            lfoGain.connect(gain.gain);
+
+            gain.gain.value = 0.05; // Low volume
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            lfo.start();
+
+            currentOscillators.push(osc, lfo, gain, lfoGain);
+        });
+    } else if (mode === 'horror') {
+        // Low, dissonant hum
+        const frequencies = [55, 58.27]; // A1, Bb1
+        frequencies.forEach((freq, idx) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.value = freq;
+
+            // Fast nervous modulation
+            const lfo = audioCtx.createOscillator();
+            lfo.type = 'triangle';
+            lfo.frequency.value = 2 + (idx * 1.5);
+            const lfoGain = audioCtx.createGain();
+            lfoGain.gain.value = 0.02;
+
+            lfo.connect(lfoGain);
+            lfoGain.connect(gain.gain);
+
+            gain.gain.value = 0.04;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            lfo.start();
+
+            currentOscillators.push(osc, lfo, gain, lfoGain);
+        });
+    } else if (mode === 'death') {
+        // Harsh dropping noise
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+
+        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 1.5);
+
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 2);
+
+        currentOscillators.push(osc, gain);
+    }
+}
+
+function updateSoundtrack() {
+    if (deathSequence && deathSequence.active) {
+        playSoundtrack('death');
+        return;
+    }
+
+    if (playData.worldState.horrorActive) {
+        playSoundtrack('horror');
+    } else {
+        playSoundtrack('normal');
+    }
+}
+
 let tempDialogueTimeout = null;
 
 function loadLevel(name, targetDoorId) {
@@ -152,6 +275,8 @@ function loadLevel(name, targetDoorId) {
   if (!isDeveloperMode) {
       onLevelLoaded(name);
   }
+
+  updateSoundtrack();
 }
 
 function onLevelLoaded(name) {
@@ -191,6 +316,7 @@ function triggerDeath(reason) {
         consumeProgress: 0,
         finished: false
     };
+    updateSoundtrack();
 }
 
 function updateDeathSequence() {
@@ -232,6 +358,8 @@ function resetToLectureCheckpoint() {
     cutscene = null;
     deathSequence = null;
     officeTimer.active = false;
+
+    updateSoundtrack();
 
     const checkpoint = checkpointBeforeLecture || { room: 'lecture', x: 460, y: 520, facing: 'up' };
     playData.player.room = checkpoint.room;
@@ -1503,6 +1631,7 @@ function startLectureCutscene(seat) {
              screenShake = 30;
              globalDarkness = 0.7;
              playData.worldState.horrorActive = true;
+             updateSoundtrack();
 
              phase = 'shock';
              timer = 0;
@@ -2738,6 +2867,7 @@ document.body.appendChild(menuBtn);
 canvas.addEventListener("click", advanceDialogue);
 
 function startGame() {
+  initAudio();
   isGameActive = true;
   document.getElementById("start-screen").style.display = "none";
   if (!playData.introSeen) {
@@ -2745,6 +2875,7 @@ function startGame() {
       stage = 0;
       updateDialogue();
   }
+  updateSoundtrack();
   loop();
 }
 
