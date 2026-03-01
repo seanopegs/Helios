@@ -1143,7 +1143,8 @@ function drawHints() {
       if (!isHintActive) {
          dialogueBox.classList.remove("dialogue--hidden");
          dialogueBox.classList.add("dialogue--active");
-         dialogueLine.textContent = "Press [SPACE] to open";
+         const promptText = nearbyDoor.prompt || "to open";
+         dialogueLine.textContent = `Press [SPACE] ${promptText}`;
          dialogueLabel.classList.add("dialogue__label--hidden");
          dialoguePrompt.textContent = "";
          isHintActive = true;
