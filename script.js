@@ -63,6 +63,67 @@ const player = {
 let audioCtx = null;
 let currentOscillators = [];
 let currentSoundtrackMode = null;
+let dialogueVoiceTimers = [];
+
+function stopDialogueVoice() {
+    dialogueVoiceTimers.forEach(timer => clearTimeout(timer));
+    dialogueVoiceTimers = [];
+}
+
+function getDialogueVoiceProfile(speaker) {
+    if (!speaker) return null;
+    const normalized = String(speaker).trim().toUpperCase();
+    if (!normalized || normalized === 'LUKE' || normalized === 'SYSTEM') return null;
+
+    let hash = 0;
+    for (let i = 0; i < normalized.length; i++) {
+        hash = (hash * 31 + normalized.charCodeAt(i)) % 997;
+    }
+
+    return {
+        frequency: 250 + (hash % 180),
+        type: hash % 2 === 0 ? 'square' : 'triangle',
+        volume: 0.018 + ((hash % 4) * 0.004)
+    };
+}
+
+function playDialogueBlip(profile, variance = 0) {
+    if (!audioCtx || !profile) return;
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = profile.type;
+    osc.frequency.setValueAtTime(profile.frequency + variance, audioCtx.currentTime);
+
+    gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(profile.volume, audioCtx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.06);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.07);
+
+    osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+    };
+}
+
+function queueDialogueVoice(entry) {
+    stopDialogueVoice();
+    const profile = getDialogueVoiceProfile(entry && entry.speaker);
+    if (!profile || !entry || !entry.text) return;
+
+    const text = String(entry.text).trim();
+    if (!text) return;
+
+    const pulses = Math.max(2, Math.min(12, Math.ceil(text.replace(/\s+/g, '').length / 5)));
+    for (let i = 0; i < pulses; i++) {
+        const variance = ((i % 3) - 1) * 14;
+        dialogueVoiceTimers.push(setTimeout(() => playDialogueBlip(profile, variance), i * 48));
+    }
+}
 
 function initAudio() {
     if (!audioCtx) {
@@ -184,41 +245,106 @@ function updateSoundtrack() {
 
 let tempDialogueTimeout = null;
 
+const principalOfficeBaseFurniture = [
+    { type: 'desk', x: 210, y: 150, width: 180, height: 70, hasLamp: true, hasLaptop: true },
+    { type: 'cupboard', x: 70, y: 112, width: 90, height: 120 },
+    { type: 'cupboard', x: 440, y: 112, width: 90, height: 120 },
+    { type: 'table', x: 110, y: 350, width: 120, height: 60 },
+    { type: 'table', x: 370, y: 350, width: 120, height: 60 },
+    { type: 'rug', x: 225, y: 260, width: 150, height: 120, color: '#6d4c41' }
+];
+
+const principalOfficeDebris = [
+    { type: 'debris', x: 85, y: 262, width: 52, height: 24 },
+    { type: 'debris', x: 188, y: 246, width: 34, height: 20 },
+    { type: 'debris', x: 450, y: 304, width: 56, height: 25 },
+    { type: 'debris', x: 406, y: 460, width: 72, height: 18 },
+    { type: 'debris', x: 220, y: 470, width: 60, height: 20 }
+];
+
+const principalOfficeHorrorFurniture = [
+    { type: 'locker', id: 'office_entry_locker', x: 225, y: 110, width: 46, height: 90 },
+    {
+        type: 'vent',
+        id: 'office_vent_escape',
+        x: 42,
+        y: 470,
+        width: 82,
+        height: 46,
+        interaction: {
+            enabled: true,
+            type: 'sequence',
+            priority: 7,
+            conversations: [
+                [
+                    { speaker: 'LUKE', text: 'Vent! ini satu-satunya jalan keluar...' }
+                ]
+            ],
+            area: { x: -14, y: -8, width: 112, height: 68 }
+        }
+    }
+];
+
+function applyHallwayHorrorState(level) {
+    if (level.isHorrorified) return;
+    level.isHorrorified = true;
+
+    level.furniture.forEach(item => {
+        if (item.type === 'locker' || item.type === 'window') {
+            item.x += (Math.random() - 0.5) * 60;
+            item.y += (Math.random() - 0.5) * 30;
+        }
+    });
+
+    for (let i = 0; i < 15; i++) {
+        level.furniture.push({
+            type: 'student',
+            x: 100 + Math.random() * 1200,
+            y: 100 + Math.random() * 300,
+            width: 24,
+            height: 36,
+            variant: Math.random() > 0.5 ? 'boy' : 'girl',
+            shirt: '#' + Math.floor(Math.random() * 16777215).toString(16),
+            vx: (Math.random() - 0.5) * 10,
+            vy: (Math.random() - 0.5) * 10
+        });
+    }
+}
+
+function ensurePrincipalOfficeState(level) {
+    level.furniture = principalOfficeBaseFurniture.map(item => JSON.parse(JSON.stringify(item)));
+
+    if (playData.worldState.horrorActive) {
+        level.furniture.push(
+            ...principalOfficeHorrorFurniture.map(item => JSON.parse(JSON.stringify(item))),
+            ...principalOfficeDebris.map(item => ({ ...item }))
+        );
+        level.isHorrorified = true;
+        return;
+    }
+
+    level.isHorrorified = false;
+}
+
+function applyRoomState(name) {
+    if (name === 'principal_office') {
+        ensurePrincipalOfficeState(room);
+    }
+
+    if (!playData.worldState.horrorActive) return;
+
+    if (name === 'hallway') {
+        applyHallwayHorrorState(room);
+    }
+}
+
 function loadLevel(name, targetDoorId) {
   if (!levels[name]) return;
   currentLevelName = name;
   room = levels[name];
 
-  // Horror Mode Hallway Changes
-  if (name === 'hallway' && playData.worldState.horrorActive && !room.isHorrorified) {
-       room.isHorrorified = true;
-
-       // Mess up furniture
-       room.furniture.forEach(item => {
-           if (item.type === 'locker' || item.type === 'window') {
-               item.x += (Math.random() - 0.5) * 60;
-               item.y += (Math.random() - 0.5) * 30;
-           }
-       });
-
-       // Spawn Panic Students
-       for (let i = 0; i < 15; i++) {
-           room.furniture.push({
-               type: 'student',
-               x: 100 + Math.random() * 1200,
-               y: 100 + Math.random() * 300,
-               width: 24,
-               height: 36,
-               variant: Math.random() > 0.5 ? 'boy' : 'girl',
-               shirt: '#' + Math.floor(Math.random()*16777215).toString(16),
-               vx: (Math.random() - 0.5) * 10,
-               vy: (Math.random() - 0.5) * 10
-           });
-       }
-
-  }
-
   if (!isDeveloperMode) {
+      applyRoomState(name);
       playData.player.room = name;
   }
 
@@ -489,9 +615,11 @@ function updateDialogue() {
     dialogueLabel.textContent = entry.speaker || "";
     dialogueLabel.classList.toggle("dialogue__label--hidden", !hasSpeaker);
     dialoguePrompt.textContent = stage < dialogue.length - 1 ? "Click anywhere" : "";
+    queueDialogueVoice(entry);
     dialogueBox.classList.add("dialogue--active");
     dialogueBox.classList.remove("dialogue--hidden");
   } else {
+    stopDialogueVoice();
     dialogueBox.classList.remove("dialogue--active");
     dialogueBox.classList.add("dialogue--hidden");
     if (!playData.introSeen && dialogue.length > 0) {
@@ -514,11 +642,13 @@ function showTemporaryDialogue(text, speaker = "LUKE") {
   dialogueLabel.textContent = speaker;
   dialogueLabel.classList.remove("dialogue__label--hidden");
   dialoguePrompt.textContent = "";
+  queueDialogueVoice({ text, speaker });
   dialogueBox.classList.add("dialogue--active");
   dialogueBox.classList.remove("dialogue--hidden");
 
   tempDialogueTimeout = setTimeout(() => {
     tempDialogueTimeout = null;
+    stopDialogueVoice();
     updateDialogue();
   }, 2000);
 }
@@ -639,9 +769,10 @@ function drawRoom() {
     hall: { wall: "#3f5765", floor: "#cfd8dc", baseboard: "#1c262f", detail: "#b0bec5", pattern: 64, vertical: true },
     dorm: { wall: "#8d6e63", floor: "#3e2723", baseboard: "#281915", detail: "rgba(0,0,0,0.2)", pattern: 32, vertical: true },
     classroom: { wall: "#2c3e50", floor: "#e9e4d5", baseboard: "#1f2d3a", detail: "rgba(0,0,0,0.12)", pattern: 54, vertical: true },
+    office_clean: { wall: "#8c6f64", floor: "#7b5d52", baseboard: "#5c433c", detail: "rgba(255,255,255,0.08)", pattern: 48, vertical: true },
     office: { wall: "#5d463f", floor: "#2a1f1c", baseboard: "#1a1412", detail: "rgba(255,255,255,0.06)", pattern: 26, vertical: true }
   };
-  const themeName = room.theme || 'dorm';
+  const themeName = currentLevelName === 'principal_office' && !playData.worldState.horrorActive ? 'office_clean' : (room.theme || 'dorm');
   const palette = themes[themeName] || themes.dorm;
 
   ctx.fillStyle = palette.wall;
@@ -677,7 +808,7 @@ function drawRoom() {
   ctx.fillStyle = palette.baseboard;
   ctx.fillRect(room.padding, room.wallHeight - 12, room.width - room.padding * 2, 12);
 
-  if (themeName === 'office') {
+  if (themeName === 'office' && playData.worldState.horrorActive) {
       ctx.save();
       for (let i = 0; i < 18; i++) {
           const sx = (i * 41) % (room.width - 80) + room.padding;
@@ -1840,7 +1971,7 @@ function executeInteraction(target) {
     if (target.type === 'door') {
         const door = target.obj;
 
-        if (currentLevelName === 'principal_office' && door.id === 'door_principal_to_hallway') {
+        if (currentLevelName === 'principal_office' && playData.worldState.horrorActive && door.id === 'door_principal_to_hallway') {
             triggerDeath('door_exit');
             return;
         }

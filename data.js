@@ -184,37 +184,12 @@ window.initialGameData = {
       ],
       spawn: { x: 300, y: 300 },
       furniture: [
-          { type: 'desk', x: 340, y: 170, width: 180, height: 70, hasLamp: true, hasLaptop: true },
+          { type: 'desk', x: 210, y: 150, width: 180, height: 70, hasLamp: true, hasLaptop: true },
           { type: 'cupboard', x: 70, y: 112, width: 90, height: 120 },
-          { type: 'cupboard', x: 470, y: 112, width: 90, height: 120 },
-          { type: 'table', x: 120, y: 330, width: 120, height: 60 },
-          { type: 'table', x: 360, y: 380, width: 120, height: 60 },
-          { type: 'locker', x: 280, y: 110, width: 46, height: 90 },
-          { type: 'rug', x: 286, y: 280, width: 130, height: 105, color: '#4e342e' },
-          { type: 'debris', x: 85, y: 262, width: 52, height: 24 },
-          { type: 'debris', x: 188, y: 246, width: 34, height: 20 },
-          { type: 'debris', x: 450, y: 304, width: 56, height: 25 },
-          { type: 'debris', x: 406, y: 460, width: 72, height: 18 },
-          { type: 'debris', x: 220, y: 470, width: 60, height: 20 },
-          {
-            type: 'vent',
-            id: 'office_vent_escape',
-            x: 42,
-            y: 470,
-            width: 82,
-            height: 46,
-            interaction: {
-              enabled: true,
-              type: 'sequence',
-              priority: 7,
-              conversations: [
-                [
-                  { speaker: 'LUKE', text: 'Vent! ini satu-satunya jalan keluar...' }
-                ]
-              ],
-              area: { x: -14, y: -8, width: 112, height: 68 }
-            }
-          }
+          { type: 'cupboard', x: 440, y: 112, width: 90, height: 120 },
+          { type: 'table', x: 110, y: 350, width: 120, height: 60 },
+          { type: 'table', x: 370, y: 350, width: 120, height: 60 },
+          { type: 'rug', x: 225, y: 260, width: 150, height: 120, color: '#6d4c41' }
       ]
     }
   }
