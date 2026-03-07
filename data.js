@@ -91,7 +91,7 @@ window.initialGameData = {
         },
         {
           id: 'door_lecture_to_principal_hall',
-          x: 448, y: 740, width: 64, height: 80,
+          x: 420, y: 690, width: 120, height: 130,
           orientation: 'bottom',
           target: 'principal_hallway',
           targetDoorId: 'door_hall_to_lecture',
@@ -125,15 +125,15 @@ window.initialGameData = {
         { type: 'student', x: 523, y: 474, width: 24, height: 36, variant: 'girl', shirt: '#f06292', text: "Nice weather today." },
         { type: 'desk', variant: 'study', x: 660, y: 440, width: 70, height: 60 },
         { type: 'student', x: 683, y: 474, width: 24, height: 36, variant: 'boy', shirt: '#9575cd', text: "I'm hungry." },
-        { type: 'locker', x: 200, y: 700, width: 50, height: 100 },
-        { type: 'locker', x: 250, y: 700, width: 50, height: 100 },
-        { type: 'locker', x: 300, y: 700, width: 50, height: 100 },
-        { type: 'locker', x: 350, y: 700, width: 50, height: 100 },
-        { type: 'locker', x: 560, y: 700, width: 50, height: 100 },
-        { type: 'locker', x: 610, y: 700, width: 50, height: 100 },
-        { type: 'locker', x: 660, y: 700, width: 50, height: 100 },
-        { type: 'locker', x: 710, y: 700, width: 50, height: 100 },
-        { type: 'rug', x: 420, y: 720, width: 120, height: 80, color: "#607d8b" }
+        { type: 'locker', x: 170, y: 700, width: 50, height: 100 },
+        { type: 'locker', x: 220, y: 700, width: 50, height: 100 },
+        { type: 'locker', x: 270, y: 700, width: 50, height: 100 },
+        { type: 'locker', x: 320, y: 700, width: 50, height: 100 },
+        
+        { type: 'locker', x: 590, y: 700, width: 50, height: 100 },
+        { type: 'locker', x: 640, y: 700, width: 50, height: 100 },
+        { type: 'locker', x: 690, y: 700, width: 50, height: 100 },
+        { type: 'locker', x: 740, y: 700, width: 50, height: 100 }
       ]
     },
     principal_hallway: {
@@ -145,7 +145,7 @@ window.initialGameData = {
       doors: [
         {
           id: 'door_hall_to_lecture',
-          x: 168, y: 18, width: 64, height: 80,
+          x: 140, y: 18, width: 120, height: 80,
           orientation: 'top',
           target: 'lecture',
           targetDoorId: 'door_lecture_to_principal_hall'
@@ -161,10 +161,8 @@ window.initialGameData = {
       ],
       spawn: { x: 200, y: 100 },
       furniture: [
-        { type: 'window', x: 20, y: 20, width: 100, height: 50 },
-        { type: 'window', x: 280, y: 20, width: 100, height: 50 },
-        { type: 'locker', x: 20, y: 200, width: 40, height: 80 },
-        { type: 'locker', x: 340, y: 200, width: 40, height: 80 }
+        { type: 'locker', x: 32, y: 140, width: 24, height: 240, orientation: 'right' },
+        { type: 'locker', x: 344, y: 140, width: 24, height: 240, orientation: 'left' }
       ]
     },
     principal_office: {

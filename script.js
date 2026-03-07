@@ -828,69 +828,230 @@ function drawDoor(door, targetCtx = ctx) {
   const orientation = door.orientation || (y > room.height / 2 ? 'bottom' : 'top');
 
   if (orientation === 'bottom') {
-      targetCtx.fillStyle = "#2d1e19";
-      targetCtx.fillRect(x - 6, y - 4, width + 12, height + 6);
-      const gradient = targetCtx.createLinearGradient(0, y, 0, y + height);
-      gradient.addColorStop(0, "#5d4037");
-      gradient.addColorStop(1, "#3e2723");
-      targetCtx.fillStyle = gradient;
-      targetCtx.fillRect(x, y, width, height);
-      targetCtx.fillStyle = "#90a4ae";
-      targetCtx.fillRect(x + 10, y + 8, width - 20, 10);
-      targetCtx.fillStyle = "#f0c419";
-      targetCtx.beginPath();
-      targetCtx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
-      targetCtx.fill();
-      targetCtx.fillStyle = "#6d4c41";
-      targetCtx.fillRect(x - 4, y + height - 8, width + 8, 10);
+      if (currentLevelName === 'hallway' || currentLevelName === 'principal_hallway') {
+          // Simple mat for hallway
+          const matTop = y;
+          const matHeight = 28;
+          
+          targetCtx.fillStyle = "#3e2723"; 
+          targetCtx.fillRect(x - 2, matTop - 2, width + 4, matHeight + 4);
+          targetCtx.fillStyle = "#5d4037";
+          targetCtx.fillRect(x, matTop, width, matHeight);
+          targetCtx.fillStyle = "rgba(0,0,0,0.15)";
+          for(let i=0; i<width; i+=8) {
+              targetCtx.fillRect(x + i, matTop, 4, matHeight);
+          }
+          for(let j=0; j<matHeight; j+=8) {
+              targetCtx.fillRect(x, matTop + j, width, 2);
+          }
+          targetCtx.fillStyle = "rgba(255,255,255,0.6)";
+          targetCtx.beginPath();
+          targetCtx.moveTo(x + width/2 - 10, matTop + 8);
+          targetCtx.lineTo(x + width/2 + 10, matTop + 8);
+          targetCtx.lineTo(x + width/2, matTop + 20);
+          targetCtx.fill();
+          targetCtx.fillStyle = "#4e342e";
+          targetCtx.fillRect(x - 4, y + 40, width + 8, 12);
+      } else {
+          // Open 2.5D Double Door Corridor
+          const padding = 32;
+          const themes = {
+            hall: { wall: "#3f5765", floor: "#cfd8dc", baseboard: "#1c262f" },
+            dorm: { wall: "#8d6e63", floor: "#3e2723", baseboard: "#281915" },
+            classroom: { wall: "#2c3e50", floor: "#e9e4d5", baseboard: "#1f2d3a" },
+            office_clean: { wall: "#8c6f64", floor: "#7b5d52", baseboard: "#5c433c" },
+            office: { wall: "#5d463f", floor: "#2a1f1c", baseboard: "#1a1412" }
+          };
+          let tName = room.theme || 'dorm';
+          if (typeof currentLevelName !== 'undefined' && currentLevelName === 'principal_office' && playData && playData.worldState && !playData.worldState.horrorActive) tName = 'office_clean';
+          const pal = themes[tName] || themes.dorm;
+          
+          const bottomEdge = room.height - padding;
+          
+          // Dark passage going south
+          targetCtx.fillStyle = "#1e1410";
+          targetCtx.fillRect(x, bottomEdge, width, padding + 10);
+          
+          // Faux south walls (left and right of the 120px passage)
+          targetCtx.fillStyle = pal.wall;
+          targetCtx.fillRect(x - 50, bottomEdge, 50, padding);
+          targetCtx.fillRect(x + width, bottomEdge, 50, padding);
+          targetCtx.fillStyle = pal.baseboard;
+          targetCtx.fillRect(x - 50, bottomEdge, 50, 6);
+          targetCtx.fillRect(x + width, bottomEdge, 50, 6);
+          
+          // Frame structure around the opening
+          targetCtx.fillStyle = "#4e342e";
+          targetCtx.fillRect(x, bottomEdge, width, 6); // Top header spanning the gap
+          targetCtx.fillStyle = "#2d1e19";
+          targetCtx.fillRect(x, bottomEdge + 6, 6, padding - 6); // Left inner frame
+          targetCtx.fillRect(x + width - 6, bottomEdge + 6, 6, padding - 6); // Right inner frame
+          
+          // Swung-open door panels (looks like thin rectangles extending outwards/downwards from the frame)
+          targetCtx.fillStyle = "#6d4c41"; // Outer door skin
+          targetCtx.fillRect(x + 6, bottomEdge + 6, 4, padding - 6); // Left door swung open
+          targetCtx.fillRect(x + width - 10, bottomEdge + 6, 4, padding - 6); // Right door swung open
+          
+          // Door handles on the open edge
+          targetCtx.fillStyle = "#f0c419";
+          targetCtx.fillRect(x + 8, bottomEdge + padding - 10, 3, 6); // Handle left
+          targetCtx.fillRect(x + width - 11, bottomEdge + padding - 10, 3, 6); // Handle right
+          
+          // Large elegant door mat inside the room
+          const matH = 28;
+          targetCtx.fillStyle = "#3e2723";
+          targetCtx.fillRect(x - 4, bottomEdge - matH - 4, width + 8, matH + 4);
+          targetCtx.fillStyle = "#5d4037";
+          targetCtx.fillRect(x - 2, bottomEdge - matH - 2, width + 4, matH);
+          
+          // Down arrow on mat
+          targetCtx.fillStyle = "rgba(255,255,255,0.4)";
+          targetCtx.beginPath();
+          targetCtx.moveTo(x + width/2, bottomEdge - 6);
+          targetCtx.lineTo(x + width/2 - 12, bottomEdge - matH + 6);
+          targetCtx.lineTo(x + width/2 + 12, bottomEdge - matH + 6);
+          targetCtx.fill();
+      }
+
   } else if (orientation === 'left') {
-      targetCtx.fillStyle = "#3a271f";
-      targetCtx.fillRect(x - 4, y - 6, width + 8, height + 12);
-      const gradient = targetCtx.createLinearGradient(x, 0, x + width, 0);
-      gradient.addColorStop(0, "#f6c453");
-      gradient.addColorStop(1, "#d89c27");
-      targetCtx.fillStyle = gradient;
-      targetCtx.fillRect(x, y, width, height);
-      targetCtx.fillStyle = "rgba(0,0,0,0.2)";
-      targetCtx.fillRect(x, y, width, 6);
-      targetCtx.fillStyle = "#90caf9";
-      targetCtx.fillRect(x + 10, y + 8, 14, height - 16);
-      targetCtx.fillStyle = "#333";
+      const padding = 32;
+      const themes = {
+        hall: { wall: "#3f5765", floor: "#cfd8dc", baseboard: "#1c262f" },
+        dorm: { wall: "#8d6e63", floor: "#3e2723", baseboard: "#281915" },
+        classroom: { wall: "#2c3e50", floor: "#e9e4d5", baseboard: "#1f2d3a" },
+        office_clean: { wall: "#8c6f64", floor: "#7b5d52", baseboard: "#5c433c" },
+        office: { wall: "#5d463f", floor: "#2a1f1c", baseboard: "#1a1412" }
+      };
+      let tName = room.theme || 'dorm';
+      if (typeof currentLevelName !== 'undefined' && currentLevelName === 'principal_office' && playData && playData.worldState && !playData.worldState.horrorActive) tName = 'office_clean';
+      const pal = themes[tName] || themes.dorm;
+
+      // Dark passage
+      targetCtx.fillStyle = "#1e1410";
+      targetCtx.fillRect(x - 10, y, padding + 10 - x, height);
+
+      // Faux walls to give 2.5D depth
+      targetCtx.fillStyle = pal.wall;
+      targetCtx.fillRect(0, y - 50, padding, 50);
+      targetCtx.fillRect(0, y + height, padding, 50);
+      targetCtx.fillStyle = pal.baseboard;
+      targetCtx.fillRect(padding - 6, y - 50, 6, 50);
+      targetCtx.fillRect(padding - 6, y + height, 6, 50);
+
+      // Frame cut edges
+      targetCtx.fillStyle = "#4e342e";
+      targetCtx.fillRect(padding - 6, y, 6, height); // inner rim
+      targetCtx.fillStyle = "#2d1e19";
+      targetCtx.fillRect(x - 10, y, padding + 10 - x, 6); // top depth
+      targetCtx.fillRect(x - 10, y + height - 6, padding + 10 - x, 6); // bottom depth
+
+      // Door mat inside the room
+      const matW = 20;
+      targetCtx.fillStyle = "#3e2723";
+      targetCtx.fillRect(padding, y + 4, matW + 4, height - 8);
+      targetCtx.fillStyle = "#5d4037";
+      targetCtx.fillRect(padding + 2, y + 6, matW, height - 12);
+      targetCtx.fillStyle = "rgba(255,255,255,0.4)";
       targetCtx.beginPath();
-      targetCtx.arc(x + width / 2, y + height - 12, 4, 0, Math.PI * 2);
+      targetCtx.moveTo(padding + 8, y + height/2);
+      targetCtx.lineTo(padding + 16, y + height/2 - 6);
+      targetCtx.lineTo(padding + 16, y + height/2 + 6);
       targetCtx.fill();
+
   } else if (orientation === 'right') {
-      targetCtx.fillStyle = "#3a271f";
-      targetCtx.fillRect(x - 4, y - 6, width + 8, height + 12);
-      const gradient = targetCtx.createLinearGradient(x, 0, x + width, 0);
-      gradient.addColorStop(0, "#d89c27");
-      gradient.addColorStop(1, "#f6c453");
-      targetCtx.fillStyle = gradient;
-      targetCtx.fillRect(x, y, width, height);
-      targetCtx.fillStyle = "rgba(0,0,0,0.2)";
-      targetCtx.fillRect(x + width - 6, y, 6, height);
-      targetCtx.fillStyle = "#90caf9";
-      targetCtx.fillRect(x + width - 24, y + 8, 14, height - 16);
-      targetCtx.fillStyle = "#333";
+      const padding = 32;
+      const themes = {
+        hall: { wall: "#3f5765", floor: "#cfd8dc", baseboard: "#1c262f" },
+        dorm: { wall: "#8d6e63", floor: "#3e2723", baseboard: "#281915" },
+        classroom: { wall: "#2c3e50", floor: "#e9e4d5", baseboard: "#1f2d3a" },
+        office_clean: { wall: "#8c6f64", floor: "#7b5d52", baseboard: "#5c433c" },
+        office: { wall: "#5d463f", floor: "#2a1f1c", baseboard: "#1a1412" }
+      };
+      let tName = room.theme || 'dorm';
+      if (typeof currentLevelName !== 'undefined' && currentLevelName === 'principal_office' && playData && playData.worldState && !playData.worldState.horrorActive) tName = 'office_clean';
+      const pal = themes[tName] || themes.dorm;
+      
+      const rightEdge = room.width - padding;
+
+      // Dark passage
+      targetCtx.fillStyle = "#1e1410";
+      targetCtx.fillRect(rightEdge, y, width, height);
+
+      // Faux walls to give 2.5D depth
+      targetCtx.fillStyle = pal.wall;
+      targetCtx.fillRect(rightEdge, y - 50, padding, 50);
+      targetCtx.fillRect(rightEdge, y + height, padding, 50);
+      targetCtx.fillStyle = pal.baseboard;
+      targetCtx.fillRect(rightEdge, y - 50, 6, 50);
+      targetCtx.fillRect(rightEdge, y + height, 6, 50);
+
+      // Frame cut edges
+      targetCtx.fillStyle = "#4e342e";
+      targetCtx.fillRect(rightEdge, y, 6, height); // inner rim
+      targetCtx.fillStyle = "#2d1e19";
+      targetCtx.fillRect(rightEdge + 6, y, width - 6, 6); // top depth
+      targetCtx.fillRect(rightEdge + 6, y + height - 6, width - 6, 6); // bottom depth
+
+      // Door mat inside the room
+      const matW = 20;
+      targetCtx.fillStyle = "#3e2723";
+      targetCtx.fillRect(rightEdge - matW - 4, y + 4, matW + 4, height - 8);
+      targetCtx.fillStyle = "#5d4037";
+      targetCtx.fillRect(rightEdge - matW - 2, y + 6, matW, height - 12);
+      targetCtx.fillStyle = "rgba(255,255,255,0.4)";
       targetCtx.beginPath();
-      targetCtx.arc(x + width / 2, y + 12, 4, 0, Math.PI * 2);
+      targetCtx.moveTo(rightEdge - 8, y + height/2);
+      targetCtx.lineTo(rightEdge - 16, y + height/2 - 6);
+      targetCtx.lineTo(rightEdge - 16, y + height/2 + 6);
       targetCtx.fill();
   } else {
+      // Top door (North wall)
       targetCtx.fillStyle = "#3a271f";
       targetCtx.fillRect(x - 6, y - 6, width + 12, height + 10);
+      
       const gradient = targetCtx.createLinearGradient(0, y, 0, y + height);
-      gradient.addColorStop(0, "#f6c453");
-      gradient.addColorStop(1, "#d89c27");
+      gradient.addColorStop(0, "#8d6e63");
+      gradient.addColorStop(1, "#5d4037");
       targetCtx.fillStyle = gradient;
       targetCtx.fillRect(x, y, width, height);
-      targetCtx.fillStyle = "rgba(0,0,0,0.2)";
-      targetCtx.fillRect(x, y, 6, height);
-      targetCtx.fillStyle = "#90caf9";
-      targetCtx.fillRect(x + 8, y + 10, width - 16, 14);
-      targetCtx.fillStyle = "#333";
-      targetCtx.beginPath();
-      targetCtx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
-      targetCtx.fill();
+
+      if (width > 80) {
+          // Double Door
+          const panelW = width / 2;
+          // Center line
+          targetCtx.fillStyle = "#3e2723";
+          targetCtx.fillRect(x + panelW - 1, y, 2, height);
+          
+          // Handles
+          targetCtx.fillStyle = "#f0c419";
+          targetCtx.beginPath();
+          targetCtx.arc(x + panelW - 6, y + height / 2 + 6, 4, 0, Math.PI * 2);
+          targetCtx.arc(x + panelW + 6, y + height / 2 + 6, 4, 0, Math.PI * 2);
+          targetCtx.fill();
+          
+          // Panel details (rectangles)
+          targetCtx.strokeStyle = "rgba(0,0,0,0.15)";
+          targetCtx.lineWidth = 2;
+          targetCtx.strokeRect(x + 8, y + 8, panelW - 16, height/2 - 12);
+          targetCtx.strokeRect(x + panelW + 8, y + 8, panelW - 16, height/2 - 12);
+          targetCtx.strokeRect(x + 8, y + height/2 + 8, panelW - 16, height/2 - 16);
+          targetCtx.strokeRect(x + panelW + 8, y + height/2 + 8, panelW - 16, height/2 - 16);
+      } else {
+          // Single Door
+          targetCtx.fillStyle = "rgba(0,0,0,0.2)";
+          targetCtx.fillRect(x, y, 6, height);
+          
+          targetCtx.fillStyle = "#f0c419";
+          targetCtx.beginPath();
+          targetCtx.arc(x + width - 12, y + height / 2, 4, 0, Math.PI * 2);
+          targetCtx.fill();
+          
+          // Panel details
+          targetCtx.strokeStyle = "rgba(0,0,0,0.15)";
+          targetCtx.lineWidth = 2;
+          targetCtx.strokeRect(x + 10, y + 10, width - 20, height/2 - 16);
+          targetCtx.strokeRect(x + 10, y + height/2 + 10, width - 20, height/2 - 20);
+      }
   }
 }
 
@@ -1034,14 +1195,125 @@ function drawShelf(item, targetCtx = ctx) {
 }
 
 function drawLocker(item, targetCtx = ctx) {
-    targetCtx.fillStyle = "#607d8b";
-    targetCtx.fillRect(item.x, item.y, item.width, item.height);
-    targetCtx.fillStyle = "#546e7a";
-    targetCtx.fillRect(item.x + 4, item.y + 10, item.width - 8, 4);
-    targetCtx.fillRect(item.x + 4, item.y + 16, item.width - 8, 4);
-    targetCtx.fillRect(item.x + 4, item.y + 22, item.width - 8, 4);
-    targetCtx.fillStyle = "#cfd8dc";
-    targetCtx.fillRect(item.x + item.width - 8, item.y + item.height/2, 4, 10);
+    if (item.orientation === 'right') {
+        const ext = 12; // Thicker front profile for better visibility
+        const topH = 10; // Angle of depth receding into the wall
+        
+        // 1. Draw top 2.5D surface
+        targetCtx.fillStyle = "#37474f"; // Darker depth top
+        targetCtx.beginPath();
+        targetCtx.moveTo(item.x, item.y); 
+        targetCtx.lineTo(item.x + item.width - ext, item.y);
+        targetCtx.lineTo(item.x + item.width - ext, item.y + topH);
+        targetCtx.lineTo(item.x + item.width, item.y + topH + 6);
+        targetCtx.lineTo(item.x, item.y + topH + 6);
+        targetCtx.fill();
+
+        // 2. South Side Panel (Receding part)
+        targetCtx.fillStyle = "#455a64"; 
+        targetCtx.fillRect(item.x, item.y + topH + 6, item.width - ext, item.height - topH - 6);
+        
+        // 3. East Panel (Front doors facing outwards)
+        targetCtx.fillStyle = "#607d8b";
+        targetCtx.fillRect(item.x + item.width - ext, item.y + topH + 6, ext, item.height - topH - 6);
+        
+        // Front door edge highlight (makes it pop out of the side panel)
+        targetCtx.fillStyle = "#90a4ae";
+        targetCtx.fillRect(item.x + item.width - ext, item.y + topH + 6, 2, item.height - topH - 6);
+        targetCtx.fillStyle = "#37474f"; // Right edge shadow
+        targetCtx.fillRect(item.x + item.width - 1, item.y + topH + 6, 1, item.height - topH - 6);
+
+        // 4. Bottom shadow footing
+        targetCtx.fillStyle = "#263238";
+        targetCtx.fillRect(item.x, item.y + item.height - 4, item.width, 4);
+
+        // Locker separation lines with 2.5D stepped indent
+        targetCtx.fillStyle = "rgba(0,0,0,0.4)";
+        for (let y = item.y + 40; y < item.y + item.height - 10; y += 40) {
+            targetCtx.fillRect(item.x, y + topH, item.width - ext, 2); // Side panel gap
+            targetCtx.fillRect(item.x + item.width - ext, y + topH + 2, ext, 2); // Front door gap (stepped down)
+            targetCtx.fillStyle = "rgba(255,255,255,0.15)";
+            targetCtx.fillRect(item.x + item.width - ext, y + topH + 1, ext, 1); // Top rim highlight of each locker door
+            targetCtx.fillStyle = "rgba(0,0,0,0.4)";
+        }
+
+        // Vents and handles
+        for (let y = item.y + topH + 8; y < item.y + item.height; y += 40) {
+            targetCtx.fillStyle = "#cfd8dc";
+            targetCtx.fillRect(item.x + item.width - ext + 4, y + 4, ext - 6, 1);
+            targetCtx.fillRect(item.x + item.width - ext + 4, y + 8, ext - 6, 1);
+            targetCtx.fillRect(item.x + item.width - ext + 4, y + 12, ext - 6, 1);
+            
+            targetCtx.fillStyle = "#ffd54f"; // Brighter handle
+            targetCtx.fillRect(item.x + item.width - 4, y + 18, 2, 8);
+            targetCtx.fillStyle = "#e65100"; // Deep lock shadow
+            targetCtx.fillRect(item.x + item.width - 3, y + 18, 1, 8);
+        }
+    } else if (item.orientation === 'left') {
+        const ext = 12; // Thicker front profile
+        const topH = 10; 
+        
+        // 1. Draw top 2.5D surface
+        targetCtx.fillStyle = "#37474f";
+        targetCtx.beginPath();
+        targetCtx.moveTo(item.x + ext, item.y); 
+        targetCtx.lineTo(item.x + item.width, item.y); 
+        targetCtx.lineTo(item.x + item.width, item.y + topH + 6); 
+        targetCtx.lineTo(item.x, item.y + topH + 6); 
+        targetCtx.lineTo(item.x + ext, item.y + topH); 
+        targetCtx.fill();
+
+        // 2. South Side Panel
+        targetCtx.fillStyle = "#455a64";
+        targetCtx.fillRect(item.x + ext, item.y + topH + 6, item.width - ext, item.height - topH - 6);
+        
+        // 3. West Panel (front doors)
+        targetCtx.fillStyle = "#607d8b";
+        targetCtx.fillRect(item.x, item.y + topH + 6, ext, item.height - topH - 6);
+        
+        // Front door edge highlight & shadow
+        targetCtx.fillStyle = "#90a4ae";
+        targetCtx.fillRect(item.x + ext - 2, item.y + topH + 6, 2, item.height - topH - 6);
+        targetCtx.fillStyle = "#37474f";
+        targetCtx.fillRect(item.x, item.y + topH + 6, 1, item.height - topH - 6);
+
+        // 4. Bottom shadow footing
+        targetCtx.fillStyle = "#263238";
+        targetCtx.fillRect(item.x, item.y + item.height - 4, item.width, 4);
+
+        // Locker separation lines
+        targetCtx.fillStyle = "rgba(0,0,0,0.4)";
+        for (let y = item.y + 40; y < item.y + item.height - 10; y += 40) {
+            targetCtx.fillRect(item.x + ext, y + topH, item.width - ext, 2); // Side panel gap
+            targetCtx.fillRect(item.x, y + topH + 2, ext, 2); // Front door gap (stepped down)
+            targetCtx.fillStyle = "rgba(255,255,255,0.15)";
+            targetCtx.fillRect(item.x, y + topH + 1, ext, 1); 
+            targetCtx.fillStyle = "rgba(0,0,0,0.4)";
+        }
+
+        // Vents and handles
+        for (let y = item.y + topH + 8; y < item.y + item.height; y += 40) {
+            targetCtx.fillStyle = "#cfd8dc";
+            targetCtx.fillRect(item.x + 2, y + 4, ext - 6, 1);
+            targetCtx.fillRect(item.x + 2, y + 8, ext - 6, 1);
+            targetCtx.fillRect(item.x + 2, y + 12, ext - 6, 1);
+            
+            targetCtx.fillStyle = "#ffd54f";
+            targetCtx.fillRect(item.x + 2, y + 18, 2, 8);
+            targetCtx.fillStyle = "#e65100";
+            targetCtx.fillRect(item.x + 2, y + 18, 1, 8);
+        }
+    } else {
+        // Standard front-facing locker
+        targetCtx.fillStyle = "#607d8b";
+        targetCtx.fillRect(item.x, item.y, item.width, item.height);
+        targetCtx.fillStyle = "#546e7a";
+        targetCtx.fillRect(item.x + 4, item.y + 10, item.width - 8, 4);
+        targetCtx.fillRect(item.x + 4, item.y + 16, item.width - 8, 4);
+        targetCtx.fillRect(item.x + 4, item.y + 22, item.width - 8, 4);
+        targetCtx.fillStyle = "#cfd8dc";
+        targetCtx.fillRect(item.x + item.width - 8, item.y + item.height/2, 4, 10);
+    }
 }
 
 function drawWindow(item, targetCtx = ctx) {
