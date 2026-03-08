@@ -182,12 +182,56 @@ window.initialGameData = {
       ],
       spawn: { x: 300, y: 300 },
       furniture: [
-          { type: 'desk', x: 210, y: 150, width: 180, height: 70, hasLamp: true, hasLaptop: true },
-          { type: 'cupboard', x: 70, y: 112, width: 90, height: 120 },
-          { type: 'cupboard', x: 440, y: 112, width: 90, height: 120 },
-          { type: 'table', x: 110, y: 350, width: 120, height: 60 },
-          { type: 'table', x: 370, y: 350, width: 120, height: 60 },
-          { type: 'rug', x: 225, y: 260, width: 150, height: 120, color: '#6d4c41' }
+          { type: 'rug', x: 210, y: 220, width: 180, height: 160, color: '#4a148c', border: '#d4af37' },
+          { type: 'boss_desk', x: 200, y: 150, width: 200, height: 80, hasLamp: true, hasLaptop: true },
+          { type: 'bookshelf', x: 32, y: 112, width: 90, height: 120 },
+          { type: 'bookshelf', x: 478, y: 112, width: 90, height: 120 },
+          { type: 'sofa', x: 90, y: 350, width: 140, height: 60, color: '#3e2723' },
+          { type: 'sofa', x: 370, y: 350, width: 140, height: 60, color: '#3e2723' },
+          { type: 'plant', x: 126, y: 70, width: 36, height: 75, potColor: '#eceff1' },
+          { type: 'plant', x: 438, y: 70, width: 36, height: 75, potColor: '#eceff1' },
+          { type: 'plant', x: 36, y: 460, width: 36, height: 80, potColor: '#eceff1' },
+          { type: 'plant', x: 528, y: 460, width: 36, height: 80, potColor: '#eceff1' }
+      ]
+    },
+    vent_tunnel: {
+      width: 1400,
+      height: 200,
+      wallHeight: 0,
+      padding: 0,
+      theme: 'office',
+      doors: [],
+      spawn: { x: 1300, y: 100 },
+      furniture: []
+    },
+    secret_room: {
+      width: 500,
+      height: 500,
+      wallHeight: 96,
+      padding: 32,
+      theme: 'dorm',
+      doors: [],
+      spawn: { x: 250, y: 320 },
+      furniture: [
+        { type: 'vent', id: 'broken_vent_in', x: 209, y: 64, width: 82, height: 46 },
+        { type: 'debris', x: 224, y: 160, width: 52, height: 24 },
+        { 
+            type: 'wall_switch', 
+            id: 'secret_room_light_switch', 
+            x: 380, 
+            y: 64, 
+            width: 16, 
+            height: 24,
+            interaction: {
+                enabled: true,
+                type: 'sequence',
+                priority: 5,
+                conversations: [
+                    [{ speaker: 'LUKE', text: '*klik*' }]
+                ],
+                area: { x: -20, y: -10, width: 56, height: 80 }
+            }
+        }
       ]
     }
   }

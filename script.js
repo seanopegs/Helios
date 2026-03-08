@@ -23,6 +23,10 @@ let stage = 0;
 let isHintActive = false;
 const keys = new Set();
 const camera = { x: 0, y: 0, zoom: 1 };
+let userZoom = 1;
+const USER_ZOOM_MIN = 0.5;
+const USER_ZOOM_MAX = 3.0;
+const USER_ZOOM_STEP = 0.15;
 
 let currentLevelName = 'classroom';
 let room = levels[currentLevelName];
@@ -64,6 +68,8 @@ let audioCtx = null;
 let currentOscillators = [];
 let currentSoundtrackMode = null;
 let dialogueVoiceTimers = [];
+let musicMasterGain = null;
+let melodyInterval = null;
 
 function stopDialogueVoice() {
     dialogueVoiceTimers.forEach(timer => clearTimeout(timer));
@@ -73,41 +79,70 @@ function stopDialogueVoice() {
 function getDialogueVoiceProfile(speaker) {
     if (!speaker) return null;
     const normalized = String(speaker).trim().toUpperCase();
-    if (!normalized || normalized === 'LUKE' || normalized === 'SYSTEM') return null;
+    if (!normalized || normalized === 'SYSTEM') return null;
 
     let hash = 0;
     for (let i = 0; i < normalized.length; i++) {
         hash = (hash * 31 + normalized.charCodeAt(i)) % 997;
     }
 
+    // LUKE gets a warm mid-range voice
+    if (normalized === 'LUKE') {
+        return { frequency: 180, type: 'sine', volume: 0.06, speed: 75 };
+    }
+
+    // TEACHER gets a deeper, authoritative voice
+    if (normalized === 'TEACHER') {
+        return { frequency: 130, type: 'triangle', volume: 0.05, speed: 85 };
+    }
+
+    // Other characters: unique voice from hash
+    const types = ['sine', 'triangle'];
     return {
-        frequency: 250 + (hash % 180),
-        type: hash % 2 === 0 ? 'square' : 'triangle',
-        volume: 0.018 + ((hash % 4) * 0.004)
+        frequency: 160 + (hash % 140),
+        type: types[hash % types.length],
+        volume: 0.04 + ((hash % 3) * 0.008),
+        speed: 70 + (hash % 20)
     };
 }
 
 function playDialogueBlip(profile, variance = 0) {
     if (!audioCtx || !profile) return;
 
+    const t = audioCtx.currentTime;
+
+    // Main tone
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = profile.type;
-    osc.frequency.setValueAtTime(profile.frequency + variance, audioCtx.currentTime);
+    osc.frequency.setValueAtTime(profile.frequency + variance, t);
 
-    gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(profile.volume, audioCtx.currentTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.06);
+    // Softer envelope: gentle attack, longer sustain, smooth release
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(profile.volume, t + 0.015);
+    gain.gain.setValueAtTime(profile.volume * 0.8, t + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+
+    // Optional harmonic overtone for richness
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime((profile.frequency + variance) * 2, t);
+    gain2.gain.setValueAtTime(0.0001, t);
+    gain2.gain.linearRampToValueAtTime(profile.volume * 0.15, t + 0.02);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
 
     osc.connect(gain);
+    osc2.connect(gain2);
     gain.connect(audioCtx.destination);
-    osc.start(audioCtx.currentTime);
-    osc.stop(audioCtx.currentTime + 0.07);
+    gain2.connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 0.12);
+    osc2.start(t);
+    osc2.stop(t + 0.1);
 
-    osc.onended = () => {
-        osc.disconnect();
-        gain.disconnect();
-    };
+    osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+    osc2.onended = () => { osc2.disconnect(); gain2.disconnect(); };
 }
 
 function queueDialogueVoice(entry) {
@@ -118,10 +153,19 @@ function queueDialogueVoice(entry) {
     const text = String(entry.text).trim();
     if (!text) return;
 
-    const pulses = Math.max(2, Math.min(12, Math.ceil(text.replace(/\s+/g, '').length / 5)));
+    // Count syllable-like chunks for natural pacing
+    const words = text.replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 0);
+    const pulses = Math.max(3, Math.min(16, words.length + Math.ceil(text.length / 8)));
+    const speed = profile.speed || 75;
+
     for (let i = 0; i < pulses; i++) {
-        const variance = ((i % 3) - 1) * 14;
-        dialogueVoiceTimers.push(setTimeout(() => playDialogueBlip(profile, variance), i * 48));
+        // Melodic pitch variation per "syllable"
+        const pitchPattern = [0, 15, -10, 20, -5, 10, -15, 5];
+        const variance = pitchPattern[i % pitchPattern.length];
+        // Slight random jitter for naturalness
+        const jitter = (Math.random() - 0.5) * 8;
+        const delay = i * speed + (Math.random() * 15);
+        dialogueVoiceTimers.push(setTimeout(() => playDialogueBlip(profile, variance + jitter), delay));
     }
 }
 
@@ -132,9 +176,18 @@ function initAudio() {
     if (audioCtx.state === 'suspended') {
         audioCtx.resume();
     }
+    if (!musicMasterGain) {
+        musicMasterGain = audioCtx.createGain();
+        musicMasterGain.gain.value = 1.0;
+        musicMasterGain.connect(audioCtx.destination);
+    }
 }
 
 function stopSoundtrack() {
+    if (melodyInterval) {
+        clearInterval(melodyInterval);
+        melodyInterval = null;
+    }
     currentOscillators.forEach(osc => {
         if (osc.stop) {
             try { osc.stop(); } catch(e) {}
@@ -146,87 +199,270 @@ function stopSoundtrack() {
     currentOscillators = [];
 }
 
+function playMelodyNote(freq, duration, delay, vol = 0.03) {
+    if (!audioCtx || !musicMasterGain) return;
+    const t = audioCtx.currentTime + delay;
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(vol, t + 0.15);
+    gain.gain.setValueAtTime(vol * 0.7, t + duration * 0.6);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+
+    osc.connect(gain);
+    gain.connect(musicMasterGain);
+    osc.start(t);
+    osc.stop(t + duration + 0.01);
+
+    osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+    };
+}
+
 function playSoundtrack(mode) {
     if (!audioCtx) return;
     if (currentSoundtrackMode === mode) return;
     stopSoundtrack();
     currentSoundtrackMode = mode;
 
+    if (!musicMasterGain) {
+        musicMasterGain = audioCtx.createGain();
+        musicMasterGain.gain.value = 1.0;
+        musicMasterGain.connect(audioCtx.destination);
+    }
+
     if (mode === 'normal') {
-        // Calm ambient drone
-        const frequencies = [110, 130.81, 164.81]; // A2, C3, E3 (Am)
-        frequencies.forEach((freq, idx) => {
+        // ── Warm ambient pad with slow evolving harmonics ──
+        // Root chord: Am (A2, C3, E3) with octave doubling
+        const padNotes = [
+            { freq: 110,    vol: 0.025 },   // A2
+            { freq: 130.81, vol: 0.020 },   // C3
+            { freq: 164.81, vol: 0.018 },   // E3
+            { freq: 220,    vol: 0.012 },   // A3 (octave)
+            { freq: 329.63, vol: 0.008 },   // E4 (shimmer)
+        ];
+
+        padNotes.forEach((note, idx) => {
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.type = 'sine';
-            osc.frequency.value = freq;
+            osc.frequency.value = note.freq;
 
-            // Slow modulation
+            // Slow breathing modulation
             const lfo = audioCtx.createOscillator();
             lfo.type = 'sine';
-            lfo.frequency.value = 0.1 + (idx * 0.05);
+            lfo.frequency.value = 0.06 + (idx * 0.02);
             const lfoGain = audioCtx.createGain();
-            lfoGain.gain.value = 0.05;
+            lfoGain.gain.value = note.vol * 0.4;
 
             lfo.connect(lfoGain);
             lfoGain.connect(gain.gain);
 
-            gain.gain.value = 0.05; // Low volume
+            // Slight detuning for warmth
+            const detune = audioCtx.createOscillator();
+            detune.type = 'sine';
+            detune.frequency.value = note.freq + (idx % 2 === 0 ? 0.5 : -0.5);
+            const detuneGain = audioCtx.createGain();
+            detuneGain.gain.value = note.vol * 0.3;
+
+            gain.gain.value = note.vol;
             osc.connect(gain);
-            gain.connect(audioCtx.destination);
+            detune.connect(detuneGain);
+            gain.connect(musicMasterGain);
+            detuneGain.connect(musicMasterGain);
 
             osc.start();
             lfo.start();
+            detune.start();
 
-            currentOscillators.push(osc, lfo, gain, lfoGain);
+            currentOscillators.push(osc, lfo, gain, lfoGain, detune, detuneGain);
         });
+
+        // Gentle melody loop — pentatonic Am scale
+        const melodyNotes = [
+            329.63, 392.00, 440.00, 523.25, 587.33, // E4 G4 A4 C5 D5
+            523.25, 440.00, 392.00, 329.63, 293.66,  // C5 A4 G4 E4 D4
+        ];
+        let melodyIdx = 0;
+        melodyInterval = setInterval(() => {
+            if (!audioCtx || currentSoundtrackMode !== 'normal') return;
+            const note = melodyNotes[melodyIdx % melodyNotes.length];
+            playMelodyNote(note, 2.2, 0, 0.016);
+            melodyIdx++;
+        }, 3000);
+
     } else if (mode === 'horror') {
-        // Low, dissonant hum
-        const frequencies = [55, 58.27]; // A1, Bb1
-        frequencies.forEach((freq, idx) => {
+        // ── Deep, evolving dread ──
+        // Low sub-bass rumble
+        const sub = audioCtx.createOscillator();
+        const subGain = audioCtx.createGain();
+        sub.type = 'sine';
+        sub.frequency.value = 36; // Very low C1-ish
+        subGain.gain.value = 0.04;
+
+        // Sub modulation (slow throb)
+        const subLfo = audioCtx.createOscillator();
+        subLfo.type = 'sine';
+        subLfo.frequency.value = 0.15;
+        const subLfoGain = audioCtx.createGain();
+        subLfoGain.gain.value = 0.025;
+        subLfo.connect(subLfoGain);
+        subLfoGain.connect(subGain.gain);
+
+        sub.connect(subGain);
+        subGain.connect(musicMasterGain);
+        sub.start();
+        subLfo.start();
+        currentOscillators.push(sub, subGain, subLfo, subLfoGain);
+
+        // Dissonant tritone pad (A1 + Eb2)
+        const dissonantPairs = [
+            { freq: 55, vol: 0.018, type: 'sawtooth' },   // A1
+            { freq: 77.78, vol: 0.014, type: 'sawtooth' }, // Eb2 (tritone)
+            { freq: 110, vol: 0.008, type: 'triangle' },   // A2
+            { freq: 155.56, vol: 0.006, type: 'triangle' }, // Eb3
+        ];
+
+        dissonantPairs.forEach((note, idx) => {
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.value = freq;
+            osc.type = note.type;
+            osc.frequency.value = note.freq;
 
-            // Fast nervous modulation
+            // Nervous tremolo
             const lfo = audioCtx.createOscillator();
-            lfo.type = 'triangle';
-            lfo.frequency.value = 2 + (idx * 1.5);
+            lfo.type = 'sine';
+            lfo.frequency.value = 0.3 + (idx * 0.15);
             const lfoGain = audioCtx.createGain();
-            lfoGain.gain.value = 0.02;
+            lfoGain.gain.value = note.vol * 0.5;
 
             lfo.connect(lfoGain);
             lfoGain.connect(gain.gain);
 
-            gain.gain.value = 0.04;
+            // Slow pitch drift for unease
+            const pitchLfo = audioCtx.createOscillator();
+            pitchLfo.type = 'sine';
+            pitchLfo.frequency.value = 0.05 + (idx * 0.02);
+            const pitchLfoGain = audioCtx.createGain();
+            pitchLfoGain.gain.value = 2 + idx;
+            pitchLfo.connect(pitchLfoGain);
+            pitchLfoGain.connect(osc.frequency);
+
+            gain.gain.value = note.vol;
             osc.connect(gain);
-            gain.connect(audioCtx.destination);
+            gain.connect(musicMasterGain);
 
             osc.start();
             lfo.start();
+            pitchLfo.start();
 
-            currentOscillators.push(osc, lfo, gain, lfoGain);
+            currentOscillators.push(osc, gain, lfo, lfoGain, pitchLfo, pitchLfoGain);
         });
+
+        // High eerie whistle (intermittent)
+        const whistle = audioCtx.createOscillator();
+        const whistleGain = audioCtx.createGain();
+        whistle.type = 'sine';
+        whistle.frequency.value = 1200;
+        whistleGain.gain.value = 0.0;
+
+        // Slow fade in/out cycle
+        const whistleLfo = audioCtx.createOscillator();
+        whistleLfo.type = 'sine';
+        whistleLfo.frequency.value = 0.08;
+        const whistleLfoGain = audioCtx.createGain();
+        whistleLfoGain.gain.value = 0.006;
+        whistleLfo.connect(whistleLfoGain);
+        whistleLfoGain.connect(whistleGain.gain);
+
+        // Vibrato on the whistle
+        const vibrato = audioCtx.createOscillator();
+        vibrato.type = 'sine';
+        vibrato.frequency.value = 5;
+        const vibratoGain = audioCtx.createGain();
+        vibratoGain.gain.value = 15;
+        vibrato.connect(vibratoGain);
+        vibratoGain.connect(whistle.frequency);
+
+        whistle.connect(whistleGain);
+        whistleGain.connect(musicMasterGain);
+        whistle.start();
+        whistleLfo.start();
+        vibrato.start();
+
+        currentOscillators.push(whistle, whistleGain, whistleLfo, whistleLfoGain, vibrato, vibratoGain);
+
     } else if (mode === 'death') {
-        // Harsh dropping noise
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'square';
+        // ── Dramatic death stinger ──
+        const t = audioCtx.currentTime;
 
-        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 1.5);
+        // Deep impact boom
+        const boom = audioCtx.createOscillator();
+        const boomGain = audioCtx.createGain();
+        boom.type = 'sine';
+        boom.frequency.setValueAtTime(80, t);
+        boom.frequency.exponentialRampToValueAtTime(20, t + 1.5);
+        boomGain.gain.setValueAtTime(0.12, t);
+        boomGain.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+        boom.connect(boomGain);
+        boomGain.connect(musicMasterGain);
+        boom.start(t);
+        boom.stop(t + 2.5);
+        currentOscillators.push(boom, boomGain);
 
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+        // Descending screech
+        const screech = audioCtx.createOscillator();
+        const screechGain = audioCtx.createGain();
+        screech.type = 'sawtooth';
+        screech.frequency.setValueAtTime(600, t);
+        screech.frequency.exponentialRampToValueAtTime(30, t + 2.0);
+        screechGain.gain.setValueAtTime(0.04, t);
+        screechGain.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
+        screech.connect(screechGain);
+        screechGain.connect(musicMasterGain);
+        screech.start(t);
+        screech.stop(t + 2.5);
+        currentOscillators.push(screech, screechGain);
 
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
+        // Heartbeat-like thuds
+        for (let i = 0; i < 4; i++) {
+            const beat = audioCtx.createOscillator();
+            const beatGain = audioCtx.createGain();
+            beat.type = 'sine';
+            const beatTime = t + i * 0.4;
+            beat.frequency.setValueAtTime(50, beatTime);
+            beat.frequency.exponentialRampToValueAtTime(25, beatTime + 0.15);
+            beatGain.gain.setValueAtTime(0.0001, beatTime);
+            beatGain.gain.linearRampToValueAtTime(0.08 - (i * 0.015), beatTime + 0.02);
+            beatGain.gain.exponentialRampToValueAtTime(0.0001, beatTime + 0.3);
+            beat.connect(beatGain);
+            beatGain.connect(musicMasterGain);
+            beat.start(beatTime);
+            beat.stop(beatTime + 0.35);
+            beat.onended = () => { beat.disconnect(); beatGain.disconnect(); };
+            currentOscillators.push(beat, beatGain);
+        }
 
-        osc.start();
-        osc.stop(audioCtx.currentTime + 2);
-
-        currentOscillators.push(osc, gain);
+        // Dissonant chord sting
+        [300, 316, 450].forEach(freq => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, t);
+            gain.gain.setValueAtTime(0.035, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+            osc.connect(gain);
+            gain.connect(musicMasterGain);
+            osc.start(t);
+            osc.stop(t + 2.0);
+            osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+            currentOscillators.push(osc, gain);
+        });
     }
 }
 
@@ -246,12 +482,16 @@ function updateSoundtrack() {
 let tempDialogueTimeout = null;
 
 const principalOfficeBaseFurniture = [
-    { type: 'desk', x: 210, y: 150, width: 180, height: 70, hasLamp: true, hasLaptop: true },
-    { type: 'cupboard', x: 70, y: 112, width: 90, height: 120 },
-    { type: 'cupboard', x: 440, y: 112, width: 90, height: 120 },
-    { type: 'table', x: 110, y: 350, width: 120, height: 60 },
-    { type: 'table', x: 370, y: 350, width: 120, height: 60 },
-    { type: 'rug', x: 225, y: 260, width: 150, height: 120, color: '#6d4c41' }
+    { type: 'rug', x: 210, y: 220, width: 180, height: 160, color: '#4a148c', border: '#d4af37' }, // Deep purple, gold border
+    { type: 'boss_desk', x: 200, y: 150, width: 200, height: 80, hasLamp: true, hasLaptop: true },
+    { type: 'bookshelf', x: 32, y: 112, width: 90, height: 120 },
+    { type: 'bookshelf', x: 478, y: 112, width: 90, height: 120 },
+    { type: 'sofa', x: 90, y: 350, width: 140, height: 60, color: '#3e2723' }, // Leather sofa left
+    { type: 'sofa', x: 370, y: 350, width: 140, height: 60, color: '#3e2723' }, // Leather sofa right
+    { type: 'plant', x: 126, y: 70, width: 36, height: 75, potColor: '#eceff1' },
+    { type: 'plant', x: 438, y: 70, width: 36, height: 75, potColor: '#eceff1' },
+    { type: 'plant', x: 36, y: 460, width: 36, height: 80, potColor: '#eceff1' },
+    { type: 'plant', x: 528, y: 460, width: 36, height: 80, potColor: '#eceff1' }
 ];
 
 const principalOfficeDebris = [
@@ -667,7 +907,7 @@ function checkCollision(x, y) {
 
   for (const item of room.furniture) {
     const hasCustom = !!item.collisionRect;
-    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone' || item.type === 'student' || item.type === 'teacher')) continue;
+    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone' || item.type === 'student' || item.type === 'teacher' || item.type === 'wall_switch')) continue;
 
     let dLeft, dTop, dWidth, dHeight;
 
@@ -747,15 +987,20 @@ function handleMovement() {
       targetY = cutscene.focus.y + (cutscene.focus.height || 0) / 2;
   }
 
-  const camTargetX = targetX - canvas.width / 2;
-  const camTargetY = targetY - canvas.height / 2;
+  // During cutscenes, use cutscene zoom; otherwise use player zoom
+  const effectiveZoom = (cutscene && cutscene.active) ? camera.zoom : userZoom;
+  const viewW = canvas.width / effectiveZoom;
+  const viewH = canvas.height / effectiveZoom;
+
+  const camTargetX = targetX - viewW / 2;
+  const camTargetY = targetY - viewH / 2;
 
   if (cutscene && cutscene.active) {
        camera.x = camTargetX;
        camera.y = camTargetY;
   } else {
-       const maxCamX = Math.max(0, room.width - canvas.width);
-       const maxCamY = Math.max(0, room.height - canvas.height);
+       const maxCamX = Math.max(0, room.width - viewW);
+       const maxCamY = Math.max(0, room.height - viewH);
        camera.x = Math.max(0, Math.min(camTargetX, maxCamX));
        camera.y = Math.max(0, Math.min(camTargetY, maxCamY));
   }
@@ -1167,6 +1412,15 @@ function drawRug(item, targetCtx = ctx) {
     targetCtx.fillStyle = "#8d6e63";
     if (item.color) targetCtx.fillStyle = item.color;
     targetCtx.fillRect(item.x, item.y, item.width, item.height);
+    
+    // Optional elegant border
+    if (item.border) {
+        targetCtx.strokeStyle = item.border;
+        targetCtx.lineWidth = 4;
+        targetCtx.strokeRect(item.x + 4, item.y + 4, item.width - 8, item.height - 8);
+        targetCtx.lineWidth = 1;
+    }
+
     targetCtx.strokeStyle = "rgba(0,0,0,0.1)";
     targetCtx.lineWidth = 1;
     targetCtx.beginPath();
@@ -1174,6 +1428,304 @@ function drawRug(item, targetCtx = ctx) {
         targetCtx.moveTo(item.x + i, item.y);
         targetCtx.lineTo(item.x + i, item.y + item.height);
     }
+    targetCtx.stroke();
+}
+
+function drawSofa(item, targetCtx = ctx) {
+    const color = item.color || "#4e342e";
+    const highlight = item.highlight || "#5d4037"; // Lighter for top 2.5d surfaces
+    const shadow = "#2d1e19"; // Darker for depth
+
+    // Bottom shadow
+    targetCtx.fillStyle = "rgba(0,0,0,0.3)";
+    targetCtx.fillRect(item.x - 2, item.y + item.height - 4, item.width + 4, 8);
+
+    // Backrest (Vertical part)
+    targetCtx.fillStyle = shadow;
+    targetCtx.fillRect(item.x, item.y, item.width, item.height / 2);
+
+    // Backrest top padding (2.5D Top surface)
+    targetCtx.fillStyle = highlight;
+    targetCtx.beginPath();
+    targetCtx.moveTo(item.x, item.y);
+    targetCtx.lineTo(item.x + 6, item.y - 6);
+    targetCtx.lineTo(item.x + item.width - 6, item.y - 6);
+    targetCtx.lineTo(item.x + item.width, item.y);
+    targetCtx.fill();
+
+    // Seat cushion (Extends forward)
+    targetCtx.fillStyle = highlight;
+    targetCtx.fillRect(item.x + 8, item.y + item.height / 2, item.width - 16, item.height / 2 - 4);
+    
+    // Front edge of seat cushion 
+    targetCtx.fillStyle = color;
+    targetCtx.fillRect(item.x + 8, item.y + item.height - 4, item.width - 16, 4);
+
+    // Armrests
+    // Left
+    targetCtx.fillStyle = color;
+    targetCtx.fillRect(item.x, item.y + 10, 8, item.height - 10);
+    targetCtx.fillStyle = highlight; // Top surface of left armrest
+    targetCtx.fillRect(item.x, item.y + 10, 8, -6);
+    
+    // Right
+    targetCtx.fillStyle = color;
+    targetCtx.fillRect(item.x + item.width - 8, item.y + 10, 8, item.height - 10);
+    targetCtx.fillStyle = highlight; // Top surface of right armrest
+    targetCtx.fillRect(item.x + item.width - 8, item.y + 10, 8, -6);
+
+    // Cushion details (tufting gaps)
+    targetCtx.fillStyle = "rgba(0,0,0,0.15)";
+    if (item.width > 60) {
+        targetCtx.fillRect(item.x + item.width / 2 - 1, item.y + item.height / 2, 2, item.height / 2);
+    }
+}
+
+function drawBookshelf(item, targetCtx = ctx) {
+    const woodColor = "#3e2723";
+    const woodHighlight = "#4e342e";
+    const shelves = 4;
+    const shelfHeight = item.height / shelves;
+
+    // Side Depth (Left perspective)
+    targetCtx.fillStyle = "#2d1e19";
+    targetCtx.beginPath();
+    targetCtx.moveTo(item.x, item.y);
+    targetCtx.lineTo(item.x + 10, item.y - 8);
+    targetCtx.lineTo(item.x + 10, item.y + item.height - 8);
+    targetCtx.lineTo(item.x, item.y + item.height);
+    targetCtx.fill();
+
+    // Top surface
+    targetCtx.fillStyle = woodHighlight;
+    targetCtx.beginPath();
+    targetCtx.moveTo(item.x, item.y);
+    targetCtx.lineTo(item.x + 10, item.y - 8);
+    targetCtx.lineTo(item.x + item.width + 10, item.y - 8);
+    targetCtx.lineTo(item.x + item.width, item.y);
+    targetCtx.fill();
+
+    // Main Face (Right side frame, top frame)
+    targetCtx.fillStyle = woodColor;
+    targetCtx.fillRect(item.x, item.y, item.width, item.height);
+
+    // Back wall of the bookshelf (Dark)
+    targetCtx.fillStyle = "#1a100c";
+    targetCtx.fillRect(item.x + 6, item.y + 6, item.width - 12, item.height - 12);
+
+    for (let i = 1; i < shelves; i++) {
+        const y = item.y + i * shelfHeight;
+        // Shelf board
+        targetCtx.fillStyle = woodColor;
+        targetCtx.fillRect(item.x + 6, y, item.width - 12, 4);
+        
+        // Books on shelf
+        targetCtx.fillStyle = "rgba(0,0,0,0.5)";
+        targetCtx.fillRect(item.x + 6, y - 4, item.width - 12, 4); // Shadow under books
+        
+        let bkX = item.x + 8;
+        let bookIndex = 0;
+        while(bkX < item.x + item.width - 10) {
+            // Simple pseudo-random hash based on item position and book index
+            const seed = Math.sin(item.x * 12.9898 + y * 78.233 + bookIndex * 37.719) * 43758.5453;
+            const pseudoRandom = seed - Math.floor(seed);
+            
+            const bkW = 4 + pseudoRandom * 8;
+            
+            const seed2 = Math.sin(item.x * 15.123 + y * 42.111 + bookIndex * 19.333) * 43758.5453;
+            const pseudoRandom2 = seed2 - Math.floor(seed2);
+            const bkH = 10 + pseudoRandom2 * 10;
+            
+            if (bkX + bkW > item.x + item.width - 8) break;
+            
+            // Random book color
+            const colors = ["#b71c1c", "#1565c0", "#2e7d32", "#f57f17", "#efefef", "#4e342e"];
+            const colorIndex = Math.floor(pseudoRandom * colors.length);
+            targetCtx.fillStyle = colors[colorIndex];
+            
+            // Random lean
+            const lean = (pseudoRandom2 - 0.5) * 4;
+            
+            targetCtx.save();
+            targetCtx.translate(bkX + bkW/2, y);
+            targetCtx.rotate(lean * Math.PI / 180);
+            targetCtx.fillRect(-bkW/2, -bkH, bkW, bkH);
+            
+            // Book spine detail
+            targetCtx.fillStyle = "rgba(255,255,255,0.2)";
+            targetCtx.fillRect(-bkW/2 + 1, -bkH + 2, bkW - 2, 2);
+            targetCtx.restore();
+            
+            bkX += bkW + 1;
+            
+            // Occasional gap
+            if (pseudoRandom > 0.7) bkX += 4;
+            
+            bookIndex++;
+        }
+    }
+}
+
+function drawBossDesk(item, targetCtx = ctx) {
+    const woodWood = "#3e2723";
+    const woodHighlight = "#4e342e";
+    const woodTrim = "#d4af37"; // Gold trim
+
+    // 1. Shadow
+    targetCtx.fillStyle = "rgba(0,0,0,0.4)";
+    targetCtx.fillRect(item.x - 4, item.y + item.height - 4, item.width + 8, 12);
+
+    // 2. Base/Sides of desk (Perspective depth)
+    targetCtx.fillStyle = "#2d1e19";
+    targetCtx.fillRect(item.x, item.y + 12, item.width, item.height - 12);
+    
+    // Front Panels (Cabinets)
+    targetCtx.fillStyle = woodWood;
+    targetCtx.fillRect(item.x, item.y + 12, item.width / 3.5, item.height - 12); // Left drawer column
+    targetCtx.fillRect(item.x + item.width - item.width/3.5, item.y + 12, item.width / 3.5, item.height - 12); // Right drawer column
+    
+    // Drawers on the panels
+    targetCtx.strokeStyle = "#1a100c";
+    targetCtx.lineWidth = 2;
+    // Left drawers
+    targetCtx.strokeRect(item.x + 6, item.y + 18, item.width/3.5 - 12, item.height/2 - 14);
+    targetCtx.strokeRect(item.x + 6, item.y + item.height/2 + 8, item.width/3.5 - 12, item.height/2 - 14);
+    // Right drawers
+    targetCtx.strokeRect(item.x + item.width - item.width/3.5 + 6, item.y + 18, item.width/3.5 - 12, item.height/2 - 14);
+    targetCtx.strokeRect(item.x + item.width - item.width/3.5 + 6, item.y + item.height/2 + 8, item.width/3.5 - 12, item.height/2 - 14);
+    
+    // Gold Handles
+    targetCtx.fillStyle = woodTrim;
+    targetCtx.fillRect(item.x + item.width/7 - 6, item.y + 24, 12, 3);
+    targetCtx.fillRect(item.x + item.width/7 - 6, item.y + item.height/2 + 14, 12, 3);
+    targetCtx.fillRect(item.x + item.width - item.width/7 - 6, item.y + 24, 12, 3);
+    targetCtx.fillRect(item.x + item.width - item.width/7 - 6, item.y + item.height/2 + 14, 12, 3);
+
+    // 3. Desk Surface (Thick top)
+    targetCtx.fillStyle = woodHighlight;
+    // Top surface plate
+    targetCtx.fillRect(item.x - 4, item.y, item.width + 8, 14);
+    // Front edge of surface
+    targetCtx.fillStyle = woodWood;
+    targetCtx.fillRect(item.x - 4, item.y + 14, item.width + 8, 6);
+    
+    // Elegant inlay on top surface
+    targetCtx.strokeStyle = "#1a100c";
+    targetCtx.lineWidth = 1;
+    targetCtx.strokeRect(item.x + 4, item.y + 2, item.width - 8, 10);
+    
+    // Items on desk
+    if (item.hasLaptop) { // Boss laptop
+        targetCtx.fillStyle = "#90a4ae"; // Silver macbook-style
+        targetCtx.fillRect(item.x + item.width/2 - 12, item.y + 2, 24, 10);
+        targetCtx.fillStyle = "#37474f";
+        targetCtx.fillRect(item.x + item.width/2 - 10, item.y + 4, 20, 6);
+        targetCtx.fillStyle = "#81d4fa"; // Screen glow
+        targetCtx.beginPath();
+        targetCtx.moveTo(item.x + item.width/2 - 8, item.y + 10);
+        targetCtx.lineTo(item.x + item.width/2 + 8, item.y + 10);
+        targetCtx.lineTo(item.x + item.width/2 + 12, item.y + 16);
+        targetCtx.lineTo(item.x + item.width/2 - 12, item.y + 16);
+        targetCtx.fill();
+    }
+    if (item.hasLamp) {
+        // Brass/Green executive banker's lamp
+        targetCtx.fillStyle = "#d4af37"; // Brass stand
+        targetCtx.fillRect(item.x + 20, item.y + 10, 8, 4); // base
+        targetCtx.fillRect(item.x + 23, item.y - 4, 2, 14); // pole
+        targetCtx.fillStyle = "#2e7d32"; // Green glass shade
+        targetCtx.beginPath();
+        targetCtx.arc(item.x + 24, item.y - 4, 12, Math.PI, 0); // half circle shade
+        targetCtx.fill();
+        targetCtx.fillStyle = "#fbc02d"; // Light glow
+        targetCtx.globalAlpha = 0.5;
+        targetCtx.beginPath();
+        targetCtx.moveTo(item.x + 12, item.y - 4);
+        targetCtx.lineTo(item.x + 36, item.y - 4);
+        targetCtx.lineTo(item.x + 46, item.y + 14);
+        targetCtx.lineTo(item.x + 2, item.y + 14);
+        targetCtx.fill();
+        targetCtx.globalAlpha = 1.0;
+    }
+}
+
+function drawPlant(item, targetCtx = ctx) {
+    const potColor = item.potColor || "#eceff1";
+    const potHeight = item.height * 0.4;
+    const potWidth = item.width * 0.8;
+    const potX = item.x + (item.width - potWidth) / 2;
+    const potY = item.y + item.height - potHeight;
+
+    // Shadow on floor
+    targetCtx.fillStyle = "rgba(0,0,0,0.3)";
+    targetCtx.beginPath();
+    targetCtx.ellipse(item.x + item.width / 2, item.y + item.height, potWidth / 2 + 4, 6, 0, 0, Math.PI * 2);
+    targetCtx.fill();
+
+    // Plant Leaves (Back layer)
+    targetCtx.fillStyle = "#1b5e20"; // Very dark green
+    targetCtx.beginPath();
+    targetCtx.ellipse(item.x + item.width/2 - 6, potY - 10, 8, item.height * 0.5, -0.2, 0, Math.PI*2);
+    targetCtx.ellipse(item.x + item.width/2 + 6, potY - 12, 10, item.height * 0.6, 0.3, 0, Math.PI*2);
+    targetCtx.fill();
+
+    // Pot Base/Body
+    targetCtx.fillStyle = potColor;
+    targetCtx.beginPath();
+    targetCtx.moveTo(potX + 4, item.y + item.height);
+    targetCtx.lineTo(potX + potWidth - 4, item.y + item.height);
+    targetCtx.lineTo(potX + potWidth, potY);
+    targetCtx.lineTo(potX, potY);
+    targetCtx.fill();
+
+    // Pot shading
+    targetCtx.fillStyle = "rgba(0,0,0,0.2)";
+    targetCtx.beginPath();
+    targetCtx.moveTo(potX + potWidth / 2, item.y + item.height);
+    targetCtx.lineTo(potX + potWidth - 4, item.y + item.height);
+    targetCtx.lineTo(potX + potWidth, potY);
+    targetCtx.lineTo(potX + potWidth / 2, potY);
+    targetCtx.fill();
+
+    // Pot Rim
+    targetCtx.fillStyle = potColor;
+    targetCtx.fillRect(potX - 2, potY - 4, potWidth + 4, 4);
+    targetCtx.fillStyle = "rgba(255,255,255,0.4)"; // rim highlight
+    targetCtx.fillRect(potX - 2, potY - 4, potWidth + 4, 1);
+    targetCtx.fillStyle = "rgba(0,0,0,0.1)"; // rim shadow
+    targetCtx.fillRect(potX - 2, potY, potWidth + 4, 1);
+
+    // Dirt inside pot
+    targetCtx.fillStyle = "#3e2723";
+    targetCtx.beginPath();
+    targetCtx.ellipse(item.x + item.width/2, potY - 4, potWidth/2, 3, 0, 0, Math.PI*2);
+    targetCtx.fill();
+
+    // Foreground Leaves
+    targetCtx.fillStyle = "#2e7d32";
+    targetCtx.beginPath();
+    targetCtx.ellipse(item.x + item.width/2 - 8, potY + 2, 8, item.height * 0.4, -0.5, 0, Math.PI*2);
+    targetCtx.ellipse(item.x + item.width/2 + 8, potY + 4, 7, item.height * 0.35, 0.6, 0, Math.PI*2);
+    targetCtx.fill();
+
+    targetCtx.fillStyle = "#43a047";
+    targetCtx.beginPath();
+    targetCtx.ellipse(item.x + item.width/2, potY, 9, item.height * 0.45, 0.1, 0, Math.PI*2);
+    targetCtx.fill();
+
+    // Leaf veins
+    targetCtx.strokeStyle = "#81c784";
+    targetCtx.lineWidth = 1;
+    targetCtx.beginPath();
+    targetCtx.moveTo(item.x + item.width/2, potY + 8);
+    targetCtx.lineTo(item.x + item.width/2 - 3, potY - item.height * 0.3);
+    targetCtx.stroke();
+    
+    // extra leaf
+    targetCtx.strokeStyle = "#66bb6a";
+    targetCtx.beginPath();
+    targetCtx.moveTo(item.x + item.width/2 - 6, potY + 4);
+    targetCtx.lineTo(item.x + item.width/2 - 12, potY - item.height * 0.2);
     targetCtx.stroke();
 }
 
@@ -1471,6 +2023,32 @@ function drawVent(item, targetCtx = ctx) {
     targetCtx.strokeRect(item.x, item.y, item.width, item.height);
 }
 
+function drawWallSwitch(item, targetCtx = ctx) {
+    const isOn = playData.worldState.secretRoomLightOn;
+    
+    // Wall plate
+    targetCtx.fillStyle = "#eceff1";
+    targetCtx.fillRect(item.x, item.y, item.width, item.height);
+    targetCtx.strokeStyle = "#b0bec5";
+    targetCtx.lineWidth = 1;
+    targetCtx.strokeRect(item.x, item.y, item.width, item.height);
+    
+    // Switch toggle
+    const switchW = 6;
+    const switchH = 10;
+    const switchX = item.x + (item.width - switchW) / 2;
+    const switchY = isOn ? item.y + 3 : item.y + item.height - switchH - 3;
+    
+    targetCtx.fillStyle = isOn ? "#66bb6a" : "#78909c";
+    targetCtx.fillRect(switchX, switchY, switchW, switchH);
+    
+    // Tiny indicator light
+    targetCtx.fillStyle = isOn ? "#ffeb3b" : "#37474f";
+    targetCtx.beginPath();
+    targetCtx.arc(item.x + item.width / 2, item.y + item.height / 2 + (isOn ? 6 : -6), 2, 0, Math.PI * 2);
+    targetCtx.fill();
+}
+
 function drawFurnitureItem(item, targetCtx = ctx) {
     if (item.type === 'zone') {
         if (isDeveloperMode) {
@@ -1517,6 +2095,11 @@ function drawFurnitureItem(item, targetCtx = ctx) {
     else if (item.type === 'rug') drawRug(item, targetCtx);
     else if (item.type === 'shelf') drawShelf(item, targetCtx);
     else if (item.type === 'whiteboard') drawWhiteboard(item, targetCtx);
+    else if (item.type === 'boss_desk') drawBossDesk(item, targetCtx);
+    else if (item.type === 'sofa') drawSofa(item, targetCtx);
+    else if (item.type === 'bookshelf') drawBookshelf(item, targetCtx);
+    else if (item.type === 'plant') drawPlant(item, targetCtx);
+    else if (item.type === 'wall_switch') drawWallSwitch(item, targetCtx);
     else {
         targetCtx.fillStyle = "#e91e63";
         targetCtx.fillRect(item.x, item.y, item.width, item.height);
@@ -1558,6 +2141,49 @@ function drawPlayer(x, y) {
       ctx.restore();
       return;
   }
+  
+  if (player.isCrawling) {
+      const isMoving = player.walkFrame !== 0;
+      const walkCycle = Math.sin(player.walkFrame);
+      const px = x;
+      const py = y - h/2; // Center horizontally
+      
+      ctx.translate(px, py);
+      ctx.rotate(-Math.PI / 2); // Rotate 90 degrees left
+      ctx.translate(-px, -py);
+      
+      const pxC = x - w/2;
+      const pyC = y - h + 8;
+      
+      // Draw upward-facing back sprite (crawling)
+      const elbowSwing = walkCycle * 4;
+      const kneeSwing = -walkCycle * 6; // Opposite to elbows
+      
+      // Hands/Elbows
+      ctx.fillStyle = skinColor;
+      ctx.fillRect(pxC - 2 + elbowSwing, pyC + 10, 4, 6);
+      ctx.fillRect(pxC + w - 2 - elbowSwing, pyC + 10, 4, 6);
+      
+      // Knees/Feet
+      ctx.fillStyle = pantsColor;
+      ctx.fillRect(pxC + 4, pyC + 26 + kneeSwing, 6, 12);
+      ctx.fillRect(pxC + w - 10, pyC + 26 - kneeSwing, 6, 12);
+      
+      // Shirt back
+      ctx.fillStyle = shirtColor;
+      ctx.fillRect(pxC, pyC + 12, w, 14);
+      ctx.fillStyle = stripeColor;
+      ctx.fillRect(pxC, pyC + 18, w, 4);
+      
+      // Head back
+      ctx.fillStyle = hairColor;
+      ctx.fillRect(pxC, pyC, w, 12);
+      ctx.fillRect(pxC + 2, pyC - 2, w - 4, 4);
+      
+      ctx.restore();
+      return;
+  }
+  
   const isMoving = player.walkFrame !== 0;
   const animOffset = Math.sin(player.walkFrame) * 5;
   const walkCycle = Math.sin(player.walkFrame);
@@ -1679,11 +2305,10 @@ function draw() {
       ctx.translate(sx, sy);
   }
 
-  // Zoom
-  if (camera.zoom && camera.zoom !== 1) {
-      ctx.translate(canvas.width/2, canvas.height/2);
-      ctx.scale(camera.zoom, camera.zoom);
-      ctx.translate(-canvas.width/2, -canvas.height/2);
+  // Zoom: use cutscene zoom during cutscenes, otherwise player zoom
+  const activeZoom = (cutscene && cutscene.active) ? camera.zoom : userZoom;
+  if (activeZoom && activeZoom !== 1) {
+      ctx.scale(activeZoom, activeZoom);
   }
 
   ctx.translate(-camera.x, -camera.y);
@@ -2056,11 +2681,119 @@ function startLectureCutscene(seat) {
     };
 }
 
+function startVentCrawlCutscene() {
+    cutscene = { active: true, focus: null };
+    
+    // Teleport to vent tunnel
+    loadLevel('vent_tunnel');
+    player.x = 1300;
+    player.y = 100;
+    player.isCrawling = true;
+    player.facing = 'left';
+    
+    cutscene.focus = player;
+
+    let phase = 'crawl';
+    let timer = 0;
+
+    cutscene.update = () => {
+        if (phase === 'crawl') {
+            player.walkFrame += 0.2; // faster animation for crawling
+            player.x -= 3; // crawl speed to the left
+            
+            // Reached end of tunnel
+            if (player.x <= 100) {
+                phase = 'fade_out';
+                timer = 0;
+            }
+            
+            // Ensure camera follows player tightly in tunnel
+            const camTargetX = player.x - canvas.width / 2;
+            const camTargetY = player.y - canvas.height / 2;
+            camera.x = Math.max(0, Math.min(camTargetX, room.width - canvas.width));
+            camera.y = Math.max(0, Math.min(camTargetY, room.height - canvas.height));
+            
+        } else if (phase === 'fade_out') {
+            timer++;
+            globalDarkness = Math.min(1.0, timer / 60); // Fade to black over 1 second
+            if (timer > 60) {
+                phase = 'teleport';
+            }
+        } else if (phase === 'teleport') {
+            // Load new secret room
+            loadLevel('secret_room');
+            // Force reset in case local storage was broken
+            room.furniture = JSON.parse(JSON.stringify(window.initialGameData.levels['secret_room'].furniture));
+            
+            player.x = 209 + 41; // middle of the vent
+            player.y = 150; // Safely below vent collision box
+            player.isCrawling = false; // Stand up
+            player.facing = 'down';
+            
+            playData.player.room = 'secret_room';
+            playData.player.x = player.x;
+            playData.player.y = player.y;
+            playData.player.facing = player.facing;
+            savePlayState();
+            
+            phase = 'fade_in';
+            timer = 0;
+            
+        } else if (phase === 'fade_in') {
+            timer++;
+            globalDarkness = Math.max(0, 1.0 - (timer / 60)); // Fade in over 1 second
+            
+            if (timer > 60) {
+                globalDarkness = 0;
+                phase = 'explode';
+            }
+        } else if (phase === 'explode') {
+            // Break the vent behind him
+            createExplosion(250, 64, "#7b8b94"); // Metal explosion
+            createExplosion(250, 64, "#455a64");
+            screenShake = 15;
+            
+            // Change vent interaction in this room to do nothing
+            const brokenVent = room.furniture.find(f => f.id === 'broken_vent_in');
+            if (brokenVent) {
+                 brokenVent.interaction = {
+                    enabled: true,
+                    type: 'sequence',
+                    conversations: [[{ speaker: 'LUKE', text: "macet... nggak bisa dilewati lagi." }]],
+                    area: { x: -10, y: -10, width: brokenVent.width + 20, height: brokenVent.height + 20 }
+                 };
+            }
+            
+            phase = 'dialogue';
+            timer = 0;
+            // Clear any lingering temporary dialogues that blocked movement
+            if (tempDialogueTimeout) {
+                clearTimeout(tempDialogueTimeout);
+                tempDialogueTimeout = null;
+                dialogueBox.classList.remove("dialogue--active");
+            }
+        } else if (phase === 'dialogue') {
+            showTemporaryDialogue("Sial... ventilasinya rusak, aku nggak bisa balik.", "LUKE");
+            phase = 'end';
+        } else if (phase === 'end') {
+            cutscene.active = false;
+            cutscene = null;
+        }
+    };
+}
+
 function updateHorrorState() {
     if (!playData.worldState.horrorActive) return;
 
-    // Ensure darkness
-    globalDarkness = 0.7;
+    // Don't override darkness during cutscenes (e.g. vent crawl fade)
+    if (cutscene && cutscene.active) return;
+
+    // Ensure darkness, except if in the secret room and the light is turned on
+    if (currentLevelName === 'secret_room' && playData.worldState.secretRoomLightOn) {
+        globalDarkness = 0.1;
+    } else {
+        globalDarkness = 0.7;
+    }
 
     // Students Logic
     room.furniture.forEach(item => {
@@ -2267,12 +3000,15 @@ function executeInteraction(target) {
 
         if (item.type === 'vent' && currentLevelName === 'principal_office') {
             officeTimer.active = false;
-            showTemporaryDialogue("Merangkak lewat ventilasi...", "LUKE");
-            loadLevel('lecture');
-            player.x = 462;
-            player.y = 700;
-            playData.player.x = player.x;
-            playData.player.y = player.y;
+            startVentCrawlCutscene();
+            return;
+        }
+
+        // Wall switch toggles secret room lights
+        if (item.type === 'wall_switch' && item.id === 'secret_room_light_switch') {
+            playData.worldState.secretRoomLightOn = !playData.worldState.secretRoomLightOn;
+            const msg = playData.worldState.secretRoomLightOn ? "Lampu dinyalakan." : "Lampu dimatikan.";
+            showTemporaryDialogue(msg, "LUKE");
             savePlayState();
             return;
         }
@@ -2379,6 +3115,102 @@ document.addEventListener("keyup", (event) => {
   const key = event.key.toLowerCase();
   keys.delete(key);
 });
+
+// ── Player Zoom Controls ──
+canvas.addEventListener("wheel", (e) => {
+    // Don't zoom during cutscenes, dev mode, or death
+    if (cutscene && cutscene.active) return;
+    if (isDeveloperMode) return;
+    if (deathSequence && deathSequence.active) return;
+    if (!isGameActive) return;
+
+    e.preventDefault();
+    if (e.deltaY < 0) {
+        // Scroll up = zoom in
+        userZoom = Math.min(USER_ZOOM_MAX, userZoom + USER_ZOOM_STEP);
+    } else {
+        // Scroll down = zoom out
+        userZoom = Math.max(USER_ZOOM_MIN, userZoom - USER_ZOOM_STEP);
+    }
+}, { passive: false });
+
+// Keyboard zoom: + and - keys
+document.addEventListener("keydown", (e) => {
+    if (cutscene && cutscene.active) return;
+    if (isDeveloperMode) return;
+    if (!isGameActive) return;
+    if (document.activeElement.tagName === 'INPUT') return;
+
+    if (e.key === '=' || e.key === '+') {
+        userZoom = Math.min(USER_ZOOM_MAX, userZoom + USER_ZOOM_STEP);
+    } else if (e.key === '-' || e.key === '_') {
+        userZoom = Math.max(USER_ZOOM_MIN, userZoom - USER_ZOOM_STEP);
+    }
+});
+
+// Create zoom buttons UI
+(function createZoomUI() {
+    const container = document.createElement("div");
+    container.id = "zoom-controls";
+    container.style.cssText = `
+        position: absolute; bottom: 80px; right: 16px; z-index: 900;
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        opacity: 0.7; transition: opacity 0.2s;
+        pointer-events: auto;
+    `;
+    container.addEventListener("mouseenter", () => container.style.opacity = "1");
+    container.addEventListener("mouseleave", () => container.style.opacity = "0.7");
+
+    const btnStyle = `
+        width: 36px; height: 36px; border: 2px solid rgba(255,255,255,0.3);
+        background: rgba(30,30,30,0.8); color: #fff; font-size: 20px;
+        cursor: pointer; border-radius: 6px; display: flex; align-items: center;
+        justify-content: center; font-family: 'VT323', monospace; user-select: none;
+    `;
+
+    const btnIn = document.createElement("button");
+    btnIn.textContent = "+";
+    btnIn.style.cssText = btnStyle;
+    btnIn.title = "Zoom In (scroll up / +)";
+    btnIn.onclick = (e) => {
+        e.stopPropagation();
+        if (cutscene && cutscene.active) return;
+        userZoom = Math.min(USER_ZOOM_MAX, userZoom + USER_ZOOM_STEP);
+    };
+
+    const label = document.createElement("div");
+    label.id = "zoom-label";
+    label.style.cssText = `
+        color: #ccc; font-size: 12px; font-family: 'VT323', monospace;
+        text-align: center; min-width: 36px;
+    `;
+    label.textContent = "1.0x";
+
+    const btnOut = document.createElement("button");
+    btnOut.textContent = "−";
+    btnOut.style.cssText = btnStyle;
+    btnOut.title = "Zoom Out (scroll down / -)";
+    btnOut.onclick = (e) => {
+        e.stopPropagation();
+        if (cutscene && cutscene.active) return;
+        userZoom = Math.max(USER_ZOOM_MIN, userZoom - USER_ZOOM_STEP);
+    };
+
+    container.appendChild(btnIn);
+    container.appendChild(label);
+    container.appendChild(btnOut);
+    document.body.appendChild(container);
+
+    // Update label periodically
+    setInterval(() => {
+        const lbl = document.getElementById("zoom-label");
+        if (lbl) lbl.textContent = userZoom.toFixed(1) + "x";
+        const ctrl = document.getElementById("zoom-controls");
+        if (ctrl) {
+            ctrl.style.display = (isGameActive && !isDeveloperMode) ? "flex" : "none";
+        }
+    }, 200);
+})();
 
 // Dev Mode Mouse Handling
 canvas.addEventListener("mousedown", (e) => {
@@ -3290,6 +4122,14 @@ async function loadExternalData() {
             if (data.levels && data.dialogue) {
                 normalizeGameData(data);
                 levels = data.levels;
+                // Merge any missing levels from initialGameData (e.g. newly added rooms)
+                const baseKeys = Object.keys(window.initialGameData.levels);
+                for (const key of baseKeys) {
+                    // Check if level is missing or structurally empty (no furniture)
+                    if (!levels[key] || (levels[key] && levels[key].furniture.length === 0 && window.initialGameData.levels[key].furniture.length > 0)) {
+                        levels[key] = JSON.parse(JSON.stringify(window.initialGameData.levels[key]));
+                    }
+                }
                 introDialogue = data.dialogue;
                 currentLevelName = Object.keys(levels)[0] || 'classroom';
                 loadLevel(currentLevelName);
