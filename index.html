@@ -15,15 +15,64 @@
       <h1>Helios</h1>
       <div class="start-menu">
         <button id="btn-play" class="btn">New Game</button>
-        <button id="btn-dev" class="btn">Developer Mode</button>
+        <button id="btn-dev" class="btn" style="display:none">Developer Mode</button>
       </div>
     </div>
     <canvas id="scene" width="680" height="520" aria-label="Room scene"></canvas>
+    
+    <!-- Help Screen -->
+    <div id="help-screen" class="hidden">
+       <h2>Controls</h2>
+       <ul>
+         <li><strong>W A S D</strong> / Arrows : Move</li>
+         <li><strong>Space</strong> : Interact</li>
+         <li><strong>E</strong> : Toggle Inventory</li>
+         <li><strong>1-4</strong> / Scroll : Select Item</li>
+         <li><strong>X</strong> : Use Active Item</li>
+         <li><strong>I</strong> : Toggle Help</li>
+       </ul>
+    </div>
+
+
+    <!-- First Person POV Container -->
+    <div id="pov-container" class="hidden">
+      <div class="pov-background"></div>
+      <div class="pov-cabinet">
+         <!-- Items inside the cabinet -->
+         <div id="pov-note" class="pov-item" title="Pick up Note">📝</div>
+         <div id="pov-key" class="pov-item" title="Pick up Door Key">🔑</div>
+      </div>
+      <button id="btn-close-pov" class="btn">Close Cabinet</button>
+    </div>
+
+    <!-- Note Reading Overlay -->
+    <div id="note-overlay" class="hidden">
+      <div class="note-paper">
+        <div class="note-content">
+          <p class="note-greeting">Luke,</p>
+          <p>I know you've been looking for <em>it</em>. Don't stop.</p>
+          <p>There are things deliberately hidden from you. But you're closer than you think.</p>
+          <p>We need to talk. <strong>Library, 2nd floor.</strong> Come alone.</p>
+          <p>Don't trust what's in plain sight. Pay attention to what's hidden.</p>
+          <p class="note-signature">— ???</p>
+        </div>
+        <button id="btn-close-note" class="btn-note-close">Close Letter</button>
+      </div>
+    </div>
+
     <div class="dialogue dialogue--hidden" id="dialogue">
       <div class="dialogue__label" id="dialogue-label"></div>
       <div class="dialogue__line" id="dialogue-line"></div>
       <div class="dialogue__prompt" id="dialogue-prompt">Click anywhere</div>
     </div>
+  </div>
+
+  <!-- Inventory HUD (outside frame) -->
+  <div id="inventory-hud" class="hidden">
+    <div class="inv-slot active" id="slot-0"></div>
+    <div class="inv-slot" id="slot-1"></div>
+    <div class="inv-slot" id="slot-2"></div>
+    <div class="inv-slot" id="slot-3"></div>
   </div>
 
   <div id="texture-editor" class="modal hidden">

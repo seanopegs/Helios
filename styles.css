@@ -410,3 +410,273 @@ body {
   color: var(--danger);
   transform: scale(1.1);
 }
+
+/* --- Help Screen --- */
+#help-screen {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(32, 32, 40, 0.95);
+  border: 4px solid var(--border-light);
+  padding: 30px 40px;
+  color: var(--text-main);
+  z-index: 150;
+  box-shadow: 0 0 30px rgba(0,0,0,0.8);
+  pointer-events: none; /* so click passes through if needed, or we just let it block */
+  text-align: center;
+}
+#help-screen.hidden {
+  display: none;
+}
+#help-screen h2 {
+  color: var(--accent);
+  margin-top: 0;
+  font-size: 32px;
+  border-bottom: 2px dashed var(--border-light);
+  padding-bottom: 10px;
+}
+#help-screen ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 20px;
+  text-align: left;
+}
+#help-screen li {
+  margin: 12px 0;
+}
+#help-screen strong {
+  color: #fff;
+}
+
+/* --- Inventory HUD --- */
+#inventory-hud {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1200;
+}
+#inventory-hud.hidden {
+  display: none;
+}
+.inv-slot {
+  width: 50px;
+  height: 50px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 3px solid var(--border-light);
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.1s;
+}
+.inv-slot.active {
+  border-color: var(--text-main);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5), inset 0 0 10px rgba(255,255,255,0.2);
+  transform: translateY(-4px);
+}
+.inv-slot::after {
+  /* Slot number indicator */
+  content: attr(data-slot);
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  background: var(--bg-panel);
+  border: 2px solid var(--border-light);
+  color: var(--text-muted);
+  font-size: 12px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.inv-slot.active::after {
+  color: #fff;
+  border-color: var(--text-main);
+}
+.inv-item {
+  width: 32px;
+  height: 32px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* --- POV Container --- */
+#pov-container {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.9);
+  z-index: 160;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+#pov-container.hidden {
+  display: none;
+}
+.pov-cabinet {
+  width: 400px;
+  height: 480px;
+  background: #3e2723; /* Wood color */
+  border: 10px solid #271412;
+  box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+  position: relative;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+/* Visual shelf line */
+.pov-cabinet::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 0;
+  width: 100%; height: 10px;
+  background: #271412;
+}
+
+/* Note Item inside POV */
+#pov-note {
+  width: 60px;
+  height: 80px;
+  background: #fff9c4; /* pale yellow paper */
+  position: absolute;
+  top: 20%;
+  left: 30%;
+  cursor: pointer;
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+  transform: rotate(-10deg);
+  transition: transform 0.2s, background 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 28px;
+  z-index: 2;
+}
+#pov-note:hover {
+  transform: rotate(0deg) scale(1.1);
+  background: #fff;
+  box-shadow: 0 0 15px rgba(255,255,255,0.6);
+}
+
+/* Key item inside POV */
+#pov-key {
+  width: 50px;
+  height: 50px;
+  background: #455a64;
+  border-radius: 8px;
+  position: absolute;
+  top: 60%;
+  left: 55%;
+  cursor: pointer;
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+  transform: rotate(15deg);
+  transition: transform 0.2s, background 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 24px;
+  z-index: 2;
+}
+#pov-key:hover {
+  transform: rotate(0deg) scale(1.1);
+  background: #607d8b;
+  box-shadow: 0 0 15px rgba(255,255,255,0.4);
+}
+
+.pov-item.picked-up {
+  display: none !important;
+}
+
+/* --- Note Reading Overlay --- */
+#note-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.85);
+  z-index: 2000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: fadeIn 0.4s ease;
+}
+#note-overlay.hidden {
+  display: none;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.note-paper {
+  width: 420px;
+  max-width: 90vw;
+  background: linear-gradient(135deg, #fdf6e3 0%, #f5e6c8 50%, #ede0c8 100%);
+  border: 2px solid #c4a882;
+  border-radius: 4px;
+  padding: 40px 36px 30px;
+  box-shadow:
+    0 8px 40px rgba(0,0,0,0.5),
+    inset 0 0 60px rgba(139,109,73,0.1);
+  position: relative;
+  transform: rotate(-1deg);
+}
+.note-paper::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    transparent,
+    transparent 27px,
+    rgba(100,100,180,0.08) 27px,
+    rgba(100,100,180,0.08) 28px
+  );
+  pointer-events: none;
+}
+.note-content {
+  font-family: 'Segoe Script', 'Dancing Script', 'Brush Script MT', cursive;
+  font-size: 17px;
+  color: #2c1810;
+  line-height: 1.8;
+}
+.note-content p {
+  margin: 12px 0;
+}
+.note-greeting {
+  font-size: 20px;
+  font-weight: bold;
+  color: #1a120d;
+}
+.note-content strong {
+  color: #8b0000;
+  text-decoration: underline;
+}
+.note-signature {
+  text-align: right;
+  font-size: 22px;
+  color: #5c3a1e;
+  margin-top: 24px;
+  font-style: italic;
+}
+.btn-note-close {
+  display: block;
+  margin: 20px auto 0;
+  padding: 8px 24px;
+  background: #5c3a1e;
+  color: #fdf6e3;
+  border: 2px solid #3e2512;
+  border-radius: 4px;
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-note-close:hover {
+  background: #8b5e3c;
+}

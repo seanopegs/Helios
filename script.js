@@ -15,12 +15,15 @@ let isGameActive = false;
 let playData = {
     player: { x: 0, y: 0, room: 'classroom', facing: 'down' },
     worldState: {},
-    inventory: [],
+    inventory: [null, null, { id: 'cabinet_key', name: 'Cabinet Key', icon: '🔑' }, null],
+    activeSlot: 0,
+    povActive: false,
     introSeen: false
 };
 
 let stage = 0;
 let isHintActive = false;
+let isInventoryOpen = false;
 const keys = new Set();
 const camera = { x: 0, y: 0, zoom: 1 };
 let userZoom = 1;
@@ -517,7 +520,7 @@ const principalOfficeHorrorFurniture = [
             priority: 7,
             conversations: [
                 [
-                    { speaker: 'LUKE', text: 'Vent! ini satu-satunya jalan keluar...' }
+                    { speaker: 'LUKE', text: 'A vent! This is the only way out...' }
                 ]
             ],
             area: { x: -14, y: -8, width: 112, height: 68 }
@@ -740,12 +743,12 @@ function resetToLectureCheckpoint() {
     playData.player.facing = player.facing;
     savePlayState();
 
-    showTemporaryDialogue("Kamu tewas. Ulang dari sebelum duduk di kelas!", "SYSTEM");
+    showTemporaryDialogue("You died. Restarting from before the lecture!", "SYSTEM");
 }
 
 function normalizeGameData(data) {
     if (!data.levels) return;
-    Object.values(data.levels).forEach(level => {
+    Object.entries(data.levels).forEach(([levelName, level]) => {
         if (level.doors) {
             level.doors.forEach(door => {
                 if (door.priority === undefined) door.priority = 1;
@@ -753,6 +756,21 @@ function normalizeGameData(data) {
         }
         if (!level.furniture) return;
         level.furniture.forEach(item => {
+            // --- Always ensure left_cabinet is correctly identified and given an interaction ---
+            // Match by id OR by being the left cupboard in classroom (handles stale localStorage)
+            const isLeftCabinet = item.id === 'left_cabinet' ||
+                (levelName === 'classroom' && item.type === 'cupboard' && item.x <= 50 && item.y <= 60);
+            if (isLeftCabinet) {
+                item.id = 'left_cabinet'; // Ensure id is set
+                item.interaction = { enabled: true, type: 'sequence', priority: 5, conversations: [[{ speaker: 'LUKE', text: '...' }]], area: { x: -10, y: -10, width: 80, height: 110 } };
+            }
+            // Right cabinet: show "locked"
+            const isRightCabinet = item.id === 'right_cabinet' ||
+                (levelName === 'classroom' && item.type === 'cupboard' && item.x >= 550 && item.y <= 60);
+            if (isRightCabinet) {
+                item.id = 'right_cabinet';
+                item.interaction = { enabled: true, type: 'sequence', priority: 5, conversations: [[{ speaker: 'LUKE', text: 'This cabinet is locked shut... I can\'t open it.' }]], area: { x: -10, y: -10, width: 80, height: 110 } };
+            }
             if (!item.interaction) {
                  if (item.type === 'student' && item.text) {
                      item.interaction = {
@@ -907,7 +925,7 @@ function checkCollision(x, y) {
 
   for (const item of room.furniture) {
     const hasCustom = !!item.collisionRect;
-    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone' || item.type === 'student' || item.type === 'teacher' || item.type === 'wall_switch')) continue;
+    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone' || item.type === 'wall_switch')) continue;
 
     let dLeft, dTop, dWidth, dHeight;
 
@@ -2407,10 +2425,10 @@ function drawDeathSequence() {
     ctx.fillStyle = "#ffeb3b";
     ctx.font = "24px 'VT323', monospace";
     ctx.textAlign = "center";
-    ctx.fillText("KAMU DIMAKAN...", canvas.width / 2, 50);
+    ctx.fillText("YOU WERE DEVOURED...", canvas.width / 2, 50);
     ctx.font = "16px 'VT323', monospace";
     ctx.fillStyle = "#fff";
-    const reason = deathSequence.reason === 'timer' ? 'Waktu habis.' : 'Keluar dari kantor principal = mati.';
+    const reason = deathSequence.reason === 'timer' ? 'Time\'s up.' : 'Leaving the principal\'s office = death.';
     ctx.fillText(reason, canvas.width / 2, 72);
     ctx.restore();
 }
@@ -2508,19 +2526,49 @@ function drawHints() {
     ctx.fillStyle = "#9e9e9e";
     ctx.fillText("W A S D", canvas.width - 60, canvas.height - 40);
   }
+
+  // Persistent "Press I for Help" hint in top-right corner
+  ctx.textAlign = "right";
+  ctx.font = "14px 'VT323', 'Courier New', monospace";
+  ctx.fillStyle = "rgba(255,255,255,0.45)";
+  ctx.fillText("Press I for Help", canvas.width - 12, 18);
+
   ctx.restore();
   let showingHint = false;
-  const nearbyDoor = getNearestDoor(56);
-  if (nearbyDoor) {
-      showingHint = true;
-      if (!isHintActive) {
-         dialogueBox.classList.remove("dialogue--hidden");
-         dialogueBox.classList.add("dialogue--active");
-         const promptText = nearbyDoor.prompt || "to open";
-         dialogueLine.textContent = `Press [SPACE] ${promptText}`;
-         dialogueLabel.classList.add("dialogue__label--hidden");
-         dialoguePrompt.textContent = "";
-         isHintActive = true;
+
+  // Check for nearby cabinets (proximity hint like doors)
+  const cabinets = room.furniture.filter(f => f.id === 'left_cabinet' || f.id === 'right_cabinet');
+  for (const cabinet of cabinets) {
+      const cabCX = cabinet.x + cabinet.width / 2;
+      const cabCY = cabinet.y + cabinet.height / 2;
+      const cabDist = Math.hypot(player.x - cabCX, player.y - cabCY);
+      if (cabDist < 100) {
+          showingHint = true;
+          if (!isHintActive) {
+             dialogueBox.classList.remove("dialogue--hidden");
+             dialogueBox.classList.add("dialogue--active");
+             dialogueLine.textContent = `Press [SPACE] to open locker`;
+             dialogueLabel.classList.add("dialogue__label--hidden");
+             dialoguePrompt.textContent = "";
+             isHintActive = true;
+          }
+          break;
+      }
+  }
+
+  if (!showingHint) {
+      const nearbyDoor = getNearestDoor(56);
+      if (nearbyDoor) {
+          showingHint = true;
+          if (!isHintActive) {
+             dialogueBox.classList.remove("dialogue--hidden");
+             dialogueBox.classList.add("dialogue--active");
+             const promptText = nearbyDoor.prompt || "to open";
+             dialogueLine.textContent = `Press [SPACE] ${promptText}`;
+             dialogueLabel.classList.add("dialogue__label--hidden");
+             dialoguePrompt.textContent = "";
+             isHintActive = true;
+          }
       }
   }
   if (!showingHint && isHintActive) {
@@ -2541,11 +2589,29 @@ function updateOfficeTimer() {
 
     if (officeTimer.framesLeft <= 10 * 60) {
         if (!officeTimer.flashed) {
-            showTemporaryDialogue("Cepat! waktu hampir habis!", "SYSTEM");
+            showTemporaryDialogue("Hurry! Time is almost up!", "SYSTEM");
             officeTimer.flashed = true;
         }
         screenShake = Math.max(screenShake, 1.5);
     }
+}
+
+function updateNPCs() {
+    if (playData.worldState.horrorActive) return; // Horror state handles its own chaotic NPC logic
+    if (cutscene && cutscene.active) return; // Don't interrupt cutscenes
+
+    room.furniture.forEach(item => {
+        if (item.type !== 'student' && item.type !== 'teacher') return;
+
+        // Ensure no wandering
+        item.walkFrame = 0;
+        item.vx = 0;
+        item.vy = 0;
+
+        // Background breathing phase
+        if (item.phase === undefined) item.phase = Math.random() * Math.PI * 2;
+        item.phase += 0.03;
+    });
 }
 
 function loop() {
@@ -2555,6 +2621,7 @@ function loop() {
   updateOfficeTimer();
   updateDeathSequence();
   updateHorrorState();
+  updateNPCs();
   updateParticles();
   handleMovement();
   draw();
@@ -2753,13 +2820,16 @@ function startVentCrawlCutscene() {
             createExplosion(250, 64, "#455a64");
             screenShake = 15;
             
+            // Switch out of horror music
+            playSoundtrack('normal');
+
             // Change vent interaction in this room to do nothing
             const brokenVent = room.furniture.find(f => f.id === 'broken_vent_in');
             if (brokenVent) {
                  brokenVent.interaction = {
                     enabled: true,
                     type: 'sequence',
-                    conversations: [[{ speaker: 'LUKE', text: "macet... nggak bisa dilewati lagi." }]],
+                    conversations: [[{ speaker: 'LUKE', text: "It's jammed... can't get through anymore." }]],
                     area: { x: -10, y: -10, width: brokenVent.width + 20, height: brokenVent.height + 20 }
                  };
             }
@@ -2773,7 +2843,7 @@ function startVentCrawlCutscene() {
                 dialogueBox.classList.remove("dialogue--active");
             }
         } else if (phase === 'dialogue') {
-            showTemporaryDialogue("Sial... ventilasinya rusak, aku nggak bisa balik.", "LUKE");
+            showTemporaryDialogue("Damn... the vent is broken, I can't go back.", "LUKE");
             phase = 'end';
         } else if (phase === 'end') {
             cutscene.active = false;
@@ -2900,6 +2970,7 @@ function handleInteraction() {
              const iy = item.y + area.y;
              if (player.x >= ix && player.x <= ix + area.width &&
                  player.y >= iy && player.y <= iy + area.height) {
+                 if (playData.worldState.horrorActive && (item.type === 'student' || item.type === 'teacher')) continue;
                  candidates.push({
                      type: 'furniture',
                      obj: item,
@@ -2913,6 +2984,7 @@ function handleInteraction() {
              const anchorY = item.y + item.height;
              const dist = Math.hypot(player.x - anchorX, player.y - anchorY);
              if (dist < 40) {
+                 if (playData.worldState.horrorActive && (item.type === 'student' || item.type === 'teacher')) continue;
                  candidates.push({
                      type: 'legacy_text',
                      obj: item,
@@ -2920,6 +2992,22 @@ function handleInteraction() {
                  });
              }
          }
+    }
+
+    // Check for nearby cabinets by proximity (reliable, like desks)
+    const nearbyCabinets = room.furniture.filter(f => f.id === 'left_cabinet' || f.id === 'right_cabinet');
+    for (const cab of nearbyCabinets) {
+        const cabCX = cab.x + cab.width / 2;
+        const cabCY = cab.y + cab.height / 2;
+        const cabDist = Math.hypot(player.x - cabCX, player.y - cabCY);
+        if (cabDist < 100) {
+            candidates.push({
+                type: 'furniture',
+                obj: cab,
+                index: room.furniture.indexOf(cab),
+                priority: 10
+            });
+        }
     }
 
     const desks = room.furniture.filter(f => f.type === 'desk');
@@ -2976,6 +3064,22 @@ function executeInteraction(target) {
     if (target.type === 'door') {
         const door = target.obj;
 
+        // Locked classroom door
+        if (currentLevelName === 'classroom' && door.id === 'door_class_to_hall' && !playData.worldState.classroomDoorUnlocked) {
+            // Check if holding door_key
+            const activeItem = isInventoryOpen && playData.inventory[playData.activeSlot];
+            if (activeItem && activeItem.id === 'door_key') {
+                playData.worldState.classroomDoorUnlocked = true;
+                playData.inventory[playData.activeSlot] = null;
+                updateInventoryUI();
+                showTemporaryDialogue("The door is now unlocked!", "LUKE");
+                savePlayState();
+                return;
+            }
+            showTemporaryDialogue("The door is locked. I need a key to open it.", "LUKE");
+            return;
+        }
+
         if (currentLevelName === 'principal_office' && playData.worldState.horrorActive && door.id === 'door_principal_to_hallway') {
             triggerDeath('door_exit');
             return;
@@ -3007,10 +3111,32 @@ function executeInteraction(target) {
         // Wall switch toggles secret room lights
         if (item.type === 'wall_switch' && item.id === 'secret_room_light_switch') {
             playData.worldState.secretRoomLightOn = !playData.worldState.secretRoomLightOn;
-            const msg = playData.worldState.secretRoomLightOn ? "Lampu dinyalakan." : "Lampu dimatikan.";
+            const msg = playData.worldState.secretRoomLightOn ? "Light turned on." : "Light turned off.";
             showTemporaryDialogue(msg, "LUKE");
             savePlayState();
             return;
+        }
+
+        // --- POV Cabinet Logic ---
+        const isKeySelected = isInventoryOpen && playData.inventory[playData.activeSlot] && playData.inventory[playData.activeSlot].id === 'cabinet_key';
+
+        if (item.id === 'left_cabinet') {
+             if (isKeySelected) {
+                  // Trigger open POV
+                  playData.povActive = true;
+                  document.getElementById('pov-container').classList.remove('hidden');
+                  // Move key out of inventory if consumed? Let's leave it or remove it.
+                  playData.inventory[playData.activeSlot] = null;
+                  updateInventoryUI();
+                  return;
+             } else {
+                  showTemporaryDialogue("It's locked.", "LUKE");
+                  return;
+             }
+        } else if (isKeySelected && (item.type === 'cupboard' || item.type === 'locker' || item.type === 'chest' || item.type === 'door')) {
+             // Tried to use key on wrong storage/door
+             showTemporaryDialogue("This key doesn't fit.", "LUKE");
+             return;
         }
 
         const interaction = item.interaction;
@@ -3072,8 +3198,102 @@ function executeInteraction(target) {
 
 let clipboard = null;
 
+// ── Inventory HUD Positioning ──
+function positionInventoryHUD() {
+    const hud = document.getElementById('inventory-hud');
+    const frame = document.querySelector('.frame');
+    if (!hud || !frame) return;
+    const frameRect = frame.getBoundingClientRect();
+    hud.style.left = (frameRect.left - 70) + 'px'; // 70px = slot width + gap
+}
+window.addEventListener('resize', positionInventoryHUD);
+positionInventoryHUD();
+
+// ── Help and Inventory UI Updaters ──
+function toggleHelpScreen() {
+    const helpScreen = document.getElementById('help-screen');
+    if (helpScreen) helpScreen.classList.toggle('hidden');
+}
+
+function updateInventoryUI() {
+    const hud = document.getElementById('inventory-hud');
+    if (!hud) return;
+
+    if (isInventoryOpen) {
+        hud.classList.remove('hidden');
+    } else {
+        hud.classList.add('hidden');
+        return; // Don't need to update DOM if hidden
+    }
+
+    for (let i = 0; i < 4; i++) {
+        const slotEl = document.getElementById(`slot-${i}`);
+        if (!slotEl) continue;
+
+        // Active State
+        if (i === playData.activeSlot) {
+            slotEl.classList.add('active');
+        } else {
+            slotEl.classList.remove('active');
+        }
+
+        // Item Icon
+        const item = playData.inventory[i];
+        slotEl.innerHTML = ''; // Clear
+        slotEl.setAttribute('data-slot', i + 1);
+
+        if (item) {
+            const iconEl = document.createElement('div');
+            iconEl.className = 'inv-item';
+            // Placeholder: Use text emoji if provided, else just style
+            if (item.icon) {
+                iconEl.textContent = item.icon;
+                iconEl.style.fontSize = '24px';
+                iconEl.style.textAlign = 'center';
+                iconEl.style.lineHeight = '32px';
+            }
+            iconEl.title = item.name;
+            slotEl.appendChild(iconEl);
+        }
+    }
+}
+
 document.addEventListener("keydown", (event) => {
+  if (playData.povActive && event.key === "Escape") {
+      playData.povActive = false;
+      document.getElementById('pov-container').classList.add('hidden');
+      return;
+  }
+  
+  if (playData.povActive) return; // Disable movement/interaction in POV
+
   const key = event.key.toLowerCase();
+  
+  // UI Toggles
+  if (key === 'i' && document.activeElement.tagName !== 'INPUT') {
+      toggleHelpScreen();
+      return;
+  }
+  if (key === 'e' && document.activeElement.tagName !== 'INPUT') {
+      isInventoryOpen = !isInventoryOpen;
+      updateInventoryUI();
+      positionInventoryHUD();
+      return;
+  }
+  
+  // Inventory Slots (1-4)
+  if (['1', '2', '3', '4'].includes(key) && isInventoryOpen && document.activeElement.tagName !== 'INPUT') {
+      playData.activeSlot = parseInt(key) - 1;
+      updateInventoryUI();
+      return;
+  }
+
+  // X Key: Use Active Item
+  if (key === 'x' && document.activeElement.tagName !== 'INPUT') {
+      useActiveItem();
+      return;
+  }
+
   if (isDeveloperMode && (event.ctrlKey || event.metaKey)) {
       if (key === 'c' && selectedObject) {
           clipboard = JSON.parse(JSON.stringify(selectedObject));
@@ -3116,13 +3336,26 @@ document.addEventListener("keyup", (event) => {
   keys.delete(key);
 });
 
-// ── Player Zoom Controls ──
+// ── Player Zoom & Inventory Scroll Controls ──
 canvas.addEventListener("wheel", (e) => {
+    // Inventory scrolling
+    if (isInventoryOpen) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+            playData.activeSlot = (playData.activeSlot - 1 + 4) % 4; // Scroll up -> previous slot
+        } else {
+            playData.activeSlot = (playData.activeSlot + 1) % 4; // Scroll down -> next slot
+        }
+        updateInventoryUI();
+        return;
+    }
+
     // Don't zoom during cutscenes, dev mode, or death
     if (cutscene && cutscene.active) return;
     if (isDeveloperMode) return;
     if (deathSequence && deathSequence.active) return;
     if (!isGameActive) return;
+    if (playData.povActive) return;
 
     e.preventDefault();
     if (e.deltaY < 0) {
@@ -3147,6 +3380,82 @@ document.addEventListener("keydown", (e) => {
         userZoom = Math.max(USER_ZOOM_MIN, userZoom - USER_ZOOM_STEP);
     }
 });
+
+// ── POV Interactions ──
+(function setupPOV() {
+    const povNote = document.getElementById('pov-note');
+    const povKey = document.getElementById('pov-key');
+    const closeBtn = document.getElementById('btn-close-pov');
+    const noteOverlay = document.getElementById('note-overlay');
+    const closeNote = document.getElementById('btn-close-note');
+
+    // Close POV button
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            playData.povActive = false;
+            document.getElementById('pov-container').classList.add('hidden');
+        });
+    }
+
+    // Pick up Note
+    if (povNote) {
+        povNote.addEventListener('click', () => {
+            const emptySlot = playData.inventory.findIndex(s => s === null);
+            if (emptySlot !== -1) {
+                playData.inventory[emptySlot] = { id: 'secret_note', name: 'Mysterious Letter', icon: '📝' };
+                updateInventoryUI();
+                povNote.classList.add('picked-up');
+                showTemporaryDialogue("Obtained Mysterious Letter.", "SYSTEM");
+                savePlayState();
+            } else {
+                showTemporaryDialogue("Inventory Full!", "SYSTEM");
+            }
+        });
+    }
+
+    // Pick up Door Key
+    if (povKey) {
+        povKey.addEventListener('click', () => {
+            const emptySlot = playData.inventory.findIndex(s => s === null);
+            if (emptySlot !== -1) {
+                playData.inventory[emptySlot] = { id: 'door_key', name: 'Door Key', icon: '🗝️' };
+                updateInventoryUI();
+                povKey.classList.add('picked-up');
+                showTemporaryDialogue("Obtained Door Key.", "SYSTEM");
+                savePlayState();
+            } else {
+                showTemporaryDialogue("Inventory Penuh!", "SYSTEM");
+            }
+        });
+    }
+
+    // Close Note Overlay
+    if (closeNote) {
+        closeNote.addEventListener('click', () => {
+            noteOverlay.classList.add('hidden');
+        });
+    }
+})();
+
+// ── X Key: Use Active Item (for reading/inspecting only) ──
+function useActiveItem() {
+    if (!isInventoryOpen) {
+        showTemporaryDialogue("Open inventory first! (press E)", "SYSTEM");
+        return;
+    }
+    const item = playData.inventory[playData.activeSlot];
+    if (!item) {
+        showTemporaryDialogue("Empty slot.", "SYSTEM");
+        return;
+    }
+
+    if (item.id === 'secret_note') {
+        document.getElementById('note-overlay').classList.remove('hidden');
+        return;
+    }
+
+    showTemporaryDialogue("I can't use this directly.", "LUKE");
+}
 
 // Create zoom buttons UI
 (function createZoomUI() {
@@ -4124,9 +4433,11 @@ async function loadExternalData() {
                 levels = data.levels;
                 // Merge any missing levels from initialGameData (e.g. newly added rooms)
                 const baseKeys = Object.keys(window.initialGameData.levels);
+                // Always force-refresh classroom to ensure left_cabinet id
+                const forceRefresh = ['classroom'];
                 for (const key of baseKeys) {
                     // Check if level is missing or structurally empty (no furniture)
-                    if (!levels[key] || (levels[key] && levels[key].furniture.length === 0 && window.initialGameData.levels[key].furniture.length > 0)) {
+                    if (forceRefresh.includes(key) || !levels[key] || (levels[key] && levels[key].furniture.length === 0 && window.initialGameData.levels[key].furniture.length > 0)) {
                         levels[key] = JSON.parse(JSON.stringify(window.initialGameData.levels[key]));
                     }
                 }
@@ -4178,6 +4489,32 @@ if (hasSaveData) {
     startMenu.insertBefore(btnContinue, startMenu.firstChild);
 }
 
+// Hidden Dev Mode: type Ctrl + D E V E to reveal
+(function() {
+    const secret = ['d', 'e', 'v', 'e'];
+    let buffer = [];
+    let resetTimer = null;
+    document.addEventListener('keydown', (e) => {
+        if (!e.ctrlKey) return;
+        // Only on start screen
+        const startScreen = document.getElementById('start-screen');
+        if (!startScreen || startScreen.style.display === 'none') return;
+
+        e.preventDefault();
+        buffer.push(e.key.toLowerCase());
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => { buffer = []; }, 2000);
+
+        if (buffer.length >= secret.length) {
+            const last4 = buffer.slice(-4);
+            if (last4.join('') === secret.join('')) {
+                document.getElementById('btn-dev').style.display = '';
+                buffer = [];
+            }
+        }
+    });
+})();
+
 document.getElementById("btn-play").addEventListener("click", () => {
   isDeveloperMode = false;
   deathSequence = null;
@@ -4189,7 +4526,9 @@ document.getElementById("btn-play").addEventListener("click", () => {
   playData = {
       player: { x: 0, y: 0, room: Object.keys(levels)[0] || 'classroom', facing: 'down' },
       worldState: {},
-      inventory: [],
+      inventory: [null, null, { id: 'cabinet_key', name: 'Cabinet Key', icon: '🔑' }, null],
+      activeSlot: 0,
+      povActive: false,
       introSeen: false
   };
   savePlayState();
@@ -4246,6 +4585,7 @@ function loadPlayState() {
                 player.y = playData.player.y;
                 player.facing = playData.player.facing;
             }
+            if (typeof updateInventoryUI === 'function') updateInventoryUI();
         }
     } catch (e) { console.error(e); }
 }
