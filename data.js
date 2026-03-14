@@ -215,12 +215,12 @@ window.initialGameData = {
     },
     vent_tunnel: {
       width: 1400,
-      height: 200,
+      height: 520,
       wallHeight: 0,
       padding: 0,
       theme: 'office',
       doors: [],
-      spawn: { x: 1300, y: 100 },
+      spawn: { x: 1300, y: 260 },
       furniture: []
     },
     secret_room: {
@@ -232,14 +232,14 @@ window.initialGameData = {
       doors: [],
       spawn: { x: 250, y: 320 },
       furniture: [
-        { type: 'vent', id: 'broken_vent_in', x: 209, y: 64, width: 82, height: 46 },
-        { type: 'debris', x: 224, y: 160, width: 52, height: 24 },
+        { type: 'vent', id: 'broken_vent_in', x: 188, y: 34, width: 58, height: 30 },
+        { type: 'debris', x: 198, y: 132, width: 38, height: 18 },
         { 
             type: 'wall_switch', 
             id: 'secret_room_light_switch', 
-            x: 380, 
-            y: 64, 
-            width: 16, 
+            x: 360, 
+            y: 38, 
+            width: 14, 
             height: 24,
             interaction: {
                 enabled: true,
@@ -248,7 +248,7 @@ window.initialGameData = {
                 conversations: [
                     [{ speaker: 'LUKE', text: '*klik*' }]
                 ],
-                area: { x: -20, y: -10, width: 56, height: 80 }
+                area: { x: -36, y: -12, width: 92, height: 110 }
             }
         }
       ]

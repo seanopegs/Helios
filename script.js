@@ -1028,37 +1028,105 @@ function handleMovement() {
 }
 
 function drawRoom() {
+  if (currentLevelName === 'vent_tunnel') {
+    const shaftHeight = 72;
+    const shaftTop = Math.round((room.height - shaftHeight) / 2);
+    const shaftBottom = shaftTop + shaftHeight;
+
+    ctx.fillStyle = "#050505";
+    ctx.fillRect(0, 0, room.width, room.height);
+
+    ctx.fillStyle = "#2f3c44";
+    ctx.fillRect(0, shaftTop, room.width, shaftHeight);
+
+    ctx.fillStyle = "#1b2328";
+    ctx.fillRect(0, shaftTop, room.width, 8);
+    ctx.fillRect(0, shaftBottom - 8, room.width, 8);
+
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    for (let x = 0; x < room.width; x += 44) {
+      ctx.fillRect(x, shaftTop + 10, 2, shaftHeight - 20);
+    }
+    for (let y = shaftTop + 14; y < shaftBottom - 10; y += 14) {
+      ctx.fillRect(0, y, room.width, 2);
+    }
+
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.fillRect(0, shaftTop + 8, room.width, 8);
+    ctx.fillRect(0, shaftBottom - 16, room.width, 8);
+    return;
+  }
+
   const themes = {
-    hall: { wall: "#3f5765", floor: "#cfd8dc", baseboard: "#1c262f", detail: "#b0bec5", pattern: 64, vertical: true },
-    dorm: { wall: "#8d6e63", floor: "#3e2723", baseboard: "#281915", detail: "rgba(0,0,0,0.2)", pattern: 32, vertical: true },
-    classroom: { wall: "#2c3e50", floor: "#e9e4d5", baseboard: "#1f2d3a", detail: "rgba(0,0,0,0.12)", pattern: 54, vertical: true },
-    office_clean: { wall: "#8c6f64", floor: "#7b5d52", baseboard: "#5c433c", detail: "rgba(255,255,255,0.08)", pattern: 48, vertical: true },
-    office: { wall: "#5d463f", floor: "#2a1f1c", baseboard: "#1a1412", detail: "rgba(255,255,255,0.06)", pattern: 26, vertical: true }
+    hall: { wall: "#3f5765", wallTop: "#576d79", floor: "#cfd8dc", floorAlt: "#bcc8cc", baseboard: "#1c262f", detail: "#b0bec5", pattern: 64, vertical: true, floorMode: 'tile' },
+    dorm: { wall: "#8d6e63", wallTop: "#a78577", floor: "#4a2e24", floorAlt: "#6b4330", baseboard: "#281915", detail: "rgba(0,0,0,0.18)", pattern: 32, vertical: true, floorMode: 'wood' },
+    classroom: { wall: "#6f707f", wallTop: "#8f90a0", floor: "#5e3b2d", floorAlt: "#7a4b39", baseboard: "#2a1712", detail: "rgba(255,255,255,0.08)", pattern: 46, vertical: true, floorMode: 'wood' },
+    office_clean: { wall: "#8c6f64", wallTop: "#ab8c7f", floor: "#5a372b", floorAlt: "#744839", baseboard: "#5c433c", detail: "rgba(255,255,255,0.08)", pattern: 42, vertical: true, floorMode: 'wood' },
+    office: { wall: "#5d463f", wallTop: "#7c5d53", floor: "#35211a", floorAlt: "#4a2d24", baseboard: "#1a1412", detail: "rgba(255,255,255,0.05)", pattern: 26, vertical: true, floorMode: 'wood' }
   };
   const themeName = currentLevelName === 'principal_office' && !playData.worldState.horrorActive ? 'office_clean' : (room.theme || 'dorm');
   const palette = themes[themeName] || themes.dorm;
 
-  ctx.fillStyle = palette.wall;
+  const wallGradient = ctx.createLinearGradient(0, 0, 0, room.wallHeight);
+  wallGradient.addColorStop(0, palette.wallTop || palette.wall);
+  wallGradient.addColorStop(0.65, palette.wall);
+  wallGradient.addColorStop(1, palette.wall);
+  ctx.fillStyle = wallGradient;
   ctx.fillRect(0, 0, room.width, room.wallHeight);
 
-  if (themeName === 'dorm') {
-     ctx.fillStyle = "rgba(0,0,0,0.1)";
-     for(let i=0; i<room.width; i+=24) {
-         ctx.fillRect(i, 0, 1, room.wallHeight);
-     }
+  ctx.save();
+  ctx.fillStyle = "rgba(255,255,255,0.06)";
+  for (let i = room.padding; i < room.width - room.padding; i += 30) {
+      ctx.fillRect(i, 0, 1, room.wallHeight - 10);
   }
+  ctx.fillStyle = "rgba(0,0,0,0.14)";
+  for (let i = room.padding + 14; i < room.width - room.padding; i += 30) {
+      ctx.fillRect(i, 0, 1, room.wallHeight - 4);
+  }
+  ctx.restore();
 
-  ctx.fillStyle = palette.floor;
+  const floorGradient = ctx.createLinearGradient(0, room.wallHeight, 0, room.height);
+  floorGradient.addColorStop(0, palette.floorAlt || palette.floor);
+  floorGradient.addColorStop(0.22, palette.floor);
+  floorGradient.addColorStop(1, "#1a120f");
+  ctx.fillStyle = floorGradient;
   ctx.fillRect(0, room.wallHeight, room.width, room.height - room.wallHeight);
 
   ctx.save();
-  ctx.fillStyle = palette.detail;
-  for (let i = room.wallHeight; i < room.height; i += palette.pattern) {
-    ctx.fillRect(0, i, room.width, 2);
-  }
-  if (palette.vertical) {
-    for (let i = 0; i < room.width; i += palette.pattern) {
-      ctx.fillRect(i, room.wallHeight, 2, room.height - room.wallHeight);
+  if (palette.floorMode === 'wood') {
+    const plankHeight = themeName === 'classroom' ? 28 : 24;
+    for (let y = room.wallHeight; y < room.height; y += plankHeight) {
+        const plankColor = ((Math.floor((y - room.wallHeight) / plankHeight) % 2) === 0) ? palette.floorAlt : palette.floor;
+        ctx.fillStyle = plankColor;
+        ctx.fillRect(room.padding, y, room.width - room.padding * 2, plankHeight - 2);
+        ctx.fillStyle = "rgba(255,255,255,0.06)";
+        ctx.fillRect(room.padding, y + 1, room.width - room.padding * 2, 1);
+        ctx.fillStyle = "rgba(0,0,0,0.2)";
+        ctx.fillRect(room.padding, y + plankHeight - 3, room.width - room.padding * 2, 2);
+
+        for (let x = room.padding + 24; x < room.width - room.padding - 24; x += 68) {
+            const jointOffset = ((x + y) % 3) * 14;
+            ctx.fillStyle = "rgba(0,0,0,0.16)";
+            ctx.fillRect(x + jointOffset, y + 3, 2, plankHeight - 8);
+        }
+
+        for (let x = room.padding + 16; x < room.width - room.padding - 16; x += 92) {
+            const knot = Math.abs(Math.sin((x * 0.12) + (y * 0.07))) * 0.18 + 0.05;
+            ctx.fillStyle = `rgba(20,10,8,${knot.toFixed(3)})`;
+            ctx.beginPath();
+            ctx.ellipse(x, y + plankHeight / 2, 8, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+  } else {
+    ctx.fillStyle = palette.detail;
+    for (let i = room.wallHeight; i < room.height; i += palette.pattern) {
+      ctx.fillRect(0, i, room.width, 2);
+    }
+    if (palette.vertical) {
+      for (let i = 0; i < room.width; i += palette.pattern) {
+        ctx.fillRect(i, room.wallHeight, 2, room.height - room.wallHeight);
+      }
     }
   }
   ctx.restore();
@@ -1070,6 +1138,20 @@ function drawRoom() {
 
   ctx.fillStyle = palette.baseboard;
   ctx.fillRect(room.padding, room.wallHeight - 12, room.width - room.padding * 2, 12);
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  ctx.fillRect(room.padding, room.wallHeight - 12, room.width - room.padding * 2, 2);
+  ctx.fillStyle = "rgba(255,255,255,0.03)";
+  ctx.fillRect(room.padding, room.wallHeight, room.width - room.padding * 2, 10);
+
+  const centerGlow = ctx.createRadialGradient(
+      room.width / 2, room.wallHeight + 120, 40,
+      room.width / 2, room.wallHeight + 120, room.width * 0.55
+  );
+  centerGlow.addColorStop(0, "rgba(255,220,180,0.16)");
+  centerGlow.addColorStop(0.45, "rgba(255,190,120,0.08)");
+  centerGlow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = centerGlow;
+  ctx.fillRect(room.padding, 0, room.width - room.padding * 2, room.height - room.padding);
 
   if (themeName === 'office' && playData.worldState.horrorActive) {
       ctx.save();
@@ -1084,6 +1166,117 @@ function drawRoom() {
       }
       ctx.restore();
   }
+}
+
+function drawFurnitureShadow(item, targetCtx = ctx) {
+    if (!item || item.type === 'window' || item.type === 'wall_switch' || item.type === 'vent') return;
+
+    const baseX = item.x + item.width / 2;
+    const baseY = item.y + item.height - 4;
+    const shadowW = Math.max(10, item.width * 0.48);
+    const shadowH = Math.max(4, item.height * 0.12);
+
+    targetCtx.save();
+    targetCtx.fillStyle = "rgba(0,0,0,0.16)";
+    targetCtx.beginPath();
+    targetCtx.ellipse(baseX + 5, baseY + 6, shadowW, shadowH, -0.12, 0, Math.PI * 2);
+    targetCtx.fill();
+
+    if (item.height > 50) {
+        const falloff = targetCtx.createLinearGradient(item.x, item.y, item.x + item.width, item.y + item.height);
+        falloff.addColorStop(0, "rgba(0,0,0,0.14)");
+        falloff.addColorStop(1, "rgba(0,0,0,0)");
+        targetCtx.fillStyle = falloff;
+        targetCtx.beginPath();
+        targetCtx.moveTo(item.x + 6, item.y + item.height * 0.25);
+        targetCtx.lineTo(item.x + item.width * 0.85, item.y + item.height * 0.12);
+        targetCtx.lineTo(item.x + item.width * 0.96, item.y + item.height * 0.65);
+        targetCtx.lineTo(item.x + item.width * 0.2, item.y + item.height * 0.82);
+        targetCtx.closePath();
+        targetCtx.fill();
+    }
+    targetCtx.restore();
+}
+
+function drawSceneLighting() {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+
+    room.furniture.forEach(item => {
+        if (!item) return;
+
+        if (item.hasLamp) {
+            const lightX = item.x + 15;
+            const lightY = item.y + 10;
+            const glow = ctx.createRadialGradient(lightX, lightY, 2, lightX, lightY, 104);
+            glow.addColorStop(0, "rgba(255,241,196,0.52)");
+            glow.addColorStop(0.16, "rgba(255,212,120,0.24)");
+            glow.addColorStop(0.45, "rgba(255,184,90,0.08)");
+            glow.addColorStop(1, "rgba(255,184,90,0)");
+            ctx.fillStyle = glow;
+            ctx.fillRect(lightX - 104, lightY - 104, 208, 208);
+
+            const beam = ctx.createLinearGradient(lightX, lightY, lightX + 18, lightY + 165);
+            beam.addColorStop(0, "rgba(255,230,170,0.11)");
+            beam.addColorStop(1, "rgba(255,230,170,0)");
+            ctx.fillStyle = beam;
+            ctx.beginPath();
+            ctx.moveTo(lightX - 4, lightY + 4);
+            ctx.lineTo(lightX + 8, lightY + 4);
+            ctx.lineTo(lightX + 68, lightY + 150);
+            ctx.lineTo(lightX - 56, lightY + 150);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        if (item.hasLaptop) {
+            const screenX = item.x + item.width / 2;
+            const screenY = item.y + 10;
+            const monitorGlow = ctx.createRadialGradient(screenX, screenY, 2, screenX, screenY, 42);
+            monitorGlow.addColorStop(0, "rgba(120,210,255,0.18)");
+            monitorGlow.addColorStop(1, "rgba(120,210,255,0)");
+            ctx.fillStyle = monitorGlow;
+            ctx.fillRect(screenX - 42, screenY - 42, 84, 84);
+        }
+    });
+
+    const playerGlow = ctx.createRadialGradient(player.x, player.y - 18, 8, player.x, player.y - 18, 60);
+    playerGlow.addColorStop(0, "rgba(255,214,140,0.04)");
+    playerGlow.addColorStop(1, "rgba(255,214,140,0)");
+    ctx.fillStyle = playerGlow;
+    ctx.fillRect(player.x - 60, player.y - 78, 120, 120);
+
+    ctx.restore();
+}
+
+function drawScreenEffects() {
+    ctx.save();
+
+    const floorSheen = ctx.createLinearGradient(0, canvas.height * 0.28, 0, canvas.height);
+    floorSheen.addColorStop(0, "rgba(255,255,255,0)");
+    floorSheen.addColorStop(0.58, "rgba(255,210,165,0.02)");
+    floorSheen.addColorStop(1, "rgba(255,255,255,0.04)");
+    ctx.fillStyle = floorSheen;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const vignette = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.18,
+        canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.72
+    );
+    vignette.addColorStop(0, "rgba(0,0,0,0)");
+    vignette.addColorStop(0.7, "rgba(4,7,14,0.16)");
+    vignette.addColorStop(1, "rgba(2,4,10,0.52)");
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "rgba(255,255,255,0.025)";
+    for (let i = 0; i < 10; i++) {
+        const sparkleX = (i * 89 + Math.floor(Date.now() / 40)) % (canvas.width + 120) - 60;
+        const sparkleY = 72 + (i * 31) % Math.max(120, canvas.height - 140);
+        ctx.fillRect(sparkleX, sparkleY, 1, 1);
+    }
+
+    ctx.restore();
 }
 
 function drawDoor(door, targetCtx = ctx) {
@@ -1964,58 +2157,111 @@ function drawStudent(item, targetCtx = ctx) {
 }
 
 function drawTeacher(item, targetCtx = ctx) {
-    const baseY = item.y;
-    const bob = Math.sin(Date.now() / 500 + (item.phase || 0)) * 2;
-    const seatY = baseY - bob;
     const w = item.width || 24;
     const h = item.height || 36;
+    const facing = item.facing || 'down';
+    const walkFrame = item.walkFrame || 0;
+    const isMoving = Boolean(item.isWalking);
+    const walkCycle = Math.sin(walkFrame);
+    const stride = isMoving ? walkCycle * 5 : 0;
+    const bob = isMoving
+        ? Math.abs(Math.sin(walkFrame * 2)) * 2
+        : Math.sin(Date.now() / 500 + (item.phase || 0)) * 2;
+    const baseY = item.y - bob;
+    const px = item.x;
+    const py = baseY;
 
     // Shadow
     targetCtx.fillStyle = "rgba(0,0,0,0.2)";
-    targetCtx.fillRect(item.x + 2, seatY + h - 4, w - 4, 4);
+    if (facing === 'left' || facing === 'right') {
+        targetCtx.beginPath();
+        targetCtx.ellipse(px + w / 2, py + h - 2, w / 2, 4, 0, 0, Math.PI * 2);
+        targetCtx.fill();
+    } else {
+        targetCtx.fillRect(px + 2, py + h - 4, w - 4, 4);
+    }
+
+    if (facing === 'left' || facing === 'right') {
+        const isRight = facing === 'right';
+        const legSwing = isMoving ? stride : 0;
+
+        targetCtx.fillStyle = "#212121";
+        targetCtx.fillRect(px + w/2 - 3 + legSwing, py + 26, 6, 10);
+        targetCtx.fillRect(px + w/2 - 3 - legSwing, py + 26, 6, 10);
+
+        targetCtx.fillStyle = "#3e2723";
+        targetCtx.fillRect(px + 4, py + 12, w - 8, 14);
+        targetCtx.fillStyle = "#d32f2f";
+        targetCtx.fillRect(px + w/2 - 1, py + 14, 2, 8);
+
+        targetCtx.fillStyle = "#f1c27d";
+        targetCtx.fillRect(px + 4, py, w - 8, 12);
+
+        targetCtx.fillStyle = "#5d4037";
+        targetCtx.fillRect(px + 2, py, w - 4, 4);
+        if (isRight) {
+            targetCtx.fillRect(px + 2, py, 4, 10);
+            targetCtx.fillStyle = "#212121";
+            targetCtx.fillRect(px + w - 8, py + 6, 2, 2);
+            targetCtx.fillStyle = "#5d4037";
+            targetCtx.fillRect(px + w - 2, py - 2, 4, 14);
+            targetCtx.fillRect(px + 8, py - 8, w - 8, 6);
+        } else {
+            targetCtx.fillRect(px + w - 6, py, 4, 10);
+            targetCtx.fillStyle = "#212121";
+            targetCtx.fillRect(px + 6, py + 6, 2, 2);
+            targetCtx.fillStyle = "#5d4037";
+            targetCtx.fillRect(px - 2, py - 2, 4, 14);
+            targetCtx.fillRect(px, py - 8, w - 8, 6);
+        }
+
+        targetCtx.fillStyle = "#3e2723";
+        targetCtx.fillRect(px + 6, py - 3, w - 12, 2);
+        return;
+    }
 
     // Body (Fancy Suit)
-    targetCtx.fillStyle = "#3e2723"; // Dark Brown Suit
-    targetCtx.fillRect(item.x, seatY + 12, w, 14);
+    targetCtx.fillStyle = "#3e2723";
+    targetCtx.fillRect(px, py + 12, w, 14);
     // Tie
     targetCtx.fillStyle = "#d32f2f";
-    targetCtx.fillRect(item.x + w/2 - 2, seatY + 14, 4, 8);
+    targetCtx.fillRect(px + w/2 - 2, py + 14, 4, 8);
 
     // Legs
     targetCtx.fillStyle = "#212121";
-    targetCtx.fillRect(item.x + 4, seatY + 26, 6, 8);
-    targetCtx.fillRect(item.x + w - 10, seatY + 26, 6, 8);
+    targetCtx.fillRect(px + 4, py + 26 + stride, 6, 8);
+    targetCtx.fillRect(px + w - 10, py + 26 - stride, 6, 8);
 
     if (!item.headless) {
         // Head
         targetCtx.fillStyle = "#f1c27d";
-        targetCtx.fillRect(item.x + 2, seatY, w - 4, 12);
+        targetCtx.fillRect(px + 2, py, w - 4, 12);
 
         // Eyes
         targetCtx.fillStyle = "#212121";
-        targetCtx.fillRect(item.x + 6, seatY + 5, 2, 2);
-        targetCtx.fillRect(item.x + w - 8, seatY + 5, 2, 2);
+        targetCtx.fillRect(px + 6, py + 5, 2, 2);
+        targetCtx.fillRect(px + w - 8, py + 5, 2, 2);
 
         // Mustache
         targetCtx.fillStyle = "#5d4037";
-        targetCtx.fillRect(item.x + 6, seatY + 8, w - 12, 2);
+        targetCtx.fillRect(px + 6, py + 8, w - 12, 2);
 
         // Cowboy Hat
         targetCtx.fillStyle = "#5d4037";
         // Brim
-        targetCtx.fillRect(item.x - 4, seatY - 2, w + 8, 4);
+        targetCtx.fillRect(px - 4, py - 2, w + 8, 4);
         // Top
-        targetCtx.fillRect(item.x + 2, seatY - 8, w - 4, 6);
+        targetCtx.fillRect(px + 2, py - 8, w - 4, 6);
         // Band
         targetCtx.fillStyle = "#3e2723";
-        targetCtx.fillRect(item.x + 2, seatY - 3, w - 4, 2);
+        targetCtx.fillRect(px + 2, py - 3, w - 4, 2);
     } else {
         // Neck/Gore
         targetCtx.fillStyle = "#b71c1c";
-        targetCtx.fillRect(item.x + w/2 - 3, seatY + 10, 6, 4);
+        targetCtx.fillRect(px + w/2 - 3, py + 10, 6, 4);
         if (Math.random() > 0.5) {
              targetCtx.fillStyle = "#e53935";
-             targetCtx.fillRect(item.x + w/2 - 2, seatY + 8, 4, 2);
+             targetCtx.fillRect(px + w/2 - 2, py + 8, 4, 2);
         }
     }
 }
@@ -2342,11 +2588,15 @@ function draw() {
     if (item.type === 'rug') return;
     renderList.push({
       y: item.y + item.height,
-      draw: () => drawFurnitureItem(item)
+      draw: () => {
+        drawFurnitureShadow(item);
+        drawFurnitureItem(item);
+      }
     });
   });
   renderList.sort((a, b) => a.y - b.y);
   renderList.forEach(obj => obj.draw());
+  drawSceneLighting();
 
   drawParticles();
 
@@ -2361,6 +2611,7 @@ function draw() {
 
   drawOfficeTimer();
   drawDeathSequence();
+  drawScreenEffects();
 
   drawHints();
   drawDevOverlay();
@@ -2643,7 +2894,10 @@ function startLectureCutscene(seat) {
         y: startY,
         width: 24,
         height: 36,
-        phase: 0
+        phase: 0,
+        facing: 'left',
+        walkFrame: 0,
+        isWalking: false
     };
     room.furniture.push(teacher);
     cutscene.focus = teacher;
@@ -2673,13 +2927,24 @@ function startLectureCutscene(seat) {
             if (dist < 4) {
                 teacher.x = target.x;
                 teacher.y = target.y;
+                teacher.walkFrame = 0;
                 currentWaypointIndex++;
             } else {
                 const speed = 2;
+                teacher.isWalking = true;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    teacher.facing = dx > 0 ? 'right' : 'left';
+                } else {
+                    teacher.facing = dy > 0 ? 'down' : 'up';
+                }
+                teacher.walkFrame += 0.18;
                 teacher.x += (dx / dist) * speed;
                 teacher.y += (dy / dist) * speed;
             }
         } else if (phase === 'sit') {
+            teacher.isWalking = false;
+            teacher.walkFrame = 0;
+            teacher.facing = 'down';
             phase = 'talk';
 
             const conversation = [
@@ -2753,8 +3018,8 @@ function startVentCrawlCutscene() {
     
     // Teleport to vent tunnel
     loadLevel('vent_tunnel');
-    player.x = 1300;
-    player.y = 100;
+    player.x = room.spawn.x;
+    player.y = room.spawn.y;
     player.isCrawling = true;
     player.facing = 'left';
     
@@ -2791,9 +3056,15 @@ function startVentCrawlCutscene() {
             loadLevel('secret_room');
             // Force reset in case local storage was broken
             room.furniture = JSON.parse(JSON.stringify(window.initialGameData.levels['secret_room'].furniture));
-            
-            player.x = 209 + 41; // middle of the vent
-            player.y = 150; // Safely below vent collision box
+
+            const brokenVent = room.furniture.find(f => f.id === 'broken_vent_in');
+            const ventCenterX = brokenVent ? brokenVent.x + brokenVent.width / 2 : room.spawn.x;
+            const standY = brokenVent
+                ? Math.max(room.wallHeight + 26, brokenVent.y + brokenVent.height + 54)
+                : 150;
+
+            player.x = ventCenterX;
+            player.y = standY;
             player.isCrawling = false; // Stand up
             player.facing = 'down';
             
@@ -2815,16 +3086,19 @@ function startVentCrawlCutscene() {
                 phase = 'explode';
             }
         } else if (phase === 'explode') {
+            const brokenVent = room.furniture.find(f => f.id === 'broken_vent_in');
+            const blastX = brokenVent ? brokenVent.x + brokenVent.width / 2 : 250;
+            const blastY = brokenVent ? brokenVent.y + brokenVent.height / 2 : 64;
+
             // Break the vent behind him
-            createExplosion(250, 64, "#7b8b94"); // Metal explosion
-            createExplosion(250, 64, "#455a64");
+            createExplosion(blastX, blastY, "#7b8b94"); // Metal explosion
+            createExplosion(blastX, blastY, "#455a64");
             screenShake = 15;
             
             // Switch out of horror music
             playSoundtrack('normal');
 
             // Change vent interaction in this room to do nothing
-            const brokenVent = room.furniture.find(f => f.id === 'broken_vent_in');
             if (brokenVent) {
                  brokenVent.interaction = {
                     enabled: true,
@@ -3071,6 +3345,7 @@ function executeInteraction(target) {
             if (activeItem && activeItem.id === 'door_key') {
                 playData.worldState.classroomDoorUnlocked = true;
                 playData.inventory[playData.activeSlot] = null;
+                playData.worldState.leftCabinetDoorKeyTaken = true;
                 updateInventoryUI();
                 showTemporaryDialogue("The door is now unlocked!", "LUKE");
                 savePlayState();
@@ -3119,20 +3394,21 @@ function executeInteraction(target) {
 
         // --- POV Cabinet Logic ---
         const isKeySelected = isInventoryOpen && playData.inventory[playData.activeSlot] && playData.inventory[playData.activeSlot].id === 'cabinet_key';
+        const isLeftCabinetUnlocked = Boolean(playData.worldState.leftCabinetUnlocked);
 
         if (item.id === 'left_cabinet') {
-             if (isKeySelected) {
-                  // Trigger open POV
-                  playData.povActive = true;
-                  document.getElementById('pov-container').classList.remove('hidden');
-                  // Move key out of inventory if consumed? Let's leave it or remove it.
-                  playData.inventory[playData.activeSlot] = null;
-                  updateInventoryUI();
-                  return;
-             } else {
-                  showTemporaryDialogue("It's locked.", "LUKE");
+             if (isLeftCabinetUnlocked || isKeySelected) {
+                  if (!isLeftCabinetUnlocked) {
+                      playData.worldState.leftCabinetUnlocked = true;
+                      playData.inventory[playData.activeSlot] = null;
+                      updateInventoryUI();
+                  }
+                  openLeftCabinetPOV();
+                  savePlayState();
                   return;
              }
+             showTemporaryDialogue("It's locked.", "LUKE");
+             return;
         } else if (isKeySelected && (item.type === 'cupboard' || item.type === 'locker' || item.type === 'chest' || item.type === 'door')) {
              // Tried to use key on wrong storage/door
              showTemporaryDialogue("This key doesn't fit.", "LUKE");
@@ -3197,6 +3473,29 @@ function executeInteraction(target) {
 }
 
 let clipboard = null;
+
+function syncLeftCabinetPOV() {
+    const povNote = document.getElementById('pov-note');
+    const povKey = document.getElementById('pov-key');
+
+    if (povNote) {
+        const noteTaken = Boolean(playData.worldState.leftCabinetNoteTaken) ||
+            playData.inventory.some(item => item && item.id === 'secret_note');
+        povNote.classList.toggle('picked-up', noteTaken);
+    }
+
+    if (povKey) {
+        const keyTaken = Boolean(playData.worldState.leftCabinetDoorKeyTaken) ||
+            playData.inventory.some(item => item && item.id === 'door_key');
+        povKey.classList.toggle('picked-up', keyTaken);
+    }
+}
+
+function openLeftCabinetPOV() {
+    playData.povActive = true;
+    syncLeftCabinetPOV();
+    document.getElementById('pov-container').classList.remove('hidden');
+}
 
 // ── Inventory HUD Positioning ──
 function positionInventoryHUD() {
@@ -3394,6 +3693,7 @@ document.addEventListener("keydown", (e) => {
         closeBtn.addEventListener('click', () => {
             playData.povActive = false;
             document.getElementById('pov-container').classList.add('hidden');
+            savePlayState();
         });
     }
 
@@ -3403,6 +3703,7 @@ document.addEventListener("keydown", (e) => {
             const emptySlot = playData.inventory.findIndex(s => s === null);
             if (emptySlot !== -1) {
                 playData.inventory[emptySlot] = { id: 'secret_note', name: 'Mysterious Letter', icon: '📝' };
+                playData.worldState.leftCabinetNoteTaken = true;
                 updateInventoryUI();
                 povNote.classList.add('picked-up');
                 showTemporaryDialogue("Obtained Mysterious Letter.", "SYSTEM");
@@ -3419,6 +3720,7 @@ document.addEventListener("keydown", (e) => {
             const emptySlot = playData.inventory.findIndex(s => s === null);
             if (emptySlot !== -1) {
                 playData.inventory[emptySlot] = { id: 'door_key', name: 'Door Key', icon: '🗝️' };
+                playData.worldState.leftCabinetDoorKeyTaken = true;
                 updateInventoryUI();
                 povKey.classList.add('picked-up');
                 showTemporaryDialogue("Obtained Door Key.", "SYSTEM");
@@ -3435,6 +3737,7 @@ document.addEventListener("keydown", (e) => {
             noteOverlay.classList.add('hidden');
         });
     }
+    syncLeftCabinetPOV();
 })();
 
 // ── X Key: Use Active Item (for reading/inspecting only) ──
@@ -4573,11 +4876,42 @@ function savePlayState() {
     } catch (e) { console.error(e); }
 }
 
+function hydratePersistentUnlockState() {
+    if (!playData.worldState) playData.worldState = {};
+    if (!Array.isArray(playData.inventory)) playData.inventory = [];
+
+    const hasCabinetKey = playData.inventory.some(item => item && item.id === 'cabinet_key');
+    const hasSecretNote = playData.inventory.some(item => item && item.id === 'secret_note');
+    const hasDoorKey = playData.inventory.some(item => item && item.id === 'door_key');
+
+    if (hasSecretNote) {
+        playData.worldState.leftCabinetNoteTaken = true;
+    }
+
+    if (hasDoorKey || playData.worldState.classroomDoorUnlocked) {
+        playData.worldState.leftCabinetDoorKeyTaken = true;
+    }
+
+    if (!playData.worldState.leftCabinetUnlocked) {
+        const cabinetWasClearlyUsed =
+            playData.worldState.leftCabinetNoteTaken ||
+            playData.worldState.leftCabinetDoorKeyTaken ||
+            playData.worldState.classroomDoorUnlocked ||
+            hasSecretNote ||
+            hasDoorKey;
+
+        if (!hasCabinetKey && cabinetWasClearlyUsed) {
+            playData.worldState.leftCabinetUnlocked = true;
+        }
+    }
+}
+
 function loadPlayState() {
     try {
         const json = localStorage.getItem('helios_play_data');
         if (json) {
             playData = JSON.parse(json);
+            hydratePersistentUnlockState();
             // Load Level
             if (playData.player.room) {
                 loadLevel(playData.player.room);
