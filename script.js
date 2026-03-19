@@ -47,11 +47,13 @@ let globalDarkness = 0;
 let particles = [];
 let screenShake = 0;
 let checkpointBeforeLecture = null;
+let checkpointBeforeOfficeRush = null;
 let officeTimer = {
     active: false,
     framesLeft: 0,
     durationFrames: 30 * 60,
-    flashed: false
+    flashed: false,
+    hidden: true
 };
 let deathSequence = null;
 
@@ -658,11 +660,38 @@ function onLevelLoaded(name) {
         };
     }
 
-    if (name === 'principal_office' && playData.worldState.horrorActive) {
-        startOfficeTimer();
+    if (playData.worldState.officeRushPending) {
+        if (name === 'principal_office') {
+            clearOfficeRushState();
+        } else if (!deathSequence || !deathSequence.active) {
+            if (!checkpointBeforeOfficeRush) {
+                captureOfficeRushCheckpoint();
+            }
+            startOfficeTimer();
+        }
     } else if (name !== 'principal_office') {
         officeTimer.active = false;
     }
+}
+
+function captureOfficeRushCheckpoint() {
+    checkpointBeforeOfficeRush = {
+        levels: JSON.parse(JSON.stringify(levels)),
+        player: {
+            room: currentLevelName,
+            x: player.x,
+            y: player.y,
+            facing: player.facing
+        },
+        worldState: JSON.parse(JSON.stringify(playData.worldState || {}))
+    };
+}
+
+function markOfficeRushActive() {
+    playData.worldState.officeRushPending = true;
+    captureOfficeRushCheckpoint();
+    startOfficeTimer();
+    savePlayState();
 }
 
 function startOfficeTimer() {
@@ -671,27 +700,84 @@ function startOfficeTimer() {
     officeTimer.flashed = false;
 }
 
+function clearOfficeRushState() {
+    officeTimer.active = false;
+    playData.worldState.officeRushPending = false;
+    checkpointBeforeOfficeRush = null;
+    savePlayState();
+}
+
 function triggerDeath(reason) {
     if (deathSequence && deathSequence.active) return;
     officeTimer.active = false;
     player.walkFrame = 0;
 
-    deathSequence = {
-        active: true,
-        reason,
-        frame: 0,
-        zombieX: player.x + 220,
-        zombieY: player.y,
-        consumeProgress: 0,
-        finished: false
-    };
+    if (reason === 'office_rush_timeout') {
+        deathSequence = {
+            active: true,
+            type: 'head_burst',
+            reason,
+            frame: 0,
+            cameraZoom: userZoom,
+            burstProgress: 0,
+            exploded: false,
+            finished: false,
+            awaitingContinue: false,
+            continueAction: 'lecture'
+        };
+    } else {
+        deathSequence = {
+            active: true,
+            type: 'devoured',
+            reason,
+            frame: 0,
+            zombieX: player.x + 220,
+            zombieY: player.y,
+            consumeProgress: 0,
+            finished: false,
+            awaitingContinue: false,
+            continueAction: 'lecture'
+        };
+    }
     updateSoundtrack();
 }
 
 function updateDeathSequence() {
     if (!deathSequence || !deathSequence.active) return;
+    if (deathSequence.awaitingContinue) return;
 
     deathSequence.frame += 1;
+
+    if (deathSequence.type === 'head_burst') {
+        if (deathSequence.frame <= 45) {
+            deathSequence.cameraZoom = Math.min(2.65, deathSequence.cameraZoom + 0.04);
+            globalDarkness = Math.min(0.82, 0.35 + deathSequence.frame * 0.01);
+        } else {
+            if (!deathSequence.exploded) {
+                deathSequence.exploded = true;
+                screenShake = 26;
+                const headX = player.x + (Math.random() - 0.5) * 6;
+                const headY = player.y - 16;
+                createExplosion(headX, headY, "#ff3d00");
+                createExplosion(headX, headY, "#b71c1c");
+                createExplosion(headX, headY, "#7f0000");
+            }
+
+            deathSequence.burstProgress = Math.min(1, deathSequence.burstProgress + 0.06);
+            globalDarkness = Math.min(0.96, globalDarkness + 0.02);
+
+            if (deathSequence.frame % 3 === 0) {
+                createExplosion(player.x + (Math.random() - 0.5) * 18, player.y - 18 + (Math.random() - 0.5) * 16, "#7f0000");
+            }
+        }
+
+        if (deathSequence.frame > 115 && !deathSequence.finished) {
+            deathSequence.finished = true;
+            deathSequence.awaitingContinue = true;
+        }
+        return;
+    }
+
     const dx = player.x - deathSequence.zombieX;
     const dy = player.y - deathSequence.zombieY;
     const dist = Math.hypot(dx, dy) || 1;
@@ -712,8 +798,58 @@ function updateDeathSequence() {
 
     if (deathSequence.frame > 170 && !deathSequence.finished) {
         deathSequence.finished = true;
-        resetToLectureCheckpoint();
+        deathSequence.awaitingContinue = true;
     }
+}
+
+function continueDeathSequence() {
+    if (!deathSequence || !deathSequence.active || !deathSequence.awaitingContinue) return;
+
+    const action = deathSequence.continueAction || 'lecture';
+    if (action === 'office_rush') {
+        resetToOfficeRushCheckpoint();
+        return;
+    }
+    resetToLectureCheckpoint();
+}
+
+function resetToOfficeRushCheckpoint() {
+    cutscene = null;
+    deathSequence = null;
+    officeTimer.active = false;
+    particles = [];
+    globalDarkness = 0.7;
+    camera.zoom = 1;
+
+    if (checkpointBeforeOfficeRush && checkpointBeforeOfficeRush.levels) {
+        levels = JSON.parse(JSON.stringify(checkpointBeforeOfficeRush.levels));
+        normalizeGameData({ levels });
+    }
+
+    const checkpoint = checkpointBeforeOfficeRush || {
+        player: { room: 'lecture', x: 460, y: 520, facing: 'up' },
+        worldState: { horrorActive: true, lecture_seen: true, officeRushPending: true }
+    };
+
+    playData.worldState = JSON.parse(JSON.stringify(checkpoint.worldState || playData.worldState || {}));
+    playData.worldState.horrorActive = true;
+    playData.worldState.lecture_seen = true;
+    playData.worldState.officeRushPending = true;
+
+    const restorePlayer = checkpoint.player || { room: 'lecture', x: 460, y: 520, facing: 'up' };
+    playData.player.room = restorePlayer.room;
+    loadLevel(restorePlayer.room);
+    player.x = restorePlayer.x;
+    player.y = restorePlayer.y;
+    player.facing = restorePlayer.facing || 'up';
+    player.isSitting = false;
+
+    playData.player.x = player.x;
+    playData.player.y = player.y;
+    playData.player.facing = player.facing;
+
+    updateSoundtrack();
+    savePlayState();
 }
 
 function resetToLectureCheckpoint() {
@@ -722,11 +858,14 @@ function resetToLectureCheckpoint() {
 
     playData.worldState.horrorActive = false;
     playData.worldState.lecture_seen = false;
+    playData.worldState.officeRushPending = false;
     globalDarkness = 0;
     particles = [];
     cutscene = null;
     deathSequence = null;
     officeTimer.active = false;
+    checkpointBeforeOfficeRush = null;
+    camera.zoom = 1;
 
     updateSoundtrack();
 
@@ -915,6 +1054,31 @@ function showLukeLine(text) {
   showTemporaryDialogue(text, "LUKE");
 }
 
+function getActiveSceneZoom() {
+  if (cutscene && cutscene.active) return camera.zoom;
+  if (deathSequence && deathSequence.active && deathSequence.cameraZoom) return deathSequence.cameraZoom;
+  return userZoom;
+}
+
+function getSceneRenderOffset(zoom = getActiveSceneZoom()) {
+  const safeZoom = zoom || 1;
+  const viewW = canvas.width / safeZoom;
+  const viewH = canvas.height / safeZoom;
+  return {
+      x: Math.max(0, (viewW - room.width) / 2),
+      y: Math.max(0, (viewH - room.height) / 2)
+  };
+}
+
+function screenToWorld(canvasX, canvasY) {
+  const zoom = getActiveSceneZoom();
+  const offset = getSceneRenderOffset(zoom);
+  return {
+      x: canvasX / zoom + camera.x - offset.x,
+      y: canvasY / zoom + camera.y - offset.y
+  };
+}
+
 function checkCollision(x, y) {
   const half = player.size / 2;
 
@@ -1006,7 +1170,7 @@ function handleMovement() {
   }
 
   // During cutscenes, use cutscene zoom; otherwise use player zoom
-  const effectiveZoom = (cutscene && cutscene.active) ? camera.zoom : userZoom;
+  const effectiveZoom = getActiveSceneZoom();
   const viewW = canvas.width / effectiveZoom;
   const viewH = canvas.height / effectiveZoom;
 
@@ -2452,6 +2616,8 @@ function drawPlayer(x, y) {
   const animOffset = Math.sin(player.walkFrame) * 5;
   const walkCycle = Math.sin(player.walkFrame);
   const bob = isMoving ? Math.abs(Math.sin(player.walkFrame * 2)) * 2 : 0;
+  const headBurstActive = deathSequence && deathSequence.active && deathSequence.type === 'head_burst';
+  const playerHeadGone = headBurstActive && deathSequence.exploded;
   const px = x - w / 2;
   const py = y - h + 8 - bob;
   ctx.fillStyle = "rgba(0,0,0,0.4)";
@@ -2467,15 +2633,22 @@ function drawPlayer(x, y) {
     ctx.fillRect(px, py + 12, w, 14);
     ctx.fillStyle = stripeColor;
     ctx.fillRect(px, py + 18, w, 4);
-    ctx.fillStyle = skinColor;
-    ctx.fillRect(px + 2, py, w - 4, 12);
-    ctx.fillStyle = hairColor;
-    ctx.fillRect(px, py, w, 4);
-    ctx.fillRect(px, py, 4, 10);
-    ctx.fillRect(px + w - 4, py, 4, 10);
-    ctx.fillStyle = eyeColor;
-    ctx.fillRect(px + 6, py + 6, 2, 2);
-    ctx.fillRect(px + w - 8, py + 6, 2, 2);
+    if (playerHeadGone) {
+      ctx.fillStyle = "#7f0000";
+      ctx.fillRect(px + 6, py + 10, w - 12, 4);
+      ctx.fillStyle = "#b71c1c";
+      ctx.fillRect(px + 4, py + 8, w - 8, 6);
+    } else {
+      ctx.fillStyle = skinColor;
+      ctx.fillRect(px + 2, py, w - 4, 12);
+      ctx.fillStyle = hairColor;
+      ctx.fillRect(px, py, w, 4);
+      ctx.fillRect(px, py, 4, 10);
+      ctx.fillRect(px + w - 4, py, 4, 10);
+      ctx.fillStyle = eyeColor;
+      ctx.fillRect(px + 6, py + 6, 2, 2);
+      ctx.fillRect(px + w - 8, py + 6, 2, 2);
+    }
   } else if (player.facing === "up") {
     ctx.fillStyle = pantsColor;
     ctx.fillRect(px + 4, py + 26 + animOffset, 6, 10);
@@ -2484,11 +2657,18 @@ function drawPlayer(x, y) {
     ctx.fillRect(px, py + 12, w, 14);
     ctx.fillStyle = stripeColor;
     ctx.fillRect(px, py + 18, w, 4);
-    ctx.fillStyle = skinColor;
-    ctx.fillRect(px + 2, py, w - 4, 12);
-    ctx.fillStyle = hairColor;
-    ctx.fillRect(px, py, w, 8);
-    ctx.fillRect(px + 2, py + 8, w - 4, 4);
+    if (playerHeadGone) {
+      ctx.fillStyle = "#7f0000";
+      ctx.fillRect(px + 6, py + 10, w - 12, 4);
+      ctx.fillStyle = "#b71c1c";
+      ctx.fillRect(px + 4, py + 8, w - 8, 6);
+    } else {
+      ctx.fillStyle = skinColor;
+      ctx.fillRect(px + 2, py, w - 4, 12);
+      ctx.fillStyle = hairColor;
+      ctx.fillRect(px, py, w, 8);
+      ctx.fillRect(px + 2, py + 8, w - 4, 4);
+    }
   } else if (player.facing === "left" || player.facing === "right") {
     const isRight = player.facing === "right";
     const legSwing = walkCycle * 6;
@@ -2499,20 +2679,27 @@ function drawPlayer(x, y) {
     ctx.fillRect(px + 4, py + 12, w - 8, 14);
     ctx.fillStyle = stripeColor;
     ctx.fillRect(px + 4, py + 18, w - 8, 4);
-    ctx.fillStyle = skinColor;
-    ctx.fillRect(px + 4, py, w - 8, 12);
-    ctx.fillStyle = hairColor;
-    ctx.fillRect(px + 2, py, w - 4, 4);
-    if (isRight) {
-       ctx.fillRect(px + 2, py, 4, 10);
+    if (playerHeadGone) {
+      ctx.fillStyle = "#7f0000";
+      ctx.fillRect(px + 8, py + 10, w - 14, 4);
+      ctx.fillStyle = "#b71c1c";
+      ctx.fillRect(px + 6, py + 8, w - 12, 6);
     } else {
-       ctx.fillRect(px + w - 6, py, 4, 10);
-    }
-    ctx.fillStyle = eyeColor;
-    if (isRight) {
-       ctx.fillRect(px + w - 8, py + 6, 2, 2);
-    } else {
-       ctx.fillRect(px + 6, py + 6, 2, 2);
+      ctx.fillStyle = skinColor;
+      ctx.fillRect(px + 4, py, w - 8, 12);
+      ctx.fillStyle = hairColor;
+      ctx.fillRect(px + 2, py, w - 4, 4);
+      if (isRight) {
+         ctx.fillRect(px + 2, py, 4, 10);
+      } else {
+         ctx.fillRect(px + w - 6, py, 4, 10);
+      }
+      ctx.fillStyle = eyeColor;
+      if (isRight) {
+         ctx.fillRect(px + w - 8, py + 6, 2, 2);
+      } else {
+         ctx.fillRect(px + 6, py + 6, 2, 2);
+      }
     }
   }
   ctx.restore();
@@ -2570,12 +2757,13 @@ function draw() {
   }
 
   // Zoom: use cutscene zoom during cutscenes, otherwise player zoom
-  const activeZoom = (cutscene && cutscene.active) ? camera.zoom : userZoom;
+  const activeZoom = getActiveSceneZoom();
+  const renderOffset = getSceneRenderOffset(activeZoom);
   if (activeZoom && activeZoom !== 1) {
       ctx.scale(activeZoom, activeZoom);
   }
 
-  ctx.translate(-camera.x, -camera.y);
+  ctx.translate(renderOffset.x - camera.x, renderOffset.y - camera.y);
   drawRoom();
   room.furniture.filter(i => i.type === 'rug').forEach(item => drawFurnitureItem(item));
   drawDoors();
@@ -2618,7 +2806,7 @@ function draw() {
 }
 
 function drawOfficeTimer() {
-    if (!officeTimer.active) return;
+    if (!officeTimer.active || officeTimer.hidden) return;
     const seconds = Math.max(0, Math.ceil(officeTimer.framesLeft / 60));
     const isDanger = seconds <= 10;
 
@@ -2647,17 +2835,79 @@ function drawOfficeTimer() {
 function drawDeathSequence() {
     if (!deathSequence || !deathSequence.active) return;
 
-    const zx = deathSequence.zombieX - camera.x;
-    const zy = deathSequence.zombieY - camera.y;
-    const px = player.x - camera.x;
-    const py = player.y - camera.y;
-    const bite = deathSequence.consumeProgress;
+    const renderOffset = getSceneRenderOffset();
+    const px = player.x - camera.x + renderOffset.x;
+    const py = player.y - camera.y + renderOffset.y;
+    const showContinue = deathSequence.awaitingContinue;
+    const continueAlpha = showContinue ? (0.55 + Math.abs(Math.sin(Date.now() / 220)) * 0.45) : 0;
 
     ctx.save();
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Zombie
+    if (deathSequence.type === 'head_burst') {
+        const burst = deathSequence.burstProgress || 0;
+        const headX = px;
+        const headY = py - 14;
+
+        if (!deathSequence.exploded) {
+            const pulse = 0.65 + Math.sin(deathSequence.frame * 0.35) * 0.2;
+            ctx.strokeStyle = `rgba(255, 82, 82, ${pulse})`;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(headX, headY, 12 + deathSequence.frame * 0.45, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.strokeStyle = "rgba(255, 235, 59, 0.8)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(headX - 8, headY - 8);
+            ctx.lineTo(headX + 8, headY + 8);
+            ctx.moveTo(headX + 8, headY - 8);
+            ctx.lineTo(headX - 8, headY + 8);
+            ctx.stroke();
+        } else {
+            ctx.fillStyle = `rgba(183, 28, 28, ${0.35 + burst * 0.35})`;
+            ctx.beginPath();
+            ctx.arc(headX, headY, 18 + burst * 36, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = `rgba(255, 82, 82, ${0.45 + burst * 0.3})`;
+            ctx.lineWidth = 3;
+            for (let i = 0; i < 7; i++) {
+                const angle = (Math.PI * 2 * i) / 7 + burst;
+                ctx.beginPath();
+                ctx.moveTo(headX, headY);
+                ctx.lineTo(headX + Math.cos(angle) * (22 + burst * 26), headY + Math.sin(angle) * (22 + burst * 26));
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = "rgba(255, 235, 59, 0.9)";
+            for (let i = 0; i < 5; i++) {
+                const angle = burst * 2 + i * 1.2;
+                ctx.beginPath();
+                ctx.arc(headX + Math.cos(angle) * (10 + burst * 18), headY + Math.sin(angle) * (8 + burst * 18), 2 + burst * 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        ctx.fillStyle = "#ffeb3b";
+        ctx.font = "24px 'VT323', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("GAME OVER", canvas.width / 2, 50);
+        if (showContinue) {
+            ctx.font = "18px 'VT323', monospace";
+            ctx.fillStyle = `rgba(255,255,255,${continueAlpha})`;
+            ctx.fillText("CLICK TO CONTINUE", canvas.width / 2, canvas.height - 36);
+        }
+        ctx.restore();
+        return;
+    }
+
+    const zx = deathSequence.zombieX - camera.x + renderOffset.x;
+    const zy = deathSequence.zombieY - camera.y + renderOffset.y;
+    const bite = deathSequence.consumeProgress;
+
     ctx.fillStyle = "#1b5e20";
     ctx.fillRect(zx - 12, zy - 34, 24, 36);
     ctx.fillStyle = "#66bb6a";
@@ -2665,7 +2915,6 @@ function drawDeathSequence() {
     ctx.fillStyle = "#b71c1c";
     ctx.fillRect(zx - 9, zy - 30, 6, 3);
 
-    // Bite overlay on player
     if (bite > 0) {
         ctx.fillStyle = `rgba(183, 28, 28, ${0.2 + bite * 0.6})`;
         ctx.beginPath();
@@ -2677,15 +2926,19 @@ function drawDeathSequence() {
     ctx.font = "24px 'VT323', monospace";
     ctx.textAlign = "center";
     ctx.fillText("YOU WERE DEVOURED...", canvas.width / 2, 50);
-    ctx.font = "16px 'VT323', monospace";
-    ctx.fillStyle = "#fff";
-    const reason = deathSequence.reason === 'timer' ? 'Time\'s up.' : 'Leaving the principal\'s office = death.';
-    ctx.fillText(reason, canvas.width / 2, 72);
+    if (showContinue) {
+        ctx.font = "18px 'VT323', monospace";
+        ctx.fillStyle = `rgba(255,255,255,${continueAlpha})`;
+        ctx.fillText("CLICK TO CONTINUE", canvas.width / 2, canvas.height - 36);
+    }
     ctx.restore();
 }
 
 function drawDevOverlay() {
     if (!isDeveloperMode) return;
+    const renderOffset = getSceneRenderOffset();
+    ctx.save();
+    ctx.translate(renderOffset.x, renderOffset.y);
     if (selectedObject) {
         ctx.strokeStyle = "#00ff00";
         ctx.lineWidth = 2;
@@ -2765,6 +3018,7 @@ function drawDevOverlay() {
             });
         }
     }
+    ctx.restore();
 }
 
 function drawHints() {
@@ -2834,17 +3088,11 @@ function updateOfficeTimer() {
 
     if (officeTimer.framesLeft <= 0) {
         officeTimer.framesLeft = 0;
-        triggerDeath('timer');
+        triggerDeath('office_rush_timeout');
         return;
     }
 
-    if (officeTimer.framesLeft <= 10 * 60) {
-        if (!officeTimer.flashed) {
-            showTemporaryDialogue("Hurry! Time is almost up!", "SYSTEM");
-            officeTimer.flashed = true;
-        }
-        screenShake = Math.max(screenShake, 1.5);
-    }
+    officeTimer.flashed = officeTimer.framesLeft <= 10 * 60;
 }
 
 function updateNPCs() {
@@ -3005,6 +3253,7 @@ function startLectureCutscene(seat) {
                  camera.zoom -= 0.05;
              } else {
                  camera.zoom = 1;
+                 markOfficeRushActive();
                  phase = 'end';
                  cutscene.active = false;
                  cutscene = null;
@@ -3184,6 +3433,10 @@ function updateHorrorState() {
 }
 
 function advanceDialogue() {
+  if (deathSequence && deathSequence.active && deathSequence.awaitingContinue) {
+    continueDeathSequence();
+    return;
+  }
   if (stage < dialogue.length - 1) {
     stage += 1;
     updateDialogue();
@@ -3365,11 +3618,18 @@ function executeInteraction(target) {
         let targetId = parts[1] ? parts[1].trim() : null;
         if (!targetId && door.targetDoorId) targetId = door.targetDoorId;
         if (targetRoom) {
+             if (targetRoom === 'principal_office' && playData.worldState.officeRushPending) {
+                  clearOfficeRushState();
+             }
              loadLevel(targetRoom, targetId);
              if (!targetId && door.targetSpawn) {
                   player.x = door.targetSpawn.x;
                   player.y = door.targetSpawn.y;
              }
+             playData.player.x = player.x;
+             playData.player.y = player.y;
+             playData.player.facing = player.facing;
+             savePlayState();
         }
         return;
     }
@@ -3618,6 +3878,12 @@ document.addEventListener("keydown", (event) => {
     keys.add(key);
   }
   if (key === " ") {
+      if (deathSequence && deathSequence.active) {
+          if (deathSequence.awaitingContinue) {
+              continueDeathSequence();
+          }
+          return;
+      }
       if (dialogueBox.classList.contains("dialogue--active") && !isHintActive) {
           advanceDialogue();
       } else {
@@ -3828,8 +4094,9 @@ function useActiveItem() {
 canvas.addEventListener("mousedown", (e) => {
   if (!isDeveloperMode) return;
   const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left + camera.x;
-  const my = e.clientY - rect.top + camera.y;
+  const worldPoint = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const mx = worldPoint.x;
+  const my = worldPoint.y;
 
   if (selectedObject && selectedObject.type === 'door') {
       let spawnX, spawnY;
@@ -4130,8 +4397,9 @@ function paint(x, y, isDot = false) {
 canvas.addEventListener("mousemove", (e) => {
     if (!isDeveloperMode) return;
     const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left + camera.x;
-    const my = e.clientY - rect.top + camera.y;
+    const worldPoint = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const mx = worldPoint.x;
+    const my = worldPoint.y;
 
     if (isDraggingSpawn && selectedObject && selectedObject.type === 'door') {
         selectedObject.customSpawn = { x: Math.round(mx), y: Math.round(my) };
@@ -4823,6 +5091,7 @@ document.getElementById("btn-play").addEventListener("click", () => {
   deathSequence = null;
   officeTimer.active = false;
   checkpointBeforeLecture = null;
+  checkpointBeforeOfficeRush = null;
   particles = [];
   cutscene = null;
   // New Game: Reset Play Data
