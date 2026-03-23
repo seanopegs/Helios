@@ -510,6 +510,30 @@ body {
 #inventory-hud.hidden {
   display: none;
 }
+.inv-money {
+  width: 58px;
+  margin-bottom: 4px;
+  padding: 8px 6px 7px;
+  background: linear-gradient(180deg, rgba(53,44,22,0.95), rgba(18,14,8,0.96));
+  border: 2px solid #9d8350;
+  color: #f6e5a8;
+  text-align: center;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 -2px 0 rgba(0,0,0,0.35),
+    0 8px 14px rgba(0,0,0,0.24);
+}
+.inv-money__label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,236,179,0.82);
+}
+.inv-money__value {
+  margin-top: 3px;
+  font-size: 16px;
+  color: #fff8dc;
+}
 .inv-slot {
   width: 58px;
   height: 58px;
@@ -676,6 +700,7 @@ body {
 .note-paper {
   width: 420px;
   max-width: 90vw;
+  min-height: 540px;
   background: linear-gradient(135deg, #fdf6e3 0%, #f5e6c8 50%, #ede0c8 100%);
   border: 2px solid #c4a882;
   border-radius: 4px;
@@ -698,11 +723,24 @@ body {
   );
   pointer-events: none;
 }
+.note-paper.note-paper--flipped .note-face--front {
+  display: none;
+}
+.note-paper:not(.note-paper--flipped) .note-face--back {
+  display: none;
+}
+.note-face {
+  min-height: 430px;
+}
 .note-content {
   font-family: 'Segoe Script', 'Dancing Script', 'Brush Script MT', cursive;
   font-size: 17px;
   color: #2c1810;
   line-height: 1.8;
+}
+.note-content--back {
+  text-align: center;
+  padding-top: 28px;
 }
 .note-content p {
   margin: 12px 0;
@@ -723,9 +761,38 @@ body {
   margin-top: 24px;
   font-style: italic;
 }
+.note-backline {
+  font-size: 19px;
+  color: #6d4c41;
+}
+.note-code-label {
+  margin-top: 38px;
+  font-size: 18px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8b5e3c;
+}
+.note-code {
+  margin: 20px 0 18px;
+  font-family: 'VT323', monospace;
+  font-size: 64px;
+  letter-spacing: 0.26em;
+  color: #8b0000;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.12);
+}
+.note-backhint {
+  font-size: 18px;
+  color: #5c3a1e;
+}
+.note-actions {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 12px;
+}
 .btn-note-close {
-  display: block;
-  margin: 20px auto 0;
+  display: inline-block;
+  margin: 0;
   padding: 8px 24px;
   background: #5c3a1e;
   color: #fdf6e3;
@@ -738,4 +805,72 @@ body {
 }
 .btn-note-close:hover {
   background: #8b5e3c;
+}
+
+#padlock-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.84);
+  z-index: 2100;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+#padlock-overlay.hidden {
+  display: none;
+}
+.padlock-panel {
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  padding: 28px 26px 24px;
+  background: linear-gradient(180deg, rgba(46,48,61,0.98), rgba(18,19,28,0.98));
+  border: 3px solid #757b92;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 0 -3px 0 rgba(0,0,0,0.28),
+    0 18px 34px rgba(0,0,0,0.45);
+  text-align: center;
+}
+.padlock-title {
+  font-size: 34px;
+  color: #ffe082;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.padlock-subtitle {
+  margin-top: 8px;
+  font-size: 20px;
+  color: #d6dae9;
+  line-height: 1.4;
+}
+.padlock-input {
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 2px solid #8c93ab;
+  background: rgba(7,8,12,0.96);
+  color: #fff;
+  font-family: 'VT323', monospace;
+  font-size: 40px;
+  letter-spacing: 0.35em;
+  text-align: center;
+  outline: none;
+}
+.padlock-feedback {
+  min-height: 24px;
+  margin-top: 12px;
+  font-size: 18px;
+  color: #f3f1ff;
+}
+.padlock-feedback--error {
+  color: #ff8a80;
+}
+.padlock-feedback--success {
+  color: #c5e1a5;
+}
+.padlock-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
 }

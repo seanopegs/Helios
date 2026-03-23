@@ -10,15 +10,24 @@ let dialogue = [];
 let levels = JSON.parse(JSON.stringify(window.initialGameData.levels));
 let isDeveloperMode = false;
 let isGameActive = false;
+const INVENTORY_SIZE = 4;
+const SECRET_NOTE_CODE = "4173";
+const DEFAULT_VOLUME_LEVEL = 0.8;
+const VOLUME_STEP = 0.1;
+const MASTER_VOLUME_BOOST = 3.75;
 
 // Play Data (Runtime State)
 let playData = {
     player: { x: 0, y: 0, room: 'classroom', facing: 'down' },
     worldState: {},
-    inventory: [null, null, { id: 'cabinet_key', name: 'Cabinet Key', icon: '🔑' }, null],
+    inventory: [null, null, { id: 'cabinet_key', name: 'Cabinet Key', icon: '\uD83D\uDD11' }, null],
+    money: 0,
     activeSlot: 0,
     povActive: false,
-    introSeen: false
+    introSeen: false,
+    settings: {
+        volume: DEFAULT_VOLUME_LEVEL
+    }
 };
 
 let stage = 0;
@@ -68,13 +77,99 @@ const player = {
   isSitting: false
 };
 
+function clampVolumeLevel(value) {
+    if (!Number.isFinite(value)) return DEFAULT_VOLUME_LEVEL;
+    return Math.max(0, Math.min(1, Math.round(value * 10) / 10));
+}
+
+function ensurePlayDataDefaults() {
+    if (!playData || typeof playData !== 'object') playData = {};
+    if (!playData.player) playData.player = { x: 0, y: 0, room: 'classroom', facing: 'down' };
+    if (!playData.worldState || typeof playData.worldState !== 'object') playData.worldState = {};
+    if (!Array.isArray(playData.inventory)) playData.inventory = [];
+    while (playData.inventory.length < INVENTORY_SIZE) playData.inventory.push(null);
+    playData.inventory = playData.inventory.slice(0, INVENTORY_SIZE);
+    if (typeof playData.money !== 'number' || !Number.isFinite(playData.money)) playData.money = 0;
+    if (typeof playData.activeSlot !== 'number') playData.activeSlot = 0;
+    playData.activeSlot = Math.max(0, Math.min(INVENTORY_SIZE - 1, Math.floor(playData.activeSlot)));
+    if (typeof playData.povActive !== 'boolean') playData.povActive = false;
+    if (typeof playData.introSeen !== 'boolean') playData.introSeen = false;
+    if (!playData.settings || typeof playData.settings !== 'object') playData.settings = {};
+    playData.settings.volume = clampVolumeLevel(playData.settings.volume);
+}
+
+function getVolumeLevel() {
+    ensurePlayDataDefaults();
+    return clampVolumeLevel(playData.settings.volume);
+}
+
+function getMasterVolumeValue(level = getVolumeLevel()) {
+    return level * MASTER_VOLUME_BOOST;
+}
+
+function applyMasterVolume() {
+    if (masterOutputGain) {
+        masterOutputGain.gain.value = getMasterVolumeValue();
+    }
+    updateVolumeUI();
+}
+
+function isItemInInventory(itemId) {
+    return playData.inventory.some(item => item && item.id === itemId);
+}
+
+function findInventoryEmptySlot() {
+    return playData.inventory.findIndex(slot => slot === null);
+}
+
+function addMoney(amount) {
+    ensurePlayDataDefaults();
+    playData.money = Math.max(0, Math.floor(playData.money + amount));
+}
+
+function isItemHidden(item) {
+    if (!item) return true;
+    if (item.id === 'secret_room_padlocked_hatch' && !playData.worldState.secretRoomHatchRevealed) return true;
+    return false;
+}
+
+function isOverlayVisible(id) {
+    const el = document.getElementById(id);
+    return Boolean(el && !el.classList.contains('hidden'));
+}
+
+function isModalBlockingInput() {
+    return playData.povActive || isOverlayVisible('note-overlay') || isOverlayVisible('padlock-overlay');
+}
+
+function getItemAnchor(item) {
+    return {
+        x: item.x + item.width / 2,
+        y: item.y + item.height / 2
+    };
+}
+
+function isPlayerNearItem(item, threshold = 80) {
+    if (!item || isItemHidden(item)) return false;
+    const anchor = getItemAnchor(item);
+    return Math.hypot(player.x - anchor.x, player.y - anchor.y) <= threshold;
+}
+
+function getRoomItem(itemId) {
+    return room.furniture.find(item => item.id === itemId);
+}
+
+ensurePlayDataDefaults();
+
 // Soundtrack Management
 let audioCtx = null;
 let currentOscillators = [];
 let currentSoundtrackMode = null;
 let dialogueVoiceTimers = [];
 let musicMasterGain = null;
+let masterOutputGain = null;
 let melodyInterval = null;
+let activePadlockId = null;
 
 function stopDialogueVoice() {
     dialogueVoiceTimers.forEach(timer => clearTimeout(timer));
@@ -139,8 +234,8 @@ function playDialogueBlip(profile, variance = 0) {
 
     osc.connect(gain);
     osc2.connect(gain2);
-    gain.connect(audioCtx.destination);
-    gain2.connect(audioCtx.destination);
+    gain.connect(masterOutputGain || audioCtx.destination);
+    gain2.connect(masterOutputGain || audioCtx.destination);
     osc.start(t);
     osc.stop(t + 0.12);
     osc2.start(t);
@@ -175,17 +270,23 @@ function queueDialogueVoice(entry) {
 }
 
 function initAudio() {
+    ensurePlayDataDefaults();
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
     if (audioCtx.state === 'suspended') {
         audioCtx.resume();
     }
+    if (!masterOutputGain) {
+        masterOutputGain = audioCtx.createGain();
+        masterOutputGain.connect(audioCtx.destination);
+    }
     if (!musicMasterGain) {
         musicMasterGain = audioCtx.createGain();
         musicMasterGain.gain.value = 1.0;
-        musicMasterGain.connect(audioCtx.destination);
+        musicMasterGain.connect(masterOutputGain);
     }
+    applyMasterVolume();
 }
 
 function stopSoundtrack() {
@@ -238,7 +339,7 @@ function playSoundtrack(mode) {
     if (!musicMasterGain) {
         musicMasterGain = audioCtx.createGain();
         musicMasterGain.gain.value = 1.0;
-        musicMasterGain.connect(audioCtx.destination);
+        musicMasterGain.connect(masterOutputGain || audioCtx.destination);
     }
 
     if (mode === 'normal') {
@@ -639,6 +740,8 @@ function loadLevel(name, targetDoorId) {
   let title = "Helios - Luke's Room";
   if (name === 'lecture') title = "Helios - Classroom";
   else if (name === 'hallway') title = "Helios - Student Hallway";
+  else if (name === 'secret_room') title = "Helios - Hidden Room";
+  else if (name === 'ruined_classroom') title = "Helios - Ruined Classroom";
   document.title = title;
 
   if (isDeveloperMode) updateDevRoomSelect();
@@ -1088,8 +1191,9 @@ function checkCollision(x, y) {
   if (y + half > room.height - room.padding) return true;
 
   for (const item of room.furniture) {
+    if (isItemHidden(item)) continue;
     const hasCustom = !!item.collisionRect;
-    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone' || item.type === 'wall_switch')) continue;
+    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone' || item.type === 'wall_switch' || item.type === 'floor_patch' || item.type === 'padlocked_hatch')) continue;
 
     let dLeft, dTop, dWidth, dHeight;
 
@@ -1121,7 +1225,8 @@ function handleMovement() {
   const inputBlocked = (dialogueBox.classList.contains("dialogue--active") && !isHintActive) ||
                        player.isSitting ||
                        (cutscene && cutscene.active) ||
-                       (deathSequence && deathSequence.active);
+                       (deathSequence && deathSequence.active) ||
+                       isModalBlockingInput();
 
   if (!inputBlocked) {
     let dx = 0;
@@ -1368,6 +1473,7 @@ function drawSceneLighting() {
 
     room.furniture.forEach(item => {
         if (!item) return;
+        if (isItemHidden(item)) return;
 
         if (item.hasLamp) {
             const lightX = item.x + 15;
@@ -1768,6 +1874,26 @@ function drawCupboard(item, targetCtx = ctx) {
 }
 
 function drawChest(item, targetCtx = ctx) {
+    if (item.id === 'secret_room_supply_chest' && playData.worldState.secretRoomChestOpened) {
+        targetCtx.fillStyle = "rgba(0,0,0,0.22)";
+        targetCtx.fillRect(item.x + 6, item.y + item.height - 10, item.width - 12, 10);
+        targetCtx.fillStyle = "#4a2f26";
+        targetCtx.fillRect(item.x, item.y + 18, item.width, item.height - 18);
+        targetCtx.fillStyle = "#3a241d";
+        targetCtx.fillRect(item.x + 8, item.y + 4, item.width - 16, 16);
+        targetCtx.fillStyle = "#6d4c41";
+        targetCtx.beginPath();
+        targetCtx.moveTo(item.x + 6, item.y + 16);
+        targetCtx.lineTo(item.x + 16, item.y - 6);
+        targetCtx.lineTo(item.x + item.width - 16, item.y - 6);
+        targetCtx.lineTo(item.x + item.width - 6, item.y + 16);
+        targetCtx.closePath();
+        targetCtx.fill();
+        targetCtx.fillStyle = "#263238";
+        targetCtx.fillRect(item.x + item.width / 2 - 6, item.y + 22, 12, 12);
+        return;
+    }
+
     targetCtx.fillStyle = "#5d4037";
     targetCtx.fillRect(item.x, item.y, item.width, item.height);
     targetCtx.fillStyle = "#4e342e";
@@ -1781,6 +1907,76 @@ function drawChest(item, targetCtx = ctx) {
     targetCtx.fillRect(item.x + item.width/2 - 6, item.y + 10, 12, 14);
     targetCtx.fillStyle = "#78909c";
     targetCtx.fillRect(item.x + item.width/2 - 2, item.y + 18, 4, 4);
+}
+
+function drawFloorPatch(item, targetCtx = ctx) {
+    const revealed = Boolean(playData.worldState.secretRoomHatchRevealed);
+    if (!revealed) {
+        targetCtx.fillStyle = "rgba(28,17,13,0.18)";
+        targetCtx.fillRect(item.x, item.y, item.width, item.height);
+        targetCtx.fillStyle = "rgba(0,0,0,0.12)";
+        for (let y = item.y + 6; y < item.y + item.height; y += 18) {
+            targetCtx.fillRect(item.x + 4, y, item.width - 8, 2);
+        }
+        targetCtx.fillStyle = "rgba(255,255,255,0.04)";
+        targetCtx.fillRect(item.x + 6, item.y + 8, item.width - 12, 2);
+        return;
+    }
+
+    targetCtx.fillStyle = "#1a100d";
+    targetCtx.fillRect(item.x + 8, item.y + 10, item.width - 16, item.height - 18);
+    targetCtx.fillStyle = "#4e342e";
+    targetCtx.fillRect(item.x - 2, item.y + 2, item.width + 4, 8);
+    targetCtx.fillRect(item.x + 4, item.y + item.height - 10, item.width - 8, 8);
+    targetCtx.save();
+    targetCtx.translate(item.x + 12, item.y + 10);
+    targetCtx.rotate(-0.14);
+    targetCtx.fillStyle = "#6d4c41";
+    targetCtx.fillRect(0, 0, 34, 8);
+    targetCtx.restore();
+    targetCtx.save();
+    targetCtx.translate(item.x + item.width - 18, item.y + 18);
+    targetCtx.rotate(0.22);
+    targetCtx.fillStyle = "#5d4037";
+    targetCtx.fillRect(-24, 0, 24, 8);
+    targetCtx.restore();
+}
+
+function drawPadlockedHatch(item, targetCtx = ctx) {
+    if (isItemHidden(item)) return;
+
+    const unlocked = Boolean(playData.worldState.secretRoomPadlockUnlocked);
+    const hatchX = item.x + 6;
+    const hatchY = item.y + 10;
+    const hatchW = item.width - 12;
+    const hatchH = item.height - 18;
+
+    targetCtx.fillStyle = "rgba(0,0,0,0.24)";
+    targetCtx.fillRect(hatchX, hatchY + hatchH - 2, hatchW, 8);
+    targetCtx.fillStyle = "#3e2723";
+    targetCtx.fillRect(hatchX, hatchY, hatchW, hatchH);
+    targetCtx.fillStyle = "#65433a";
+    targetCtx.strokeRect(hatchX + 2, hatchY + 2, hatchW - 4, hatchH - 4);
+    targetCtx.fillStyle = "#2f1d18";
+    targetCtx.fillRect(hatchX + hatchW / 2 - 2, hatchY + 4, 4, hatchH - 8);
+    targetCtx.fillRect(hatchX + 10, hatchY + hatchH / 2 - 2, hatchW - 20, 4);
+
+    if (unlocked) {
+        targetCtx.fillStyle = "#ad8f62";
+        targetCtx.fillRect(hatchX + hatchW / 2 - 10, hatchY + hatchH / 2 - 2, 20, 4);
+        targetCtx.fillStyle = "#111";
+        targetCtx.fillRect(hatchX + hatchW - 18, hatchY + 10, 6, hatchH - 20);
+        targetCtx.fillStyle = "rgba(0,0,0,0.35)";
+        targetCtx.fillRect(hatchX + hatchW - 12, hatchY + 8, 10, hatchH - 16);
+        return;
+    }
+
+    targetCtx.fillStyle = "#c7b18a";
+    targetCtx.fillRect(hatchX + hatchW / 2 - 3, hatchY + 18, 6, 20);
+    targetCtx.fillStyle = "#90a4ae";
+    targetCtx.fillRect(hatchX + hatchW / 2 - 10, hatchY + 28, 20, 18);
+    targetCtx.fillStyle = "#263238";
+    targetCtx.fillRect(hatchX + hatchW / 2 - 4, hatchY + 36, 8, 6);
 }
 
 function drawRug(item, targetCtx = ctx) {
@@ -2478,6 +2674,8 @@ function drawWallSwitch(item, targetCtx = ctx) {
 }
 
 function drawFurnitureItem(item, targetCtx = ctx) {
+    if (isItemHidden(item)) return;
+
     if (item.type === 'zone') {
         if (isDeveloperMode) {
             targetCtx.strokeStyle = "rgba(0, 0, 255, 0.5)";
@@ -2520,6 +2718,8 @@ function drawFurnitureItem(item, targetCtx = ctx) {
     else if (item.type === 'debris') drawDebris(item, targetCtx);
     else if (item.type === 'vent') drawVent(item, targetCtx);
     else if (item.type === 'chest') drawChest(item, targetCtx);
+    else if (item.type === 'floor_patch') drawFloorPatch(item, targetCtx);
+    else if (item.type === 'padlocked_hatch') drawPadlockedHatch(item, targetCtx);
     else if (item.type === 'rug') drawRug(item, targetCtx);
     else if (item.type === 'shelf') drawShelf(item, targetCtx);
     else if (item.type === 'whiteboard') drawWhiteboard(item, targetCtx);
@@ -3021,6 +3221,26 @@ function drawDevOverlay() {
     ctx.restore();
 }
 
+function getNearestPromptFurniture(threshold = 82) {
+  let nearest = null;
+  let nearestDist = threshold;
+
+  for (const item of room.furniture) {
+      if (!item || isItemHidden(item)) continue;
+      if (!item.interaction || !item.interaction.enabled || !item.interaction.prompt) continue;
+      if (item.id === 'left_cabinet' || item.id === 'right_cabinet') continue;
+
+      const anchor = getItemAnchor(item);
+      const dist = Math.hypot(player.x - anchor.x, player.y - anchor.y);
+      if (dist < nearestDist) {
+          nearest = item;
+          nearestDist = dist;
+      }
+  }
+
+  return nearest;
+}
+
 function drawHints() {
   if (deathSequence && deathSequence.active) return;
   ctx.save();
@@ -3058,6 +3278,21 @@ function drawHints() {
              isHintActive = true;
           }
           break;
+      }
+  }
+
+  if (!showingHint) {
+      const nearbyItem = getNearestPromptFurniture(84);
+      if (nearbyItem) {
+          showingHint = true;
+          if (!isHintActive) {
+             dialogueBox.classList.remove("dialogue--hidden");
+             dialogueBox.classList.add("dialogue--active");
+             dialogueLine.textContent = `Press [SPACE] ${nearbyItem.interaction.prompt}`;
+             dialogueLabel.classList.add("dialogue__label--hidden");
+             dialoguePrompt.textContent = "";
+             isHintActive = true;
+          }
       }
   }
 
@@ -3491,6 +3726,7 @@ function handleInteraction() {
 
     for (let i = 0; i < room.furniture.length; i++) {
          const item = room.furniture[i];
+         if (isItemHidden(item)) continue;
          if (item.interaction && item.interaction.enabled && item.interaction.conversations && item.interaction.conversations.length > 0) {
              const area = item.interaction.area || { x: 0, y: 0, width: item.width, height: item.height };
              const ix = item.x + area.x;
@@ -3652,6 +3888,42 @@ function executeInteraction(target) {
             return;
         }
 
+        if (item.id === 'secret_room_supply_chest') {
+            if (playData.worldState.secretRoomChestOpened) {
+                showTemporaryDialogue("The chest is empty now.", "LUKE");
+                return;
+            }
+
+            const emptySlot = findInventoryEmptySlot();
+            if (emptySlot === -1) {
+                showTemporaryDialogue("I need one empty inventory slot first.", "LUKE");
+                return;
+            }
+
+            playData.worldState.secretRoomChestOpened = true;
+            playData.inventory[emptySlot] = { id: 'axe', name: 'Rusty Axe', icon: '\uD83E\uDE93' };
+            addMoney(5);
+            updateInventoryUI();
+            showTemporaryDialogue("Found a Rusty Axe and 5 money.", "SYSTEM");
+            savePlayState();
+            return;
+        }
+
+        if (item.id === 'secret_room_padlocked_hatch') {
+            if (!playData.worldState.secretRoomPadlockUnlocked) {
+                openPadlockOverlay(item.id);
+                return;
+            }
+
+            showTemporaryDialogue("The hatch creaks open...", "LUKE");
+            loadLevel('ruined_classroom', 'door_ruined_to_secret');
+            playData.player.x = player.x;
+            playData.player.y = player.y;
+            playData.player.facing = player.facing;
+            savePlayState();
+            return;
+        }
+
         // --- POV Cabinet Logic ---
         const isKeySelected = isInventoryOpen && playData.inventory[playData.activeSlot] && playData.inventory[playData.activeSlot].id === 'cabinet_key';
         const isLeftCabinetUnlocked = Boolean(playData.worldState.leftCabinetUnlocked);
@@ -3777,6 +4049,7 @@ function toggleHelpScreen() {
 function updateInventoryUI() {
     const hud = document.getElementById('inventory-hud');
     if (!hud) return;
+    ensurePlayDataDefaults();
 
     if (isInventoryOpen) {
         hud.classList.remove('hidden');
@@ -3785,7 +4058,12 @@ function updateInventoryUI() {
         return; // Don't need to update DOM if hidden
     }
 
-    for (let i = 0; i < 4; i++) {
+    const moneyValue = document.getElementById('inv-money-value');
+    if (moneyValue) {
+        moneyValue.textContent = `${playData.money} money`;
+    }
+
+    for (let i = 0; i < INVENTORY_SIZE; i++) {
         const slotEl = document.getElementById(`slot-${i}`);
         if (!slotEl) continue;
 
@@ -3823,8 +4101,18 @@ document.addEventListener("keydown", (event) => {
       document.getElementById('pov-container').classList.add('hidden');
       return;
   }
+
+  if (isOverlayVisible('note-overlay') && event.key === "Escape") {
+      closeNoteOverlay();
+      return;
+  }
+
+  if (isOverlayVisible('padlock-overlay') && event.key === "Escape") {
+      closePadlockOverlay();
+      return;
+  }
   
-  if (playData.povActive) return; // Disable movement/interaction in POV
+  if (isModalBlockingInput()) return; // Disable movement/interaction in overlays/POV
 
   const key = event.key.toLowerCase();
   
@@ -3907,9 +4195,9 @@ canvas.addEventListener("wheel", (e) => {
     if (isInventoryOpen) {
         e.preventDefault();
         if (e.deltaY < 0) {
-            playData.activeSlot = (playData.activeSlot - 1 + 4) % 4; // Scroll up -> previous slot
+            playData.activeSlot = (playData.activeSlot - 1 + INVENTORY_SIZE) % INVENTORY_SIZE; // Scroll up -> previous slot
         } else {
-            playData.activeSlot = (playData.activeSlot + 1) % 4; // Scroll down -> next slot
+            playData.activeSlot = (playData.activeSlot + 1) % INVENTORY_SIZE; // Scroll down -> next slot
         }
         updateInventoryUI();
         return;
@@ -3937,6 +4225,7 @@ document.addEventListener("keydown", (e) => {
     if (cutscene && cutscene.active) return;
     if (isDeveloperMode) return;
     if (!isGameActive) return;
+    if (isModalBlockingInput()) return;
     if (document.activeElement.tagName === 'INPUT') return;
 
     if (e.key === '=' || e.key === '+') {
@@ -3946,13 +4235,92 @@ document.addEventListener("keydown", (e) => {
     }
 });
 
+function setNoteFlipped(flipped) {
+    const paper = document.querySelector('.note-paper');
+    if (paper) paper.classList.toggle('note-paper--flipped', Boolean(flipped));
+}
+
+function openNoteOverlay() {
+    setNoteFlipped(false);
+    const overlay = document.getElementById('note-overlay');
+    if (overlay) overlay.classList.remove('hidden');
+}
+
+function closeNoteOverlay() {
+    const overlay = document.getElementById('note-overlay');
+    if (overlay) overlay.classList.add('hidden');
+    setNoteFlipped(false);
+}
+
+function setPadlockFeedback(message, type = '') {
+    const feedback = document.getElementById('padlock-feedback');
+    if (!feedback) return;
+    feedback.textContent = message || '';
+    feedback.classList.remove('padlock-feedback--error', 'padlock-feedback--success');
+    if (type) feedback.classList.add(`padlock-feedback--${type}`);
+}
+
+function openPadlockOverlay(itemId) {
+    activePadlockId = itemId;
+    const overlay = document.getElementById('padlock-overlay');
+    const input = document.getElementById('padlock-input');
+    if (!overlay || !input) return;
+    overlay.classList.remove('hidden');
+    input.value = '';
+    setPadlockFeedback('');
+    setTimeout(() => input.focus(), 10);
+}
+
+function closePadlockOverlay() {
+    activePadlockId = null;
+    const overlay = document.getElementById('padlock-overlay');
+    const input = document.getElementById('padlock-input');
+    if (overlay) overlay.classList.add('hidden');
+    if (input) input.blur();
+    setPadlockFeedback('');
+}
+
+function attemptPadlockUnlock() {
+    const input = document.getElementById('padlock-input');
+    if (!input) return;
+
+    const code = String(input.value || '').replace(/\D/g, '').slice(0, 4);
+    input.value = code;
+
+    if (code.length < 4) {
+        setPadlockFeedback('Enter all 4 digits first.', 'error');
+        return;
+    }
+
+    if (code !== SECRET_NOTE_CODE) {
+        setPadlockFeedback('Wrong combination.', 'error');
+        return;
+    }
+
+    playData.worldState.secretRoomPadlockUnlocked = true;
+    savePlayState();
+    setPadlockFeedback('The lock clicks open.', 'success');
+    setTimeout(() => {
+        closePadlockOverlay();
+        showTemporaryDialogue('The padlock opened.', 'LUKE');
+    }, 220);
+}
+
 // ── POV Interactions ──
 (function setupPOV() {
     const povNote = document.getElementById('pov-note');
     const povKey = document.getElementById('pov-key');
     const closeBtn = document.getElementById('btn-close-pov');
-    const noteOverlay = document.getElementById('note-overlay');
     const closeNote = document.getElementById('btn-close-note');
+    const flipNote = document.getElementById('btn-flip-note');
+    const padlockInput = document.getElementById('padlock-input');
+    const padlockOpenBtn = document.getElementById('btn-padlock-open');
+    const padlockCloseBtn = document.getElementById('btn-padlock-close');
+    const noteSecretCode = document.getElementById('note-secret-code');
+
+    if (noteSecretCode) {
+        noteSecretCode.textContent = SECRET_NOTE_CODE;
+    }
 
     // Close POV button
     if (closeBtn) {
@@ -3966,9 +4334,9 @@ document.addEventListener("keydown", (e) => {
     // Pick up Note
     if (povNote) {
         povNote.addEventListener('click', () => {
-            const emptySlot = playData.inventory.findIndex(s => s === null);
+            const emptySlot = findInventoryEmptySlot();
             if (emptySlot !== -1) {
-                playData.inventory[emptySlot] = { id: 'secret_note', name: 'Mysterious Letter', icon: '📝' };
+                playData.inventory[emptySlot] = { id: 'secret_note', name: 'Mysterious Letter', icon: '\uD83D\uDCDD' };
                 playData.worldState.leftCabinetNoteTaken = true;
                 updateInventoryUI();
                 povNote.classList.add('picked-up');
@@ -3983,9 +4351,9 @@ document.addEventListener("keydown", (e) => {
     // Pick up Door Key
     if (povKey) {
         povKey.addEventListener('click', () => {
-            const emptySlot = playData.inventory.findIndex(s => s === null);
+            const emptySlot = findInventoryEmptySlot();
             if (emptySlot !== -1) {
-                playData.inventory[emptySlot] = { id: 'door_key', name: 'Door Key', icon: '🗝️' };
+                playData.inventory[emptySlot] = { id: 'door_key', name: 'Door Key', icon: '\uD83D\uDDDD\uFE0F' };
                 playData.worldState.leftCabinetDoorKeyTaken = true;
                 updateInventoryUI();
                 povKey.classList.add('picked-up');
@@ -4000,8 +4368,37 @@ document.addEventListener("keydown", (e) => {
     // Close Note Overlay
     if (closeNote) {
         closeNote.addEventListener('click', () => {
-            noteOverlay.classList.add('hidden');
+            closeNoteOverlay();
         });
+    }
+
+    if (flipNote) {
+        flipNote.addEventListener('click', () => {
+            const paper = document.querySelector('.note-paper');
+            if (!paper) return;
+            paper.classList.toggle('note-paper--flipped');
+        });
+    }
+
+    if (padlockInput) {
+        padlockInput.addEventListener('input', () => {
+            padlockInput.value = padlockInput.value.replace(/\D/g, '').slice(0, 4);
+            setPadlockFeedback('');
+        });
+        padlockInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                attemptPadlockUnlock();
+            }
+        });
+    }
+
+    if (padlockOpenBtn) {
+        padlockOpenBtn.addEventListener('click', attemptPadlockUnlock);
+    }
+
+    if (padlockCloseBtn) {
+        padlockCloseBtn.addEventListener('click', closePadlockOverlay);
     }
     syncLeftCabinetPOV();
 })();
@@ -4019,25 +4416,66 @@ function useActiveItem() {
     }
 
     if (item.id === 'secret_note') {
-        document.getElementById('note-overlay').classList.remove('hidden');
+        openNoteOverlay();
+        return;
+    }
+
+    if (item.id === 'axe') {
+        const floorboards = getRoomItem('secret_room_loose_floorboards');
+        if (currentLevelName === 'secret_room' && floorboards && isPlayerNearItem(floorboards, 92)) {
+            if (!playData.worldState.secretRoomHatchRevealed) {
+                playData.worldState.secretRoomHatchRevealed = true;
+                savePlayState();
+                showTemporaryDialogue('I broke the dark planks. There is a locked hatch under them.', 'LUKE');
+                return;
+            }
+            showTemporaryDialogue('The boards are already broken.', 'LUKE');
+            return;
+        }
+
+        showTemporaryDialogue("There's nothing here to chop.", "LUKE");
         return;
     }
 
     showTemporaryDialogue("I can't use this directly.", "LUKE");
 }
 
-// Create zoom buttons UI
-(function createZoomUI() {
+function updateVolumeUI() {
+    const lbl = document.getElementById("volume-label");
+    if (lbl) lbl.textContent = `${Math.round(getVolumeLevel() * 100)}%`;
+}
+
+function changeVolume(delta) {
+    ensurePlayDataDefaults();
+    playData.settings.volume = clampVolumeLevel(getVolumeLevel() + delta);
+    applyMasterVolume();
+    savePlayState();
+}
+
+// Create zoom and volume controls UI
+(function createSideControlsUI() {
     const container = document.createElement("div");
     container.id = "zoom-controls";
     container.style.cssText = `
         position: absolute; bottom: 80px; right: 16px; z-index: 900;
-        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        display: flex; flex-direction: column; align-items: center; gap: 10px;
         opacity: 0.7; transition: opacity 0.2s;
         pointer-events: auto;
     `;
     container.addEventListener("mouseenter", () => container.style.opacity = "1");
     container.addEventListener("mouseleave", () => container.style.opacity = "0.7");
+
+    const groupStyle = `
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        padding: 6px 8px; border-radius: 8px;
+        background: rgba(10, 10, 16, 0.62);
+        border: 1px solid rgba(255,255,255,0.08);
+    `;
+
+    const titleStyle = `
+        color: rgba(255,255,255,0.72); font-size: 11px; letter-spacing: 0.08em;
+        font-family: 'VT323', monospace; text-transform: uppercase;
+    `;
 
     const btnStyle = `
         width: 36px; height: 36px; border: 2px solid rgba(255,255,255,0.3);
@@ -4046,43 +4484,66 @@ function useActiveItem() {
         justify-content: center; font-family: 'VT323', monospace; user-select: none;
     `;
 
-    const btnIn = document.createElement("button");
-    btnIn.textContent = "+";
-    btnIn.style.cssText = btnStyle;
-    btnIn.title = "Zoom In (scroll up / +)";
-    btnIn.onclick = (e) => {
-        e.stopPropagation();
+    const labelStyle = `
+        color: #ccc; font-size: 12px; font-family: 'VT323', monospace;
+        text-align: center; min-width: 44px;
+    `;
+
+    const createTitle = (text) => {
+        const title = document.createElement("div");
+        title.style.cssText = titleStyle;
+        title.textContent = text;
+        return title;
+    };
+
+    const createButton = (text, title, onClick) => {
+        const button = document.createElement("button");
+        button.textContent = text;
+        button.style.cssText = btnStyle;
+        button.title = title;
+        button.onclick = (e) => {
+            e.stopPropagation();
+            onClick();
+        };
+        return button;
+    };
+
+    const zoomGroup = document.createElement("div");
+    zoomGroup.style.cssText = groupStyle;
+    const zoomLabel = document.createElement("div");
+    zoomLabel.id = "zoom-label";
+    zoomLabel.style.cssText = labelStyle;
+    zoomLabel.textContent = "1.0x";
+    zoomGroup.appendChild(createTitle("Zoom"));
+    zoomGroup.appendChild(createButton("+", "Zoom In (scroll up / +)", () => {
         if (cutscene && cutscene.active) return;
         userZoom = Math.min(USER_ZOOM_MAX, userZoom + USER_ZOOM_STEP);
-    };
-
-    const label = document.createElement("div");
-    label.id = "zoom-label";
-    label.style.cssText = `
-        color: #ccc; font-size: 12px; font-family: 'VT323', monospace;
-        text-align: center; min-width: 36px;
-    `;
-    label.textContent = "1.0x";
-
-    const btnOut = document.createElement("button");
-    btnOut.textContent = "−";
-    btnOut.style.cssText = btnStyle;
-    btnOut.title = "Zoom Out (scroll down / -)";
-    btnOut.onclick = (e) => {
-        e.stopPropagation();
+    }));
+    zoomGroup.appendChild(zoomLabel);
+    zoomGroup.appendChild(createButton("-", "Zoom Out (scroll down / -)", () => {
         if (cutscene && cutscene.active) return;
         userZoom = Math.max(USER_ZOOM_MIN, userZoom - USER_ZOOM_STEP);
-    };
+    }));
 
-    container.appendChild(btnIn);
-    container.appendChild(label);
-    container.appendChild(btnOut);
+    const volumeGroup = document.createElement("div");
+    volumeGroup.style.cssText = groupStyle;
+    const volumeLabel = document.createElement("div");
+    volumeLabel.id = "volume-label";
+    volumeLabel.style.cssText = labelStyle;
+    volumeLabel.textContent = "80%";
+    volumeGroup.appendChild(createTitle("Vol"));
+    volumeGroup.appendChild(createButton("+", "Increase Volume", () => changeVolume(VOLUME_STEP)));
+    volumeGroup.appendChild(volumeLabel);
+    volumeGroup.appendChild(createButton("-", "Decrease Volume", () => changeVolume(-VOLUME_STEP)));
+
+    container.appendChild(zoomGroup);
+    container.appendChild(volumeGroup);
     document.body.appendChild(container);
 
-    // Update label periodically
     setInterval(() => {
-        const lbl = document.getElementById("zoom-label");
-        if (lbl) lbl.textContent = userZoom.toFixed(1) + "x";
+        const zoomLbl = document.getElementById("zoom-label");
+        if (zoomLbl) zoomLbl.textContent = userZoom.toFixed(1) + "x";
+        updateVolumeUI();
         const ctrl = document.getElementById("zoom-controls");
         if (ctrl) {
             ctrl.style.display = (isGameActive && !isDeveloperMode) ? "flex" : "none";
@@ -4982,6 +5443,7 @@ document.body.appendChild(menuBtn);
 canvas.addEventListener("click", advanceDialogue);
 
 function startGame() {
+  ensurePlayDataDefaults();
   initAudio();
   isGameActive = true;
   document.getElementById("start-screen").style.display = "none";
@@ -5004,14 +5466,15 @@ async function loadExternalData() {
                 levels = data.levels;
                 // Merge any missing levels from initialGameData (e.g. newly added rooms)
                 const baseKeys = Object.keys(window.initialGameData.levels);
-                // Always force-refresh classroom to ensure left_cabinet id
-                const forceRefresh = ['classroom'];
+                // Force-refresh rooms with scripted puzzle/state content so stale localStorage won't break them
+                const forceRefresh = ['classroom', 'secret_room', 'ruined_classroom'];
                 for (const key of baseKeys) {
                     // Check if level is missing or structurally empty (no furniture)
                     if (forceRefresh.includes(key) || !levels[key] || (levels[key] && levels[key].furniture.length === 0 && window.initialGameData.levels[key].furniture.length > 0)) {
                         levels[key] = JSON.parse(JSON.stringify(window.initialGameData.levels[key]));
                     }
                 }
+                normalizeGameData({ levels });
                 introDialogue = data.dialogue;
                 currentLevelName = Object.keys(levels)[0] || 'classroom';
                 loadLevel(currentLevelName);
@@ -5029,6 +5492,14 @@ async function loadExternalData() {
             if (data.levels && data.dialogue) {
                 normalizeGameData(data);
                 levels = data.levels;
+                const baseKeys = Object.keys(window.initialGameData.levels);
+                const forceRefresh = ['classroom', 'secret_room', 'ruined_classroom'];
+                for (const key of baseKeys) {
+                    if (forceRefresh.includes(key) || !levels[key] || (levels[key] && levels[key].furniture.length === 0 && window.initialGameData.levels[key].furniture.length > 0)) {
+                        levels[key] = JSON.parse(JSON.stringify(window.initialGameData.levels[key]));
+                    }
+                }
+                normalizeGameData({ levels });
                 introDialogue = data.dialogue;
                 currentLevelName = Object.keys(levels)[0] || 'classroom';
                 loadLevel(currentLevelName);
@@ -5094,15 +5565,21 @@ document.getElementById("btn-play").addEventListener("click", () => {
   checkpointBeforeOfficeRush = null;
   particles = [];
   cutscene = null;
+  const preservedVolume = getVolumeLevel();
   // New Game: Reset Play Data
   playData = {
       player: { x: 0, y: 0, room: Object.keys(levels)[0] || 'classroom', facing: 'down' },
       worldState: {},
-      inventory: [null, null, { id: 'cabinet_key', name: 'Cabinet Key', icon: '🔑' }, null],
+      inventory: [null, null, { id: 'cabinet_key', name: 'Cabinet Key', icon: '\uD83D\uDD11' }, null],
+      money: 0,
       activeSlot: 0,
       povActive: false,
-      introSeen: false
+      introSeen: false,
+      settings: {
+          volume: preservedVolume
+      }
   };
+  ensurePlayDataDefaults();
   savePlayState();
   loadLevel(playData.player.room); // Ensure we start at default spawn
   globalDarkness = 0; // Reset horror state visuals
@@ -5140,18 +5617,19 @@ function saveDesignData() {
 }
 
 function savePlayState() {
+    ensurePlayDataDefaults();
     try {
         localStorage.setItem('helios_play_data', JSON.stringify(playData));
     } catch (e) { console.error(e); }
 }
 
 function hydratePersistentUnlockState() {
-    if (!playData.worldState) playData.worldState = {};
-    if (!Array.isArray(playData.inventory)) playData.inventory = [];
+    ensurePlayDataDefaults();
 
     const hasCabinetKey = playData.inventory.some(item => item && item.id === 'cabinet_key');
     const hasSecretNote = playData.inventory.some(item => item && item.id === 'secret_note');
     const hasDoorKey = playData.inventory.some(item => item && item.id === 'door_key');
+    const hasAxe = playData.inventory.some(item => item && item.id === 'axe');
 
     if (hasSecretNote) {
         playData.worldState.leftCabinetNoteTaken = true;
@@ -5173,6 +5651,10 @@ function hydratePersistentUnlockState() {
             playData.worldState.leftCabinetUnlocked = true;
         }
     }
+
+    if (hasAxe) {
+        playData.worldState.secretRoomChestOpened = true;
+    }
 }
 
 function loadPlayState() {
@@ -5180,6 +5662,7 @@ function loadPlayState() {
         const json = localStorage.getItem('helios_play_data');
         if (json) {
             playData = JSON.parse(json);
+            ensurePlayDataDefaults();
             hydratePersistentUnlockState();
             // Load Level
             if (playData.player.room) {
@@ -5189,6 +5672,7 @@ function loadPlayState() {
                 player.facing = playData.player.facing;
             }
             if (typeof updateInventoryUI === 'function') updateInventoryUI();
+            applyMasterVolume();
         }
     } catch (e) { console.error(e); }
 }

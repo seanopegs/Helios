@@ -234,6 +234,54 @@ window.initialGameData = {
       furniture: [
         { type: 'vent', id: 'broken_vent_in', x: 188, y: 34, width: 58, height: 30 },
         { type: 'debris', x: 198, y: 132, width: 38, height: 18 },
+        {
+            type: 'chest',
+            id: 'secret_room_supply_chest',
+            x: 52,
+            y: 338,
+            width: 84,
+            height: 52,
+            interaction: {
+                enabled: true,
+                type: 'sequence',
+                priority: 7,
+                prompt: 'to open the chest',
+                conversations: [[{ speaker: 'LUKE', text: 'A wooden chest...' }]],
+                area: { x: -16, y: -8, width: 116, height: 82 }
+            }
+        },
+        {
+            type: 'floor_patch',
+            id: 'secret_room_loose_floorboards',
+            x: 346,
+            y: 384,
+            width: 98,
+            height: 68,
+            interaction: {
+                enabled: true,
+                type: 'sequence',
+                priority: 5,
+                prompt: 'to inspect the floor',
+                conversations: [[{ speaker: 'LUKE', text: 'These planks look a little different...' }]],
+                area: { x: -12, y: -12, width: 122, height: 96 }
+            }
+        },
+        {
+            type: 'padlocked_hatch',
+            id: 'secret_room_padlocked_hatch',
+            x: 352,
+            y: 368,
+            width: 92,
+            height: 82,
+            interaction: {
+                enabled: true,
+                type: 'sequence',
+                priority: 8,
+                prompt: 'to inspect the hatch',
+                conversations: [[{ speaker: 'LUKE', text: 'There is a padlock on it.' }]],
+                area: { x: -12, y: -18, width: 116, height: 112 }
+            }
+        },
         { 
             type: 'wall_switch', 
             id: 'secret_room_light_switch', 
@@ -251,6 +299,48 @@ window.initialGameData = {
                 area: { x: -36, y: -12, width: 92, height: 110 }
             }
         }
+      ]
+    },
+    ruined_classroom: {
+      width: 880,
+      height: 560,
+      wallHeight: 110,
+      padding: 32,
+      theme: 'classroom',
+      doors: [
+        {
+          id: 'door_ruined_to_secret',
+          x: 18, y: 214, width: 64, height: 88,
+          orientation: 'left',
+          target: 'secret_room',
+          targetSpawn: { x: 392, y: 360 },
+          prompt: 'back to the hidden room'
+        }
+      ],
+      spawn: { x: 120, y: 260 },
+      furniture: [
+        { type: 'whiteboard', x: 300, y: 28, width: 260, height: 60 },
+        { type: 'debris', x: 250, y: 102, width: 44, height: 20 },
+        { type: 'debris', x: 574, y: 92, width: 56, height: 24 },
+        { type: 'debris', x: 132, y: 420, width: 58, height: 20 },
+        { type: 'debris', x: 690, y: 438, width: 74, height: 24 },
+        { type: 'desk', variant: 'study', x: 180, y: 184, width: 70, height: 60 },
+        { type: 'student', headless: true, x: 203, y: 218, width: 24, height: 36, variant: 'boy', shirt: '#8d6e63', name: 'MILO' },
+        { type: 'desk', variant: 'study', x: 360, y: 184, width: 70, height: 60 },
+        { type: 'student', headless: true, x: 383, y: 218, width: 24, height: 36, variant: 'girl', shirt: '#90a4ae', name: 'KATE' },
+        { type: 'desk', variant: 'study', x: 540, y: 184, width: 70, height: 60 },
+        { type: 'student', headless: true, x: 563, y: 218, width: 24, height: 36, variant: 'boy', shirt: '#7986cb', name: 'REY' },
+        { type: 'desk', variant: 'study', x: 180, y: 304, width: 70, height: 60 },
+        { type: 'student', headless: true, x: 203, y: 338, width: 24, height: 36, variant: 'girl', shirt: '#ef9a9a', name: 'NIA' },
+        { type: 'desk', variant: 'study', x: 360, y: 304, width: 70, height: 60 },
+        { type: 'student', headless: true, x: 383, y: 338, width: 24, height: 36, variant: 'boy', shirt: '#4db6ac', name: 'JULES' },
+        { type: 'desk', variant: 'study', x: 540, y: 304, width: 70, height: 60 },
+        { type: 'student', headless: true, x: 563, y: 338, width: 24, height: 36, variant: 'girl', shirt: '#ce93d8', name: 'ARIA' },
+        { type: 'locker', x: 742, y: 130, width: 46, height: 98 },
+        { type: 'locker', x: 742, y: 230, width: 46, height: 98 },
+        { type: 'locker', x: 742, y: 330, width: 46, height: 98 },
+        { type: 'window', x: 120, y: 24, width: 90, height: 50 },
+        { type: 'window', x: 650, y: 24, width: 90, height: 50 }
       ]
     }
   }

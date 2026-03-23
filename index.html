@@ -33,14 +33,13 @@
        </ul>
     </div>
 
-
     <!-- First Person POV Container -->
     <div id="pov-container" class="hidden">
       <div class="pov-background"></div>
       <div class="pov-cabinet">
          <!-- Items inside the cabinet -->
-         <div id="pov-note" class="pov-item" title="Pick up Note">📝</div>
-         <div id="pov-key" class="pov-item" title="Pick up Door Key">🔑</div>
+         <div id="pov-note" class="pov-item" title="Pick up Note">&#128221;</div>
+         <div id="pov-key" class="pov-item" title="Pick up Door Key">&#128273;</div>
       </div>
       <button id="btn-close-pov" class="btn">Close Cabinet</button>
     </div>
@@ -48,15 +47,29 @@
     <!-- Note Reading Overlay -->
     <div id="note-overlay" class="hidden">
       <div class="note-paper">
-        <div class="note-content">
-          <p class="note-greeting">Luke,</p>
-          <p>I know you've been looking for <em>it</em>. Don't stop.</p>
-          <p>There are things deliberately hidden from you. But you're closer than you think.</p>
-          <p>We need to talk. <strong>Library, 2nd floor.</strong> Come alone.</p>
-          <p>Don't trust what's in plain sight. Pay attention to what's hidden.</p>
-          <p class="note-signature">— ???</p>
+        <div class="note-face note-face--front">
+          <div class="note-content">
+            <p class="note-greeting">Luke,</p>
+            <p>I know you've been looking for <em>it</em>. Don't stop.</p>
+            <p>There are things deliberately hidden from you. But you're closer than you think.</p>
+            <p>We need to talk. <strong>Library, 2nd floor.</strong> Come alone.</p>
+            <p>Don't trust what's in plain sight. Pay attention to what's hidden.</p>
+            <p class="note-signature">- ???</p>
+          </div>
         </div>
-        <button id="btn-close-note" class="btn-note-close">Close Letter</button>
+        <div class="note-face note-face--back">
+          <div class="note-content note-content--back">
+            <p class="note-greeting">Back Side</p>
+            <p class="note-backline">The numbers were scribbled in a hurry.</p>
+            <p class="note-code-label">Combination</p>
+            <p id="note-secret-code" class="note-code">4173</p>
+            <p class="note-backhint">"Use this only after the wood gives way."</p>
+          </div>
+        </div>
+        <div class="note-actions">
+          <button id="btn-flip-note" class="btn-note-close">Flip Paper</button>
+          <button id="btn-close-note" class="btn-note-close">Close Letter</button>
+        </div>
       </div>
     </div>
 
@@ -69,10 +82,27 @@
 
   <!-- Inventory HUD (outside frame) -->
   <div id="inventory-hud" class="hidden">
+    <div class="inv-money">
+      <div class="inv-money__label">Money</div>
+      <div id="inv-money-value" class="inv-money__value">0 money</div>
+    </div>
     <div class="inv-slot active" id="slot-0"></div>
     <div class="inv-slot" id="slot-1"></div>
     <div class="inv-slot" id="slot-2"></div>
     <div class="inv-slot" id="slot-3"></div>
+  </div>
+
+  <div id="padlock-overlay" class="hidden">
+    <div class="padlock-panel">
+      <div class="padlock-title">4 Digit Lock</div>
+      <div class="padlock-subtitle">The hatch is secured by a heavy padlock.</div>
+      <input id="padlock-input" class="padlock-input" type="text" inputmode="numeric" maxlength="4" placeholder="----" aria-label="4 digit lock code" />
+      <div id="padlock-feedback" class="padlock-feedback"></div>
+      <div class="padlock-actions">
+        <button id="btn-padlock-open" class="btn-note-close">Unlock</button>
+        <button id="btn-padlock-close" class="btn-note-close">Close</button>
+      </div>
+    </div>
   </div>
 
   <div id="texture-editor" class="modal hidden">
