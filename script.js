@@ -161,6 +161,219 @@ function getRoomItem(itemId) {
 
 ensurePlayDataDefaults();
 
+const DEFAULT_LETTER_CONTENT = {
+    paperClass: '',
+    contentClass: '',
+    label: '',
+    title: '',
+    paragraphs: [
+        "Luke,",
+        "I know you've been looking for it. Don't stop.",
+        "There are things deliberately hidden from you. But you're closer than you think.",
+        "We need to talk. Library, 2nd floor. Come alone.",
+        "Don't trust what's in plain sight. Pay attention to what's hidden."
+    ],
+    footer: "- ???",
+    backTitle: "Back Side",
+    backParagraphs: [
+        "The numbers were scribbled in a hurry."
+    ],
+    code: SECRET_NOTE_CODE,
+    backHint: '"Use this only after the wood gives way."',
+    canFlip: true,
+    closeLabel: 'Close Letter',
+    flipLabel: 'Flip Paper'
+};
+
+const RUINED_CLASSROOM_REQUIRED_READS = 4;
+const RUINED_CLASSROOM_NOTE_LAYOUTS = [
+    { x: 132, y: 164, width: 44, height: 54, rotation: -15 },
+    { x: 334, y: 166, width: 42, height: 52, rotation: 11 },
+    { x: 552, y: 170, width: 44, height: 54, rotation: -8 },
+    { x: 162, y: 414, width: 42, height: 52, rotation: 13 },
+    { x: 392, y: 428, width: 44, height: 54, rotation: -10 },
+    { x: 618, y: 420, width: 42, height: 52, rotation: 9 },
+    { x: 748, y: 452, width: 40, height: 50, rotation: -6 }
+];
+const RUINED_CLASSROOM_DECORATIVE_PAPERS = [
+    { x: 250, y: 232, width: 30, height: 38, rotation: 6, variant: 'report' },
+    { x: 458, y: 248, width: 28, height: 34, rotation: -4, variant: 'warning' },
+    { x: 700, y: 232, width: 30, height: 36, rotation: 10, variant: 'photo' },
+    { x: 286, y: 474, width: 28, height: 34, rotation: -12, variant: 'report' },
+    { x: 666, y: 490, width: 30, height: 36, rotation: 5, variant: 'scrawl' }
+];
+const RUINED_CLASSROOM_DOCUMENTS = [
+    {
+        id: 'class_photo',
+        paperClass: 'note-paper--document',
+        contentClass: 'note-content--report',
+        label: 'Recovered Photo',
+        title: 'Homeroom 7-B',
+        paragraphs: [
+            'The desks in the picture match this room exactly.',
+            'Every face is blurred except the boy in the green sweater.',
+            'Someone circled the empty seat beside him in red ink.'
+        ],
+        photo: {
+            style: 'classroom',
+            caption: '"The one on the far left disappears first."'
+        }
+    },
+    {
+        id: 'teacher_observation',
+        paperClass: 'note-paper--document note-paper--report',
+        contentClass: 'note-content--report',
+        label: 'Observation Report',
+        title: 'Subject: Luke',
+        paragraphs: [
+            'Subject claims he has already sat in this room before.',
+            'When asked to identify the missing students, subject named himself first.',
+            'Recommendation: continue exposure until recognition becomes unavoidable.'
+        ]
+    },
+    {
+        id: 'child_warning',
+        paperClass: 'note-paper--document note-paper--scrawl',
+        contentClass: 'note-content--scrawl',
+        label: 'Found Under Desk',
+        title: 'Do not make me sit there again',
+        paragraphs: [
+            'I do not want the front seat.',
+            'Something under the desk keeps touching my ankle when the lights blink.',
+            'It knows my name before the teacher says it.'
+        ]
+    },
+    {
+        id: 'attendance_sheet',
+        paperClass: 'note-paper--document note-paper--report',
+        contentClass: 'note-content--report',
+        label: 'Attendance Ledger',
+        title: 'Class Register',
+        paragraphs: [
+            'Every name has been crossed out in red except one.',
+            'Luke is written again at the bottom in a different hand.',
+            'Beside it: "returned after memory reset."'
+        ]
+    },
+    {
+        id: 'medical_log',
+        paperClass: 'note-paper--document note-paper--report',
+        contentClass: 'note-content--report',
+        label: 'Clinical Notes',
+        title: 'Dissociation Event',
+        paragraphs: [
+            'Subject hears pages turning when no books are present.',
+            'Mention of the library causes immediate distress and involuntary recall.',
+            'Patient insists the door becomes farther away after midnight.'
+        ]
+    },
+    {
+        id: 'hallway_polaroid',
+        paperClass: 'note-paper--document',
+        contentClass: 'note-content--report',
+        label: 'Polaroid',
+        title: 'Left Hallway',
+        paragraphs: [
+            'The corridor in the photograph should not fit inside this building.',
+            'A door waits at the far end, small as a thumbnail.',
+            'Written on the border: "Do not look back while walking."'
+        ],
+        photo: {
+            style: 'hallway',
+            caption: 'Taken from the left door. The exit looks farther in every copy.'
+        }
+    },
+    {
+        id: 'red_warning',
+        paperClass: 'note-paper--document note-paper--warning',
+        contentClass: 'note-content--warning',
+        label: 'Warning',
+        title: 'Do not stop counting',
+        paragraphs: [
+            'Count the desks.',
+            'Count the heads.',
+            'If the numbers do not match, keep your eyes on the floor until the noise stops.'
+        ]
+    },
+    {
+        id: 'repetition_page',
+        paperClass: 'note-paper--document note-paper--scrawl',
+        contentClass: 'note-content--scrawl',
+        label: 'Exercise Sheet',
+        title: 'Library library library',
+        paragraphs: [
+            'The whole page is filled with the same word, written harder each line.',
+            'Near the bottom the handwriting changes.',
+            'The final sentence reads: "go now before he notices you remember."'
+        ]
+    },
+    {
+        id: 'prediction_sheet',
+        paperClass: 'note-paper--document note-paper--warning',
+        contentClass: 'note-content--warning',
+        label: 'Prediction',
+        title: 'Sequence',
+        paragraphs: [
+            'He will read four pages.',
+            'Then he will stand near the left door and wait for it to breathe.',
+            'When it opens, he will pretend he has never seen the hallway before.'
+        ]
+    },
+    {
+        id: 'self_letter',
+        paperClass: 'note-paper--document note-paper--scrawl',
+        contentClass: 'note-content--scrawl',
+        label: 'Folded Note',
+        title: 'If you are reading this',
+        paragraphs: [
+            'They managed to make you forget again.',
+            'You left this room once already and still came back.',
+            'Whatever is in the library is the reason you keep returning here.'
+        ],
+        footer: '- Luke'
+    },
+    {
+        id: 'library_intake',
+        paperClass: 'note-paper--document note-paper--report',
+        contentClass: 'note-content--report',
+        label: 'Intake Summary',
+        title: 'Archive Transfer',
+        paragraphs: [
+            'Subject moved from classroom staging area to library containment wing.',
+            'Memory degradation remained unstable after repeated exposure to shelf 19.',
+            'New instruction: do not allow the subject to see his own photograph twice.'
+        ]
+    },
+    {
+        id: 'portrait_photo',
+        paperClass: 'note-paper--document',
+        contentClass: 'note-content--report',
+        label: 'Damaged Portrait',
+        title: 'Identification',
+        paragraphs: [
+            'The face in the picture has been scratched away except for the eyes.',
+            'The eyes still match yours.',
+            'On the back: "He only recognizes himself in pieces."'
+        ],
+        photo: {
+            style: 'portrait',
+            caption: 'The frame is cracked from the inside.'
+        }
+    }
+];
+const RUINED_CLASSROOM_CORE_DOCUMENT_IDS = ['prediction_sheet', 'self_letter'];
+const RUINED_CLASSROOM_DOCUMENT_MAP = Object.fromEntries(
+    RUINED_CLASSROOM_DOCUMENTS.map(doc => [doc.id, doc])
+);
+const ruinedClassroomBaseFurniture = JSON.parse(JSON.stringify(window.initialGameData.levels.ruined_classroom.furniture || []));
+const ruinedClassroomBaseDoors = JSON.parse(JSON.stringify(window.initialGameData.levels.ruined_classroom.doors || []));
+
+let noteOverlayState = {
+    mode: 'letter',
+    documentId: null,
+    pendingDoorReveal: false
+};
+
 // Soundtrack Management
 let audioCtx = null;
 let currentOscillators = [];
@@ -672,9 +885,149 @@ function ensurePrincipalOfficeState(level) {
     level.isHorrorified = false;
 }
 
+function shuffleArray(items) {
+    const copy = [...items];
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+}
+
+function getRuinedDocumentReadKey(documentId) {
+    return `ruinedDocumentRead_${documentId}`;
+}
+
+function isRuinedDocumentRead(documentId) {
+    return Boolean(playData.worldState[getRuinedDocumentReadKey(documentId)]);
+}
+
+function ensureRuinedClassroomDocumentSet() {
+    const requiredCount = Math.min(RUINED_CLASSROOM_NOTE_LAYOUTS.length, RUINED_CLASSROOM_DOCUMENTS.length);
+    const existing = Array.isArray(playData.worldState.ruinedClassroomDocumentSet)
+        ? playData.worldState.ruinedClassroomDocumentSet.filter(id => RUINED_CLASSROOM_DOCUMENT_MAP[id])
+        : [];
+
+    if (existing.length === requiredCount) {
+        return existing;
+    }
+
+    const coreSet = RUINED_CLASSROOM_CORE_DOCUMENT_IDS.filter(id => RUINED_CLASSROOM_DOCUMENT_MAP[id]);
+    const optionalPool = shuffleArray(
+        RUINED_CLASSROOM_DOCUMENTS
+            .map(doc => doc.id)
+            .filter(id => !coreSet.includes(id))
+    );
+    const selected = shuffleArray([
+        ...coreSet,
+        ...optionalPool.slice(0, Math.max(0, requiredCount - coreSet.length))
+    ]);
+    playData.worldState.ruinedClassroomDocumentSet = selected;
+    savePlayState();
+    return selected;
+}
+
+function getRuinedClassroomReadCount() {
+    return ensureRuinedClassroomDocumentSet().filter(isRuinedDocumentRead).length;
+}
+
+function markRuinedDocumentRead(documentId) {
+    const readKey = getRuinedDocumentReadKey(documentId);
+    const firstRead = !playData.worldState[readKey];
+    if (firstRead) {
+        playData.worldState[readKey] = true;
+    }
+
+    let justOpenedDoor = false;
+    if (!playData.worldState.ruinedDoorOpened && getRuinedClassroomReadCount() >= RUINED_CLASSROOM_REQUIRED_READS) {
+        playData.worldState.ruinedDoorOpened = true;
+        justOpenedDoor = true;
+    }
+
+    if (firstRead || justOpenedDoor) {
+        savePlayState();
+    }
+
+    return {
+        firstRead,
+        justOpenedDoor
+    };
+}
+
+function buildRuinedDocumentFurniture(documentId, layout, index) {
+    const document = RUINED_CLASSROOM_DOCUMENT_MAP[documentId];
+    if (!document) return null;
+
+    return {
+        id: `ruined_document_${index + 1}`,
+        type: 'document_page',
+        x: layout.x,
+        y: layout.y,
+        width: layout.width,
+        height: layout.height,
+        rotation: layout.rotation,
+        documentId,
+        documentVariant: document.photo ? 'photo' : (document.contentClass && document.contentClass.includes('scrawl') ? 'scrawl' : 'report'),
+        interaction: {
+            enabled: true,
+            type: 'sequence',
+            priority: 6,
+            conversations: [[{ speaker: 'SYSTEM', text: '...' }]],
+            area: { x: -12, y: -12, width: layout.width + 24, height: layout.height + 24 }
+        }
+    };
+}
+
+function ensureRuinedClassroomState(level) {
+    level.doors = ruinedClassroomBaseDoors.map(item => JSON.parse(JSON.stringify(item)));
+    level.furniture = ruinedClassroomBaseFurniture.map(item => JSON.parse(JSON.stringify(item)));
+
+    const board = level.furniture.find(item => item.type === 'whiteboard');
+    if (board) {
+        if (playData.worldState.ruinedDoorOpened) {
+            board.scribbleText = ['YOU TOOK', 'LONG ENOUGH'];
+            board.scribbleColor = '#6d0f0f';
+        } else {
+            board.scribbleText = ['KEEP', 'READING'];
+            board.scribbleColor = '#2b2b2b';
+        }
+    }
+
+    const ruinedDoor = level.doors.find(door => door.id === 'door_ruined_to_secret');
+    if (ruinedDoor) {
+        ruinedDoor.sealedVisual = !playData.worldState.ruinedDoorOpened;
+        ruinedDoor.priority = 9;
+    }
+
+    const selectedIds = ensureRuinedClassroomDocumentSet();
+    const spawnedDocuments = selectedIds
+        .slice(0, RUINED_CLASSROOM_NOTE_LAYOUTS.length)
+        .map((documentId, index) => buildRuinedDocumentFurniture(documentId, RUINED_CLASSROOM_NOTE_LAYOUTS[index], index))
+        .filter(Boolean);
+    level.furniture.push(...spawnedDocuments);
+
+    RUINED_CLASSROOM_DECORATIVE_PAPERS.forEach((paper, index) => {
+        level.furniture.push({
+            id: `ruined_paper_scrap_${index + 1}`,
+            type: 'document_page',
+            x: paper.x,
+            y: paper.y,
+            width: paper.width,
+            height: paper.height,
+            rotation: paper.rotation,
+            documentVariant: paper.variant,
+            decorative: true
+        });
+    });
+}
+
 function applyRoomState(name) {
     if (name === 'principal_office') {
         ensurePrincipalOfficeState(room);
+    }
+
+    if (name === 'ruined_classroom') {
+        ensureRuinedClassroomState(room);
     }
 
     if (!playData.worldState.horrorActive) return;
@@ -742,6 +1095,8 @@ function loadLevel(name, targetDoorId) {
   else if (name === 'hallway') title = "Helios - Student Hallway";
   else if (name === 'secret_room') title = "Helios - Hidden Room";
   else if (name === 'ruined_classroom') title = "Helios - Ruined Classroom";
+  else if (name === 'endless_hallway') title = "Helios - Endless Hallway";
+  else if (name === 'library_archive') title = "Helios - Library Archive";
   document.title = title;
 
   if (isDeveloperMode) updateDevRoomSelect();
@@ -774,6 +1129,22 @@ function onLevelLoaded(name) {
         }
     } else if (name !== 'principal_office') {
         officeTimer.active = false;
+    }
+
+    if (name === 'endless_hallway' && !playData.worldState.endlessHallwaySeen) {
+        playData.worldState.endlessHallwaySeen = true;
+        savePlayState();
+        if (isGameActive) {
+            setTimeout(() => showTemporaryDialogue('The hall stretches toward a door marked LIBRARY.', 'LUKE'), 80);
+        }
+    }
+
+    if (name === 'library_archive' && !playData.worldState.libraryArchiveSeen) {
+        playData.worldState.libraryArchiveSeen = true;
+        savePlayState();
+        if (isGameActive) {
+            setTimeout(() => showTemporaryDialogue('This is where the letter wanted me to come.', 'LUKE'), 80);
+        }
     }
 }
 
@@ -1193,7 +1564,7 @@ function checkCollision(x, y) {
   for (const item of room.furniture) {
     if (isItemHidden(item)) continue;
     const hasCustom = !!item.collisionRect;
-    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone' || item.type === 'wall_switch' || item.type === 'floor_patch' || item.type === 'padlocked_hatch')) continue;
+    if (!hasCustom && (item.type === 'window' || item.type === 'rug' || item.type === 'shelf' || item.type === 'zone' || item.type === 'wall_switch' || item.type === 'floor_patch' || item.type === 'padlocked_hatch' || item.type === 'document_page')) continue;
 
     let dLeft, dTop, dWidth, dHeight;
 
@@ -1549,9 +1920,50 @@ function drawScreenEffects() {
     ctx.restore();
 }
 
+function drawSealedDoor(door, targetCtx = ctx) {
+  const { x, y, width, height } = door;
+  const orientation = door.orientation || 'left';
+
+  if (orientation === 'left') {
+      targetCtx.fillStyle = "#221714";
+      targetCtx.fillRect(0, y, room.padding, height);
+      targetCtx.fillStyle = "#4e342e";
+      targetCtx.fillRect(6, y - 4, room.padding - 6, height + 8);
+      targetCtx.fillStyle = "#3a241d";
+      targetCtx.fillRect(12, y + 2, room.padding - 18, height - 4);
+      targetCtx.fillStyle = "#6d4c41";
+      targetCtx.save();
+      targetCtx.translate(10, y + 18);
+      targetCtx.rotate(-0.22);
+      targetCtx.fillRect(0, 0, room.padding + 12, 10);
+      targetCtx.restore();
+      targetCtx.save();
+      targetCtx.translate(8, y + height / 2 - 4);
+      targetCtx.rotate(0.16);
+      targetCtx.fillRect(0, 0, room.padding + 14, 10);
+      targetCtx.restore();
+      targetCtx.save();
+      targetCtx.translate(10, y + height - 28);
+      targetCtx.rotate(-0.18);
+      targetCtx.fillRect(0, 0, room.padding + 10, 10);
+      targetCtx.restore();
+      targetCtx.fillStyle = "rgba(255,255,255,0.08)";
+      targetCtx.fillRect(room.padding - 10, y + 8, 2, height - 16);
+      return;
+  }
+
+  targetCtx.fillStyle = "#3a241d";
+  targetCtx.fillRect(x, y, width, height);
+}
+
 function drawDoor(door, targetCtx = ctx) {
   const { x, y, width, height } = door;
   const orientation = door.orientation || (y > room.height / 2 ? 'bottom' : 'top');
+
+  if (door.sealedVisual) {
+      drawSealedDoor(door, targetCtx);
+      return;
+  }
 
   if (orientation === 'bottom') {
       if (currentLevelName === 'hallway' || currentLevelName === 'principal_hallway') {
@@ -2471,6 +2883,59 @@ function drawWhiteboard(item, targetCtx = ctx) {
     targetCtx.fillRect(item.x + 40, item.y + item.height - 4, 10, 3);
     targetCtx.fillStyle = "#e53935";
     targetCtx.fillRect(item.x + 60, item.y + item.height - 4, 8, 2);
+
+    if (item.scribbleText) {
+        const lines = Array.isArray(item.scribbleText) ? item.scribbleText : [String(item.scribbleText)];
+        targetCtx.fillStyle = item.scribbleColor || "#263238";
+        targetCtx.font = "16px VT323, monospace";
+        targetCtx.textAlign = "left";
+        lines.slice(0, 3).forEach((line, index) => {
+            targetCtx.fillText(line, item.x + 18, item.y + 24 + index * 16);
+        });
+    }
+}
+
+function drawDocumentPage(item, targetCtx = ctx) {
+    const width = item.width || 40;
+    const height = item.height || 50;
+    const rotation = (item.rotation || 0) * Math.PI / 180;
+    const read = item.documentId ? isRuinedDocumentRead(item.documentId) : false;
+    const variant = item.documentVariant || 'report';
+
+    targetCtx.save();
+    targetCtx.translate(item.x + width / 2, item.y + height / 2);
+    targetCtx.rotate(rotation);
+
+    targetCtx.fillStyle = "rgba(0,0,0,0.25)";
+    targetCtx.fillRect(-width / 2 + 2, -height / 2 + 4, width, height);
+
+    targetCtx.fillStyle = read ? "#d8c9ac" : "#efe3c6";
+    if (variant === 'warning') targetCtx.fillStyle = read ? "#d4c19b" : "#ead6ad";
+    if (variant === 'scrawl') targetCtx.fillStyle = read ? "#dbcba7" : "#f1e2be";
+    targetCtx.fillRect(-width / 2, -height / 2, width, height);
+
+    targetCtx.strokeStyle = "rgba(77,53,38,0.35)";
+    targetCtx.strokeRect(-width / 2, -height / 2, width, height);
+
+    targetCtx.fillStyle = variant === 'photo' ? "#52413c" : "rgba(92,64,48,0.16)";
+    if (variant === 'photo') {
+        targetCtx.fillRect(-width / 2 + 5, -height / 2 + 5, width - 10, height - 14);
+        targetCtx.fillStyle = "rgba(255,255,255,0.72)";
+        targetCtx.fillRect(-width / 2 + 7, height / 2 - 11, width - 14, 5);
+    } else {
+        for (let y = -height / 2 + 8; y < height / 2 - 6; y += 7) {
+            targetCtx.fillRect(-width / 2 + 5, y, width - 10, 2);
+        }
+        targetCtx.fillStyle = variant === 'warning' ? "#8d1a1a" : "#5d4037";
+        targetCtx.fillRect(-width / 2 + 6, -height / 2 + 7, Math.max(12, width - 18), 3);
+    }
+
+    if (!item.decorative) {
+        targetCtx.fillStyle = read ? "#4b5d2f" : "#7f1010";
+        targetCtx.fillRect(width / 2 - 7, -height / 2 + 4, 4, 4);
+    }
+
+    targetCtx.restore();
 }
 
 function drawStudent(item, targetCtx = ctx) {
@@ -2720,6 +3185,7 @@ function drawFurnitureItem(item, targetCtx = ctx) {
     else if (item.type === 'chest') drawChest(item, targetCtx);
     else if (item.type === 'floor_patch') drawFloorPatch(item, targetCtx);
     else if (item.type === 'padlocked_hatch') drawPadlockedHatch(item, targetCtx);
+    else if (item.type === 'document_page') drawDocumentPage(item, targetCtx);
     else if (item.type === 'rug') drawRug(item, targetCtx);
     else if (item.type === 'shelf') drawShelf(item, targetCtx);
     else if (item.type === 'whiteboard') drawWhiteboard(item, targetCtx);
@@ -3844,6 +4310,20 @@ function executeInteraction(target) {
             return;
         }
 
+        if (currentLevelName === 'ruined_classroom' && door.id === 'door_ruined_to_secret') {
+            if (!playData.worldState.ruinedDoorOpened) {
+                showTemporaryDialogue('The left door will not move. Something wants me to keep reading.', 'LUKE');
+                return;
+            }
+
+            loadLevel('endless_hallway', 'door_hallway_from_ruined');
+            playData.player.x = player.x;
+            playData.player.y = player.y;
+            playData.player.facing = player.facing;
+            savePlayState();
+            return;
+        }
+
         if (currentLevelName === 'principal_office' && playData.worldState.horrorActive && door.id === 'door_principal_to_hallway') {
             triggerDeath('door_exit');
             return;
@@ -3872,6 +4352,12 @@ function executeInteraction(target) {
 
     if (target.type === 'furniture') {
         const item = target.obj;
+
+        if (item.type === 'document_page' && item.documentId) {
+            const result = markRuinedDocumentRead(item.documentId);
+            openDocumentOverlay(item.documentId, { pendingDoorReveal: result.justOpenedDoor });
+            return;
+        }
 
         if (item.type === 'vent' && currentLevelName === 'principal_office') {
             officeTimer.active = false;
@@ -4240,16 +4726,132 @@ function setNoteFlipped(flipped) {
     if (paper) paper.classList.toggle('note-paper--flipped', Boolean(flipped));
 }
 
-function openNoteOverlay() {
+function escapeHtml(text) {
+    return String(text ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function getLetterOverlayContent() {
+    return DEFAULT_LETTER_CONTENT;
+}
+
+function getDocumentOverlayContent(documentId) {
+    return RUINED_CLASSROOM_DOCUMENT_MAP[documentId] || null;
+}
+
+function renderLetterFace(content) {
+    const paragraphs = (content.paragraphs || []).map(text => {
+        const cssClass = text === content.paragraphs[0] ? 'note-greeting' : '';
+        return `<p${cssClass ? ` class="${cssClass}"` : ''}>${escapeHtml(text)}</p>`;
+    }).join('');
+    const footer = content.footer ? `<p class="note-signature">${escapeHtml(content.footer)}</p>` : '';
+    return `${paragraphs}${footer}`;
+}
+
+function renderDocumentFace(content) {
+    const label = content.label ? `<p class="note-doc-label">${escapeHtml(content.label)}</p>` : '';
+    const title = content.title ? `<p class="note-doc-title">${escapeHtml(content.title)}</p>` : '';
+    const photo = content.photo ? `
+        <div class="note-photo note-photo--${escapeHtml(content.photo.style || 'classroom')}">
+            <div class="note-photo__art"></div>
+            <p class="note-photo__caption">${escapeHtml(content.photo.caption || '')}</p>
+        </div>
+    ` : '';
+    const divider = photo ? '<div class="note-doc-divider"></div>' : '';
+    const paragraphs = (content.paragraphs || []).map(text =>
+        `<p class="note-doc-paragraph">${escapeHtml(text)}</p>`
+    ).join('');
+    const footer = content.footer ? `<p class="note-doc-footer">${escapeHtml(content.footer)}</p>` : '';
+    return `${label}${title}${photo}${divider}<div class="note-doc-body">${paragraphs}</div>${footer}`;
+}
+
+function renderOverlayBack(content) {
+    const title = content.backTitle ? `<p class="note-greeting">${escapeHtml(content.backTitle)}</p>` : '';
+    const paragraphs = (content.backParagraphs || []).map(text =>
+        `<p class="note-backline">${escapeHtml(text)}</p>`
+    ).join('');
+    const codeBlock = content.code ? `
+        <p class="note-code-label">Combination</p>
+        <p class="note-code">${escapeHtml(content.code)}</p>
+    ` : '';
+    const hint = content.backHint ? `<p class="note-backhint">${escapeHtml(content.backHint)}</p>` : '';
+    return `${title}${paragraphs}${codeBlock}${hint}`;
+}
+
+function renderNoteOverlay() {
+    const paper = document.querySelector('.note-paper');
+    const front = document.getElementById('note-front-content');
+    const back = document.getElementById('note-back-content');
+    const flipButton = document.getElementById('btn-flip-note');
+    const closeButton = document.getElementById('btn-close-note');
+    if (!paper || !front || !back || !flipButton || !closeButton) return;
+
+    const content = noteOverlayState.mode === 'document'
+        ? getDocumentOverlayContent(noteOverlayState.documentId)
+        : getLetterOverlayContent();
+
+    if (!content) return;
+
+    paper.className = `note-paper ${content.paperClass || ''}`.trim();
+    front.className = `note-content ${content.contentClass || ''}`.trim();
+    back.className = 'note-content note-content--back';
+    front.innerHTML = noteOverlayState.mode === 'document'
+        ? renderDocumentFace(content)
+        : renderLetterFace(content);
+    back.innerHTML = renderOverlayBack(content);
+
+    const canFlip = Boolean(content.canFlip);
+    flipButton.textContent = content.flipLabel || 'Flip Paper';
+    flipButton.classList.toggle('btn-note-close--hidden', !canFlip);
+    closeButton.textContent = content.closeLabel || 'Close';
+
     setNoteFlipped(false);
+}
+
+function openDocumentOverlay(documentId, options = {}) {
+    noteOverlayState = {
+        mode: 'document',
+        documentId,
+        pendingDoorReveal: Boolean(options.pendingDoorReveal)
+    };
+    renderNoteOverlay();
+    const overlay = document.getElementById('note-overlay');
+    if (overlay) overlay.classList.remove('hidden');
+}
+
+function openNoteOverlay() {
+    noteOverlayState = {
+        mode: 'letter',
+        documentId: null,
+        pendingDoorReveal: false
+    };
+    renderNoteOverlay();
     const overlay = document.getElementById('note-overlay');
     if (overlay) overlay.classList.remove('hidden');
 }
 
 function closeNoteOverlay() {
+    const revealDoor = Boolean(noteOverlayState.pendingDoorReveal);
     const overlay = document.getElementById('note-overlay');
     if (overlay) overlay.classList.add('hidden');
     setNoteFlipped(false);
+    noteOverlayState = {
+        mode: 'letter',
+        documentId: null,
+        pendingDoorReveal: false
+    };
+
+    if (revealDoor) {
+        screenShake = Math.max(screenShake, 10);
+        if (currentLevelName === 'ruined_classroom') {
+            ensureRuinedClassroomState(room);
+        }
+        showTemporaryDialogue('A slow metallic groan rolls through the room. The left door is open now.', 'SYSTEM');
+    }
 }
 
 function setPadlockFeedback(message, type = '') {
@@ -4316,11 +4918,6 @@ function attemptPadlockUnlock() {
     const padlockInput = document.getElementById('padlock-input');
     const padlockOpenBtn = document.getElementById('btn-padlock-open');
     const padlockCloseBtn = document.getElementById('btn-padlock-close');
-    const noteSecretCode = document.getElementById('note-secret-code');
-
-    if (noteSecretCode) {
-        noteSecretCode.textContent = SECRET_NOTE_CODE;
-    }
 
     // Close POV button
     if (closeBtn) {
@@ -5467,7 +6064,7 @@ async function loadExternalData() {
                 // Merge any missing levels from initialGameData (e.g. newly added rooms)
                 const baseKeys = Object.keys(window.initialGameData.levels);
                 // Force-refresh rooms with scripted puzzle/state content so stale localStorage won't break them
-                const forceRefresh = ['classroom', 'secret_room', 'ruined_classroom'];
+                const forceRefresh = ['classroom', 'secret_room', 'ruined_classroom', 'endless_hallway', 'library_archive'];
                 for (const key of baseKeys) {
                     // Check if level is missing or structurally empty (no furniture)
                     if (forceRefresh.includes(key) || !levels[key] || (levels[key] && levels[key].furniture.length === 0 && window.initialGameData.levels[key].furniture.length > 0)) {
@@ -5493,7 +6090,7 @@ async function loadExternalData() {
                 normalizeGameData(data);
                 levels = data.levels;
                 const baseKeys = Object.keys(window.initialGameData.levels);
-                const forceRefresh = ['classroom', 'secret_room', 'ruined_classroom'];
+                const forceRefresh = ['classroom', 'secret_room', 'ruined_classroom', 'endless_hallway', 'library_archive'];
                 for (const key of baseKeys) {
                     if (forceRefresh.includes(key) || !levels[key] || (levels[key] && levels[key].furniture.length === 0 && window.initialGameData.levels[key].furniture.length > 0)) {
                         levels[key] = JSON.parse(JSON.stringify(window.initialGameData.levels[key]));

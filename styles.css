@@ -710,6 +710,7 @@ body {
     inset 0 0 60px rgba(139,109,73,0.1);
   position: relative;
   transform: rotate(-1deg);
+  overflow: hidden;
 }
 .note-paper::before {
   content: '';
@@ -723,6 +724,20 @@ body {
   );
   pointer-events: none;
 }
+.note-paper--document {
+  width: 480px;
+  min-height: 560px;
+  transform: rotate(-0.4deg);
+}
+.note-paper--report {
+  background: linear-gradient(135deg, #f8f0dd 0%, #efe0bf 50%, #e1d1ad 100%);
+}
+.note-paper--warning {
+  background: linear-gradient(135deg, #f5ecd2 0%, #ecd7b0 52%, #ddc89b 100%);
+}
+.note-paper--scrawl {
+  background: linear-gradient(135deg, #f7ecd9 0%, #efdfbf 50%, #e3d2af 100%);
+}
 .note-paper.note-paper--flipped .note-face--front {
   display: none;
 }
@@ -730,13 +745,27 @@ body {
   display: none;
 }
 .note-face {
+  position: relative;
   min-height: 430px;
+  z-index: 1;
 }
 .note-content {
   font-family: 'Segoe Script', 'Dancing Script', 'Brush Script MT', cursive;
   font-size: 17px;
   color: #2c1810;
   line-height: 1.8;
+}
+.note-content--report,
+.note-content--warning {
+  font-family: 'VT323', monospace;
+  font-size: 24px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+}
+.note-content--scrawl {
+  font-family: 'Segoe Print', 'Bradley Hand', cursive;
+  font-size: 19px;
+  line-height: 1.75;
 }
 .note-content--back {
   text-align: center;
@@ -784,11 +813,137 @@ body {
   font-size: 18px;
   color: #5c3a1e;
 }
+.note-doc-label {
+  margin: 0 0 8px;
+  font-size: 16px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(60,42,31,0.72);
+}
+.note-doc-title {
+  margin: 0 0 16px;
+  font-size: 34px;
+  line-height: 1.05;
+  color: #241610;
+}
+.note-doc-body {
+  margin-top: 10px;
+}
+.note-doc-paragraph {
+  margin: 12px 0;
+}
+.note-doc-footer {
+  margin-top: 24px;
+  text-align: right;
+  font-size: 20px;
+  color: #5c3a1e;
+}
+.note-doc-divider {
+  width: 100%;
+  height: 2px;
+  margin: 16px 0 14px;
+  background: linear-gradient(90deg, transparent, rgba(92,58,30,0.6), transparent);
+}
+.note-doc-emphasis {
+  color: #7a0f0f;
+  text-decoration: underline;
+}
+.note-photo {
+  margin: 14px 0 20px;
+  padding: 12px 12px 10px;
+  background: rgba(255,255,255,0.6);
+  border: 1px solid rgba(82,58,44,0.35);
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.12),
+    inset 0 0 0 1px rgba(255,255,255,0.5);
+}
+.note-photo__art {
+  position: relative;
+  height: 132px;
+  border: 1px solid rgba(24,21,18,0.45);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.18)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.03) 2px, transparent 2px, transparent 4px),
+    #3b3130;
+  overflow: hidden;
+}
+.note-photo__art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.12), transparent 18%),
+    radial-gradient(circle at 75% 65%, rgba(255,255,255,0.08), transparent 22%);
+  mix-blend-mode: screen;
+}
+.note-photo--classroom .note-photo__art {
+  background:
+    linear-gradient(180deg, rgba(137, 169, 198, 0.3), rgba(41,30,28,0.1) 42%, rgba(44,28,22,0.9) 42%, rgba(22,17,15,0.98) 100%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.03) 2px, transparent 2px, transparent 4px),
+    #312725;
+}
+.note-photo--classroom .note-photo__art::before {
+  content: '';
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  bottom: 20px;
+  height: 46px;
+  background:
+    linear-gradient(90deg, transparent 0 7%, rgba(30,22,20,0.95) 7% 13%, transparent 13% 27%, rgba(30,22,20,0.95) 27% 33%, transparent 33% 47%, rgba(30,22,20,0.95) 47% 53%, transparent 53% 67%, rgba(30,22,20,0.95) 67% 73%, transparent 73% 87%, rgba(30,22,20,0.95) 87% 93%, transparent 93%);
+}
+.note-photo--hallway .note-photo__art {
+  background:
+    linear-gradient(90deg, rgba(16,19,28,0.96) 0%, rgba(44,52,64,0.88) 24%, rgba(31,32,40,0.94) 48%, rgba(44,52,64,0.88) 72%, rgba(16,19,28,0.96) 100%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02) 3px, transparent 3px, transparent 6px),
+    #202227;
+}
+.note-photo--hallway .note-photo__art::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 50%;
+  width: 1px;
+  background: rgba(255,255,255,0.2);
+  box-shadow:
+    -46px 0 0 rgba(255,255,255,0.07),
+    46px 0 0 rgba(255,255,255,0.07),
+    -86px 0 0 rgba(255,255,255,0.04),
+    86px 0 0 rgba(255,255,255,0.04);
+}
+.note-photo--portrait .note-photo__art {
+  background:
+    radial-gradient(circle at 50% 40%, rgba(203,188,165,0.15), transparent 24%),
+    linear-gradient(180deg, rgba(49,39,36,0.95), rgba(26,21,19,1));
+}
+.note-photo--portrait .note-photo__art::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  width: 72px;
+  height: 92px;
+  transform: translateX(-50%);
+  background:
+    radial-gradient(circle at 50% 28%, rgba(225,210,188,0.18), transparent 18px),
+    linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.58));
+  clip-path: polygon(50% 0%, 72% 12%, 80% 28%, 82% 50%, 76% 74%, 64% 92%, 36% 92%, 24% 74%, 18% 50%, 20% 28%, 28% 12%);
+}
+.note-photo__caption {
+  margin: 10px 4px 0;
+  font-size: 17px;
+  line-height: 1.45;
+  color: #3a241a;
+}
 .note-actions {
   display: flex;
   justify-content: center;
   gap: 14px;
   margin-top: 12px;
+}
+.btn-note-close.btn-note-close--hidden {
+  display: none;
 }
 .btn-note-close {
   display: inline-block;

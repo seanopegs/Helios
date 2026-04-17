@@ -342,6 +342,117 @@ window.initialGameData = {
         { type: 'window', x: 120, y: 24, width: 90, height: 50 },
         { type: 'window', x: 650, y: 24, width: 90, height: 50 }
       ]
+    },
+    endless_hallway: {
+      width: 2200,
+      height: 560,
+      wallHeight: 96,
+      padding: 32,
+      theme: 'hall',
+      doors: [
+        {
+          id: 'door_hallway_from_ruined',
+          x: 2110, y: 214, width: 64, height: 88,
+          orientation: 'right',
+          target: 'ruined_classroom',
+          targetDoorId: 'door_ruined_to_secret',
+          prompt: 'back to the ruined classroom'
+        },
+        {
+          id: 'door_hallway_to_library',
+          x: 18, y: 214, width: 64, height: 88,
+          orientation: 'left',
+          target: 'library_archive',
+          targetDoorId: 'door_library_from_hall',
+          prompt: 'to the library'
+        }
+      ],
+      spawn: { x: 2064, y: 258 },
+      furniture: [
+        { type: 'rug', x: 120, y: 206, width: 1920, height: 128, color: '#3b2a29', border: '#705246' },
+        { type: 'rug', x: 150, y: 230, width: 1860, height: 80, color: '#241817' },
+        { type: 'window', x: 190, y: 20, width: 90, height: 50 },
+        { type: 'window', x: 590, y: 20, width: 90, height: 50 },
+        { type: 'window', x: 990, y: 20, width: 90, height: 50 },
+        { type: 'window', x: 1390, y: 20, width: 90, height: 50 },
+        { type: 'window', x: 1790, y: 20, width: 90, height: 50 },
+        { type: 'whiteboard', x: 320, y: 28, width: 180, height: 52, scribbleText: ['DO NOT', 'LOOK BACK'], scribbleColor: '#5a1010' },
+        { type: 'whiteboard', x: 760, y: 28, width: 180, height: 52, scribbleText: ['THE HALL', 'GETS LONGER'], scribbleColor: '#222' },
+        { type: 'whiteboard', x: 1200, y: 28, width: 180, height: 52, scribbleText: ['HE READ', 'ALL OF THEM'], scribbleColor: '#6f1010' },
+        { type: 'whiteboard', x: 1640, y: 28, width: 180, height: 52, scribbleText: ['LIBRARY', 'THIS WAY'], scribbleColor: '#2f3f52' },
+        { type: 'bookshelf', x: 128, y: 110, width: 88, height: 126 },
+        { type: 'bookshelf', x: 1960, y: 110, width: 88, height: 126 },
+        { type: 'debris', x: 520, y: 382, width: 54, height: 18 },
+        { type: 'debris', x: 1060, y: 390, width: 62, height: 20 },
+        { type: 'debris', x: 1520, y: 378, width: 58, height: 18 }
+      ]
+    },
+    library_archive: {
+      width: 980,
+      height: 640,
+      wallHeight: 110,
+      padding: 32,
+      theme: 'office',
+      doors: [
+        {
+          id: 'door_library_from_hall',
+          x: 890, y: 210, width: 64, height: 88,
+          orientation: 'right',
+          target: 'endless_hallway',
+          targetDoorId: 'door_hallway_to_library',
+          prompt: 'back to the hallway'
+        }
+      ],
+      spawn: { x: 820, y: 268 },
+      furniture: [
+        { type: 'whiteboard', x: 360, y: 34, width: 260, height: 58, scribbleText: ['ARCHIVE ROOM'], scribbleColor: '#263238' },
+        { type: 'rug', x: 330, y: 180, width: 260, height: 330, color: '#5a4338', border: '#c4a06b' },
+        { type: 'bookshelf', x: 60, y: 132, width: 88, height: 126 },
+        { type: 'bookshelf', x: 60, y: 282, width: 88, height: 126 },
+        { type: 'bookshelf', x: 60, y: 432, width: 88, height: 126 },
+        { type: 'bookshelf', x: 832, y: 132, width: 88, height: 126 },
+        { type: 'bookshelf', x: 832, y: 282, width: 88, height: 126 },
+        { type: 'bookshelf', x: 832, y: 432, width: 88, height: 126 },
+        { type: 'bookshelf', x: 220, y: 132, width: 88, height: 126 },
+        { type: 'bookshelf', x: 360, y: 132, width: 88, height: 126 },
+        { type: 'bookshelf', x: 500, y: 132, width: 88, height: 126 },
+        { type: 'bookshelf', x: 640, y: 132, width: 88, height: 126 },
+        {
+          type: 'table',
+          x: 392,
+          y: 324,
+          width: 160,
+          height: 70,
+          interaction: {
+            enabled: true,
+            type: 'sequence',
+            priority: 5,
+            conversations: [[
+              { speaker: 'LUKE', text: 'Fresh drag marks cut through the dust. Someone took something heavy from this table.' }
+            ]],
+            area: { x: -20, y: -10, width: 200, height: 110 }
+          }
+        },
+        {
+          type: 'bookshelf',
+          x: 222,
+          y: 442,
+          width: 88,
+          height: 126,
+          interaction: {
+            enabled: true,
+            type: 'sequence',
+            priority: 4,
+            conversations: [[
+              { speaker: 'LUKE', text: 'One section is empty. The missing books were pulled out recently.' }
+            ]],
+            area: { x: -10, y: -10, width: 108, height: 146 }
+          }
+        },
+        { type: 'debris', x: 458, y: 266, width: 42, height: 16 },
+        { type: 'plant', x: 158, y: 74, width: 36, height: 80, potColor: '#d7ccc8' },
+        { type: 'plant', x: 786, y: 74, width: 36, height: 80, potColor: '#d7ccc8' }
+      ]
     }
   }
 };
