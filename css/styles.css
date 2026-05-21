@@ -514,25 +514,26 @@ body {
   width: 58px;
   margin-bottom: 4px;
   padding: 8px 6px 7px;
-  background: linear-gradient(180deg, rgba(53,44,22,0.95), rgba(18,14,8,0.96));
-  border: 2px solid #9d8350;
+  background: linear-gradient(180deg, rgba(26,28,40,0.96), rgba(10,11,18,0.96));
+  border: 2px solid #a8925c;
   color: #f6e5a8;
   text-align: center;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.08),
     inset 0 -2px 0 rgba(0,0,0,0.35),
     0 8px 14px rgba(0,0,0,0.24);
 }
 .inv-money__label {
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  font-size: 11px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(255,236,179,0.82);
+  color: #b8a46e;
 }
 .inv-money__value {
-  margin-top: 3px;
-  font-size: 16px;
-  color: #fff8dc;
+  margin-top: 2px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f0d878;
 }
 .inv-slot {
   width: 58px;

@@ -4546,7 +4546,7 @@ function updateInventoryUI() {
 
     const moneyValue = document.getElementById('inv-money-value');
     if (moneyValue) {
-        moneyValue.textContent = `${playData.money} money`;
+        moneyValue.textContent = playData.money;
     }
 
     for (let i = 0; i < INVENTORY_SIZE; i++) {
@@ -6083,7 +6083,7 @@ async function loadExternalData() {
         console.warn("LocalStorage access failed", e);
     }
     try {
-        const response = await fetch('game-data.json?t=' + Date.now());
+        const response = await fetch('data/game-data.json?t=' + Date.now());
         if (response.ok) {
             const data = await response.json();
             if (data.levels && data.dialogue) {
