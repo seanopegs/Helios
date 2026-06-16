@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" role="img" aria-label="Quiet school hallway at dusk">
+  <defs>
+    <linearGradient id="wall" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#344250"/>
+      <stop offset="0.52" stop-color="#27313d"/>
+      <stop offset="1" stop-color="#171b25"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#31313a"/>
+      <stop offset="1" stop-color="#11131a"/>
+    </linearGradient>
+    <radialGradient id="lamp" cx="50%" cy="28%" r="46%">
+      <stop offset="0" stop-color="#f5d68a" stop-opacity="0.52"/>
+      <stop offset="0.48" stop-color="#d7a84d" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softNoise">
+      <feTurbulence baseFrequency="0.8" numOctaves="2" seed="13"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncA type="table" tableValues="0 0.045"/>
+      </feComponentTransfer>
+    </filter>
+  </defs>
+  <rect width="960" height="640" fill="#10131b"/>
+  <path d="M110 90h740l-90 280H200z" fill="url(#wall)"/>
+  <path d="M200 370h560l170 270H30z" fill="url(#floor)"/>
+  <path d="M200 370 110 90M760 370 850 90" stroke="#111722" stroke-width="6"/>
+  <path d="M290 112h380v30H290z" fill="#151b26"/>
+  <ellipse cx="480" cy="130" rx="94" ry="22" fill="#d6b567" opacity="0.52"/>
+  <rect x="442" y="102" width="76" height="18" rx="2" fill="#f0d58b" opacity="0.9"/>
+  <rect x="160" y="156" width="74" height="180" rx="3" fill="#1c2633"/>
+  <rect x="726" y="156" width="74" height="180" rx="3" fill="#1c2633"/>
+  <g opacity="0.72">
+    <rect x="286" y="176" width="40" height="150" fill="#202b38"/>
+    <rect x="332" y="176" width="40" height="150" fill="#202b38"/>
+    <rect x="378" y="176" width="40" height="150" fill="#202b38"/>
+    <rect x="542" y="176" width="40" height="150" fill="#202b38"/>
+    <rect x="588" y="176" width="40" height="150" fill="#202b38"/>
+    <rect x="634" y="176" width="40" height="150" fill="#202b38"/>
+  </g>
+  <g stroke="#45566a" stroke-width="2" opacity="0.5">
+    <path d="M286 222h132M542 222h132"/>
+    <path d="M286 272h132M542 272h132"/>
+  </g>
+  <path d="M72 640 360 370M888 640 600 370" stroke="#29313d" stroke-width="5" opacity="0.85"/>
+  <path d="M245 460h470M170 560h620" stroke="#222833" stroke-width="4" opacity="0.75"/>
+  <rect width="960" height="640" fill="url(#lamp)"/>
+  <rect width="960" height="640" filter="url(#softNoise)" opacity="0.8"/>
+  <rect width="960" height="640" fill="#05070c" opacity="0.18"/>
+</svg>

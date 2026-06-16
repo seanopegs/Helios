@@ -4,47 +4,56 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Helios - Luke's Room</title>
+  <link rel="icon" href="assets/images/ui/favicon.svg" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
   <div class="frame">
+    <!-- Start screen overlay -->
     <div id="start-screen" class="start-screen">
       <button id="btn-reset" class="btn-reset" title="Reset All Data">
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+          <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+        </svg>
       </button>
-      <h1>Helios</h1>
-      <div class="start-menu">
-        <button id="btn-play" class="btn">New Game</button>
-        <button id="btn-dev" class="btn" style="display:none">Developer Mode</button>
+      <div class="start-content">
+        <h1>Helios</h1>
+        <div class="start-menu">
+          <button id="btn-play" class="btn">New Game</button>
+          <button id="btn-load-slots" class="btn btn-secondary" style="display:none">Load Save</button>
+          <button id="btn-dev" class="btn" style="display:none">Developer Mode</button>
+        </div>
+        <p class="start-hint">The hallway is waiting.</p>
       </div>
     </div>
+
+    <!-- Main game canvas -->
     <canvas id="scene" width="680" height="520" aria-label="Room scene"></canvas>
-    
-    <!-- Help Screen -->
+
+    <!-- Help overlay -->
     <div id="help-screen" class="hidden">
-       <h2>Controls</h2>
-       <ul>
-         <li><strong>W A S D</strong> / Arrows : Move</li>
-         <li><strong>Space</strong> : Interact</li>
-         <li><strong>E</strong> : Toggle Inventory</li>
-         <li><strong>1-4</strong> / Scroll : Select Item</li>
-         <li><strong>X</strong> : Use Active Item</li>
-         <li><strong>I</strong> : Toggle Help</li>
-       </ul>
+      <h2>Controls</h2>
+      <ul>
+        <li><strong>W A S D</strong> / Arrows : Move</li>
+        <li><strong>Space</strong> : Interact</li>
+        <li><strong>E</strong> : Toggle Inventory</li>
+        <li><strong>1-4</strong> / Scroll : Select Item</li>
+        <li><strong>X</strong> : Use Active Item</li>
+        <li><strong>I</strong> : Toggle Help</li>
+      </ul>
     </div>
 
-    <!-- First Person POV Container -->
+    <!-- Cabinet / POV view -->
     <div id="pov-container" class="hidden">
       <div class="pov-background"></div>
       <div class="pov-cabinet">
-         <!-- Items inside the cabinet -->
-         <div id="pov-note" class="pov-item" title="Pick up Note">&#128221;</div>
-         <div id="pov-key" class="pov-item" title="Pick up Door Key">&#128273;</div>
+        <div id="pov-note" class="pov-item" title="Pick up Note">&#128221;</div>
+        <div id="pov-key" class="pov-item" title="Pick up Door Key">&#128273;</div>
       </div>
       <button id="btn-close-pov" class="btn">Close Cabinet</button>
     </div>
 
-    <!-- Note Reading Overlay -->
+    <!-- Note reading overlay -->
     <div id="note-overlay" class="hidden">
       <div class="note-paper">
         <div class="note-face note-face--front">
@@ -60,6 +69,7 @@
       </div>
     </div>
 
+    <!-- Dialogue box (under the canvas) -->
     <div class="dialogue dialogue--hidden" id="dialogue">
       <div class="dialogue__label" id="dialogue-label"></div>
       <div class="dialogue__line" id="dialogue-line"></div>
@@ -67,7 +77,7 @@
     </div>
   </div>
 
-  <!-- Inventory HUD (outside frame) -->
+  <!-- Inventory HUD (outside the frame) -->
   <div id="inventory-hud" class="hidden">
     <div class="inv-money">
       <div class="inv-money__label">Money</div>
@@ -79,6 +89,7 @@
     <div class="inv-slot" id="slot-3"></div>
   </div>
 
+  <!-- Padlock overlay -->
   <div id="padlock-overlay" class="hidden">
     <div class="padlock-panel">
       <div class="padlock-title">4 Digit Lock</div>
@@ -92,99 +103,132 @@
     </div>
   </div>
 
-  <div id="texture-editor" class="modal hidden">
-    <div class="modal-content">
-      <h3>Texture Editor</h3>
-      <div class="editor-toolbar">
-         <div class="tool-group">
-            <label>Size:</label>
-            <input type="number" id="paint-width" style="width:50px" title="Width"> x
-            <input type="number" id="paint-height" style="width:50px" title="Height">
-         </div>
-         <div class="tool-group">
-            <label>Zoom:</label>
-            <button id="paint-zoom-out" class="tool-btn">-</button>
-            <span id="paint-zoom-val">100%</span>
-            <button id="paint-zoom-in" class="tool-btn">+</button>
-         </div>
-         <div class="tool-group">
-            <label>Brush:</label>
-            <input type="range" id="paint-size" min="1" max="20" value="1" title="Brush Size">
-            <span id="paint-size-val">1</span>px
-         </div>
-         <div class="tool-group">
-             <input type="color" id="paint-color" value="#000000" title="Color">
-             <button id="paint-tool-brush" class="tool-btn active" title="Brush">B</button>
-             <button id="paint-tool-eraser" class="tool-btn" title="Eraser">E</button>
-         </div>
-         <div class="tool-group">
-             <button id="paint-clear" class="dev-btn-small">Clear</button>
-         </div>
+  <!-- Pause / save slots overlay -->
+  <div id="pause-overlay" class="hidden">
+    <div class="pause-panel">
+      <div class="pause-header">
+        <div>
+          <div class="pause-kicker">Helios</div>
+          <h2>Save Room</h2>
+        </div>
+        <button id="btn-pause-resume" class="btn-icon" title="Resume">X</button>
       </div>
-
-      <div style="overflow: auto; max-width: 100%; max-height: 70vh; display:flex; justify-content:center;">
-          <canvas id="paint-canvas" width="64" height="64"></canvas>
-      </div>
-
-      <div class="editor-actions">
-          <button id="paint-save" class="dev-btn">Save Texture & Resize Object</button>
-          <button id="paint-cancel" class="dev-btn-danger">Cancel</button>
+      <div class="save-slot-grid" id="save-slot-grid"></div>
+      <div class="pause-actions">
+        <button id="btn-save-current" class="btn-note-close">Save to Selected Slot</button>
+        <button id="btn-load-current" class="btn-note-close">Load Selected Slot</button>
+        <button id="btn-pause-menu" class="btn-note-close">Main Menu</button>
       </div>
     </div>
   </div>
 
-  <div id="object-picker" class="modal hidden">
-      <div class="modal-content" style="width: 400px;">
-          <h3>Add Object</h3>
-          <div id="obj-grid" class="obj-grid"></div>
-          <button id="picker-cancel" class="dev-btn-danger">Cancel</button>
+  <!-- Texture editor (developer mode) -->
+  <div id="texture-editor" class="modal hidden">
+    <div class="modal-content">
+      <h3>Texture Editor</h3>
+      <div class="editor-toolbar">
+        <div class="tool-group">
+          <label>Size:</label>
+          <input type="number" id="paint-width" style="width:50px" title="Width"> x
+          <input type="number" id="paint-height" style="width:50px" title="Height">
+        </div>
+        <div class="tool-group">
+          <label>Zoom:</label>
+          <button id="paint-zoom-out" class="tool-btn">-</button>
+          <span id="paint-zoom-val">100%</span>
+          <button id="paint-zoom-in" class="tool-btn">+</button>
+        </div>
+        <div class="tool-group">
+          <label>Brush:</label>
+          <input type="range" id="paint-size" min="1" max="20" value="1" title="Brush Size">
+          <span id="paint-size-val">1</span>px
+        </div>
+        <div class="tool-group">
+          <input type="color" id="paint-color" value="#000000" title="Color">
+          <button id="paint-tool-brush" class="tool-btn active" title="Brush">B</button>
+          <button id="paint-tool-eraser" class="tool-btn" title="Eraser">E</button>
+        </div>
+        <div class="tool-group">
+          <button id="paint-clear" class="dev-btn-small">Clear</button>
+        </div>
       </div>
+      <div style="overflow: auto; max-width: 100%; max-height: 70vh; display:flex; justify-content:center;">
+        <canvas id="paint-canvas" width="64" height="64"></canvas>
+      </div>
+      <div class="editor-actions">
+        <button id="paint-save" class="dev-btn">Save Texture & Resize Object</button>
+        <button id="paint-cancel" class="dev-btn-danger">Cancel</button>
+      </div>
+    </div>
   </div>
 
+  <!-- Object picker (developer mode) -->
+  <div id="object-picker" class="modal hidden">
+    <div class="modal-content" style="width: 400px;">
+      <h3>Add Object</h3>
+      <div id="obj-grid" class="obj-grid"></div>
+      <button id="picker-cancel" class="dev-btn-danger">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Developer sidebar -->
   <div id="dev-sidebar" class="dev-sidebar hidden">
     <h2>Developer Mode</h2>
-
     <div class="dev-section">
       <button id="dev-save" class="dev-btn" data-tooltip="Save Design to File">Save JSON</button>
       <input type="file" id="dev-load-input" accept=".json" style="display: none;" />
       <button id="dev-load" class="dev-btn" data-tooltip="Load Design from File">Load JSON</button>
     </div>
-
     <div class="dev-section">
-        <h3>Room</h3>
-        <div class="dev-prop-row">
-            <select id="dev-room-select" style="flex:1"></select>
-            <button id="dev-add-room" class="btn-xs" style="margin-left:4px">+</button>
-        </div>
+      <h3>Room</h3>
+      <div class="dev-prop-row">
+        <select id="dev-room-select" style="flex:1"></select>
+        <button id="dev-add-room" class="btn-xs" style="margin-left:4px">+</button>
+      </div>
     </div>
-
     <div class="dev-section">
       <h3>Objects</h3>
       <button id="dev-open-picker" class="dev-btn">Add Object...</button>
     </div>
-
+    <div class="dev-section">
+      <h3>Story Checkpoint</h3>
+      <div class="dev-prop-row">
+        <select id="dev-checkpoint-select" style="flex:1"></select>
+      </div>
+      <button id="dev-load-checkpoint" class="dev-btn">Load Checkpoint</button>
+    </div>
+    <div class="dev-section">
+      <h3>Debug View</h3>
+      <label class="dev-check"><input type="checkbox" id="debug-hitboxes"> Hitboxes</label>
+      <label class="dev-check"><input type="checkbox" id="debug-interactions" checked> Interaction zones</label>
+      <label class="dev-check"><input type="checkbox" id="debug-spawns" checked> Door spawns</label>
+      <label class="dev-check"><input type="checkbox" id="debug-state" checked> State summary</label>
+      <pre id="dev-state-summary" class="dev-state-summary"></pre>
+    </div>
     <div id="dev-props" class="dev-props hidden">
-        <h3>Properties</h3>
-        <div class="dev-prop-row">
-            <label>X:</label> <input type="number" id="prop-x">
-        </div>
-        <div class="dev-prop-row">
-            <label>Y:</label> <input type="number" id="prop-y">
-        </div>
-        <div class="dev-prop-row">
-            <label>W:</label> <input type="number" id="prop-w">
-        </div>
-        <div class="dev-prop-row">
-            <label>H:</label> <input type="number" id="prop-h">
-        </div>
-
-        <div id="prop-extra"></div>
-
-        <button id="dev-delete-obj" class="dev-btn-danger">Delete Object</button>
-        <button id="dev-edit-texture" class="dev-btn">Edit Texture</button>
+      <h3>Properties</h3>
+      <div class="dev-prop-row">
+        <label>X:</label> <input type="number" id="prop-x">
+      </div>
+      <div class="dev-prop-row">
+        <label>Y:</label> <input type="number" id="prop-y">
+      </div>
+      <div class="dev-prop-row">
+        <label>W:</label> <input type="number" id="prop-w">
+      </div>
+      <div class="dev-prop-row">
+        <label>H:</label> <input type="number" id="prop-h">
+      </div>
+      <div id="prop-extra"></div>
+      <button id="dev-delete-obj" class="dev-btn-danger">Delete Object</button>
+      <button id="dev-edit-texture" class="dev-btn">Edit Texture</button>
     </div>
   </div>
-  <script src="js/data.js"></script>
-  <script src="js/script.js"></script>
+
+  <!-- Game scripts (loaded as plain scripts so file:// works) -->
+  <script src="js/helios.js?v=20260616e"></script>
+  <script src="js/game.js?v=20260616e"></script>
+  <script src="js/game-render.js?v=20260616e"></script>
+  <script src="js/game-runtime.js?v=20260616e"></script>
 </body>
 </html>
