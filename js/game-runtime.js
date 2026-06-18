@@ -89,7 +89,9 @@ function updateDialogue() {
   if (view.active) {
     Helios.Dialogue.apply(getDialogueElements(), view);
     queueDialogueVoice(entry);
+    if (!isHintActive && dialogue.length > 0) startTypewriter(view.text);
   } else {
+    clearTypewriter();
     stopDialogueVoice();
     Helios.Dialogue.apply(getDialogueElements(), view);
     if (!playData.introSeen && dialogue.length > 0) {
@@ -103,8 +105,46 @@ function updateDialogue() {
   }
 }
 
+let typewriterTimer = null;
+let typewriterFull = "";
+let typewriterPos = 0;
+function clearTypewriter() {
+  if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+  typewriterFull = "";
+  typewriterPos = 0;
+}
+function startTypewriter(text) {
+  clearTypewriter();
+  const full = String(text || "");
+  typewriterFull = full;
+  typewriterPos = 0;
+  if (!full) { if (dialogueLine) dialogueLine.textContent = ""; return; }
+  if (dialogueLine) dialogueLine.textContent = "";
+  const step = 2;
+  typewriterTimer = setInterval(() => {
+    if (typewriterPos >= typewriterFull.length) { clearTypewriter(); return; }
+    typewriterPos += step;
+    if (dialogueLine) dialogueLine.textContent = typewriterFull.slice(0, typewriterPos);
+  }, 18);
+}
+function completeTypewriter() {
+  if (!typewriterTimer && typewriterPos < typewriterFull.length) {
+    if (dialogueLine) dialogueLine.textContent = typewriterFull;
+    typewriterPos = typewriterFull.length;
+    return true;
+  }
+  if (typewriterTimer) {
+    if (dialogueLine) dialogueLine.textContent = typewriterFull;
+    clearTypewriter();
+    return true;
+  }
+  return false;
+}
+
 function showTemporaryDialogue(text, speaker = "LUKE") {
+  isHintActive = false;
   if (tempDialogueTimeout) { clearTimeout(tempDialogueTimeout); tempDialogueTimeout = null; }
+  clearTypewriter();
   Helios.Dialogue.apply(getDialogueElements(), { active: true, speaker, text, prompt: "", hideSpeaker: !speaker });
   queueDialogueVoice({ text, speaker });
   tempDialogueTimeout = setTimeout(() => {
@@ -311,6 +351,7 @@ function updateNPCs() {
 }
 
 function advanceDialogue() {
+  if (completeTypewriter()) return;
   if (deathSequence && deathSequence.active && deathSequence.awaitingContinue) {
     continueDeathSequence();
     return;
@@ -554,6 +595,7 @@ function executeInteraction(target) {
     if (selectedConvo) {
       let lines = Array.isArray(selectedConvo) ? selectedConvo : selectedConvo.lines;
       if (lines && lines.length > 0) {
+        isHintActive = false;
         dialogue = JSON.parse(JSON.stringify(lines));
         stage = 0;
         updateDialogue();
@@ -698,6 +740,33 @@ function toggleHelpScreen() {
   if (help) help.classList.toggle("hidden");
 }
 
+function showConfirmDialog(message, options = {}) {
+  const { title = "Confirm", confirmLabel = "Confirm", cancelLabel = "Cancel", onConfirm } = options;
+  let box = document.getElementById("confirm-overlay");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "confirm-overlay";
+    box.className = "confirm-overlay hidden";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "true");
+    box.setAttribute("aria-labelledby", "confirm-title");
+    box.innerHTML = `<div class="confirm-panel"><div class="confirm-title" id="confirm-title"></div><div class="confirm-message"></div><div class="confirm-actions"><button class="btn-note-close" id="confirm-cancel" type="button"></button><button class="btn" id="confirm-ok" type="button"></button></div></div>`;
+    document.body.appendChild(box);
+    box.addEventListener("click", (e) => { if (e.target === box) box.classList.add("hidden"); });
+  }
+  box.querySelector("#confirm-title").textContent = title;
+  box.querySelector(".confirm-message").textContent = message;
+  const cancelBtn = box.querySelector("#confirm-cancel");
+  const okBtn = box.querySelector("#confirm-ok");
+  cancelBtn.textContent = cancelLabel;
+  okBtn.textContent = confirmLabel;
+  const close = () => box.classList.add("hidden");
+  cancelBtn.onclick = close;
+  okBtn.onclick = () => { close(); if (typeof onConfirm === "function") onConfirm(); };
+  box.classList.remove("hidden");
+  setTimeout(() => okBtn.focus(), 10);
+}
+
 function updateInventoryUI() {
   const hud = document.getElementById("inventory-hud");
   if (!hud) return;
@@ -718,10 +787,8 @@ function updateInventoryUI() {
       const iconEl = document.createElement("div");
       iconEl.className = "inv-item";
       if (item.icon) {
+        iconEl.classList.add("inv-item--glyph");
         iconEl.textContent = item.icon;
-        iconEl.style.fontSize = "24px";
-        iconEl.style.textAlign = "center";
-        iconEl.style.lineHeight = "32px";
       }
       iconEl.title = item.name;
       slotEl.appendChild(iconEl);
@@ -788,7 +855,45 @@ function updateStartSaveButtons() {
   const loadSlotsButton = document.getElementById("btn-load-slots");
   if (!loadSlotsButton) return;
   const hasAnySlot = Helios.Save.listSlots(localStorage).some((slot) => slot.occupied);
-  loadSlotsButton.style.display = hasAnySlot ? "" : "none";
+  loadSlotsButton.hidden = !hasAnySlot;
+}
+
+function refreshStartMenu() {
+  const startMenuEl = document.querySelector(".start-menu");
+  if (startMenuEl) {
+    let btnContinue = document.getElementById("btn-continue");
+    const hasSave = Helios.Save.hasPlayState(localStorage);
+    if (hasSave && !btnContinue) {
+      btnContinue = document.createElement("button");
+      btnContinue.id = "btn-continue";
+      btnContinue.className = "btn";
+      btnContinue.textContent = "Continue Autosave";
+      btnContinue.onclick = () => { isDeveloperMode = false; loadPlayState(); if (playData.player.room) loadLevel(playData.player.room); startGame(); };
+      startMenuEl.insertBefore(btnContinue, startMenuEl.firstChild);
+    } else if (!hasSave && btnContinue) {
+      btnContinue.remove();
+    }
+  }
+  updateStartSaveButtons();
+}
+
+function playUiBlip(kind) {
+  if (!audioCtx || !masterOutputGain) return;
+  if (typeof playDialogueBlip !== "function") return;
+  const profile = kind === "select"
+    ? { frequency: 520, type: "square", volume: 0.05, speed: 60 }
+    : { frequency: 340, type: "sine", volume: 0.035, speed: 60 };
+  playDialogueBlip(profile, kind === "select" ? 40 : 0);
+}
+
+function attachMenuBlips(container) {
+  if (!container) return;
+  container.querySelectorAll("button").forEach((btn) => {
+    if (btn.dataset.blip) return;
+    btn.dataset.blip = "1";
+    btn.addEventListener("pointerenter", () => playUiBlip("hover"));
+    btn.addEventListener("pointerdown", () => playUiBlip("select"));
+  });
 }
 
 function openPauseOverlay() {
@@ -831,7 +936,7 @@ function loadSelectedSlot() {
   isGameActive = true;
   const startScreen = document.getElementById("start-screen");
   if (startScreen) startScreen.style.display = "none";
-  menuBtn.style.display = "";
+  menuBtn.hidden = false;
   updateInventoryUI();
   applyMasterVolume();
   updateSoundtrack();
@@ -893,7 +998,7 @@ function loadDevCheckpoint(id) {
   const startScreen = document.getElementById("start-screen");
   if (startScreen) startScreen.style.display = "none";
   document.getElementById("dev-sidebar")?.classList.remove("hidden");
-  menuBtn.style.display = "";
+  menuBtn.hidden = false;
   loadLevel(checkpoint.room);
   applyRoomState(checkpoint.room);
   player.x = checkpoint.x;
@@ -1035,6 +1140,10 @@ document.addEventListener("keydown", (event) => {
   }
   if (Helios.Input.isMoveAction(action)) keys.add(actionToLegacyKey(action));
   if (action === Helios.Input.ACTIONS.INTERACT) {
+    if (event.repeat) {
+      if (dialogueBox.classList.contains("dialogue--active") && !isHintActive) advanceDialogue();
+      return;
+    }
     if (deathSequence && deathSequence.active) {
       if (deathSequence.awaitingContinue) continueDeathSequence();
       return;
@@ -1300,12 +1409,50 @@ document.querySelector("#dev-sidebar .dev-section")?.appendChild(editIntroBtn);
 
 const menuBtn = document.createElement("button");
 menuBtn.textContent = "Menu";
-menuBtn.className = "btn-sm";
-menuBtn.style.cssText = "position:absolute;top:10px;left:10px;z-index:1000;display:none";
-menuBtn.onclick = () => { if (confirm("Return to Main Menu? Unsaved progress in Play Mode will be lost.")) location.reload(); };
+menuBtn.className = "btn-sm menu-btn";
+menuBtn.hidden = true;
+menuBtn.onclick = () => {
+  showConfirmDialog("Return to Main Menu? Unsaved progress in Play Mode will be lost.", {
+    title: "Main Menu", confirmLabel: "Return to Menu", cancelLabel: "Stay",
+    onConfirm: () => returnToMainMenu()
+  });
+};
 document.body.appendChild(menuBtn);
 
-canvas.addEventListener("click", advanceDialogue);
+function returnToMainMenu() {
+  isGameActive = false;
+  if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
+  clearTypewriter();
+  stopDialogueVoice();
+  stopSoundtrack();
+  cutscene = null;
+  deathSequence = null;
+  officeTimer.active = false;
+  particles = [];
+  globalDarkness = 0;
+  screenShake = 0;
+  camera.zoom = 1;
+  userZoom = 1;
+  dialogue = [];
+  stage = 0;
+  isHintActive = false;
+  isInventoryOpen = false;
+  player.isSitting = false;
+  menuBtn.hidden = true;
+  document.getElementById("inventory-hud")?.classList.add("hidden");
+  document.getElementById("dev-sidebar")?.classList.add("hidden");
+  document.getElementById("zoom-controls")?.classList.add("hidden");
+  ["note-overlay", "padlock-overlay", "pause-overlay", "help-screen", "pov-container"].forEach((id) => Helios.Overlay.setHidden(document, id, true));
+  playData.povActive = false;
+  const startScreen = document.getElementById("start-screen");
+  if (startScreen) startScreen.style.display = "";
+  refreshStartMenu();
+}
+
+canvas.addEventListener("click", () => {
+  if (isHintActive) return;
+  advanceDialogue();
+});
 
 /* ---------------------------------------------------------------------
  * Save / load helpers
@@ -1432,6 +1579,19 @@ function loadExternalData() {
   }
   if (padlockOpen) padlockOpen.addEventListener("click", attemptPadlockUnlock);
   if (padlockClose) padlockClose.addEventListener("click", closePadlockOverlay);
+
+  const closeHelp = document.getElementById("btn-close-help");
+  if (closeHelp) closeHelp.addEventListener("click", () => Helios.Overlay.setHidden(document, "help-screen", true));
+
+  const backdropClose = (id, closer) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("click", (e) => { if (e.target === el) closer(); });
+  };
+  backdropClose("note-overlay", closeNoteOverlay);
+  backdropClose("padlock-overlay", closePadlockOverlay);
+  backdropClose("help-screen", () => Helios.Overlay.setHidden(document, "help-screen", true));
+
   syncLeftCabinetPOV();
 })();
 
@@ -1486,7 +1646,7 @@ function startGame() {
   isGameActive = true;
   const startScreen = document.getElementById("start-screen");
   if (startScreen) startScreen.style.display = "none";
-  menuBtn.style.display = "";
+  menuBtn.hidden = false;
   if (!playData.introSeen) {
     dialogue = JSON.parse(JSON.stringify(introDialogue));
     stage = 0;
@@ -1509,6 +1669,7 @@ if (hasSaveData && startMenu) {
   startMenu.insertBefore(btnContinue, startMenu.firstChild);
 }
 updateStartSaveButtons();
+attachMenuBlips(startMenu);
 
 document.getElementById("btn-load-slots")?.addEventListener("click", () => {
   renderSaveSlots();
@@ -1520,12 +1681,15 @@ document.getElementById("btn-save-current")?.addEventListener("click", saveSelec
 document.getElementById("btn-load-current")?.addEventListener("click", loadSelectedSlot);
 document.getElementById("btn-pause-menu")?.addEventListener("click", () => {
   closePauseOverlay();
-  location.reload();
+  showConfirmDialog("Return to Main Menu? Unsaved progress in Play Mode will be lost.", {
+    title: "Main Menu", confirmLabel: "Return to Menu", cancelLabel: "Stay",
+    onConfirm: () => returnToMainMenu()
+  });
 });
 
 if (new URLSearchParams(location.search).get("dev") === "1") {
   const devButton = document.getElementById("btn-dev");
-  if (devButton) devButton.style.display = "";
+  if (devButton) devButton.hidden = false;
 }
 
 (function setupDevSecret() {
@@ -1543,7 +1707,8 @@ if (new URLSearchParams(location.search).get("dev") === "1") {
     if (buffer.length >= secret.length) {
       const last4 = buffer.slice(-4);
       if (last4.join("") === secret.join("")) {
-        document.getElementById("btn-dev").style.display = "";
+        const devBtn = document.getElementById("btn-dev");
+        if (devBtn) devBtn.hidden = false;
         buffer = [];
       }
     }
@@ -1597,10 +1762,10 @@ populateDevCheckpoints();
 });
 
 document.getElementById("btn-reset")?.addEventListener("click", () => {
-  if (confirm("Reset ALL data (Design + Play)?")) {
-    Helios.Save.clear(localStorage);
-    location.reload();
-  }
+  showConfirmDialog("Reset ALL data (Design + Play)? This cannot be undone.", {
+    title: "Reset Data", confirmLabel: "Reset Everything", cancelLabel: "Cancel",
+    onConfirm: () => { Helios.Save.clear(localStorage); location.reload(); }
+  });
 });
 
 document.getElementById("dev-save")?.addEventListener("click", async () => {
@@ -1651,7 +1816,12 @@ document.getElementById("dev-load-input")?.addEventListener("change", (e) => {
 const resetBtn = document.createElement("button");
 resetBtn.className = "dev-btn-danger";
 resetBtn.textContent = "Reset Design Data";
-resetBtn.onclick = () => { if (confirm("Clear local design changes and revert to file data? Page will reload.")) { localStorage.removeItem(Helios.Save.DESIGN_KEY); location.reload(); } };
+resetBtn.onclick = () => {
+  showConfirmDialog("Clear local design changes and revert to file data? Page will reload.", {
+    title: "Reset Design", confirmLabel: "Reset", cancelLabel: "Cancel",
+    onConfirm: () => { localStorage.removeItem(Helios.Save.DESIGN_KEY); location.reload(); }
+  });
+};
 document.querySelector("#dev-sidebar .dev-section")?.appendChild(resetBtn);
 
 /* Kick off the first level as soon as the script loads. */

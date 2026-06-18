@@ -86,3 +86,19 @@ run("computes proximity anchors and collision rectangles", () => {
   assert.equal(Helios.Collision.hasCollisionAt({ x: 80, y: 80, room, player, isItemHidden: () => false }), false);
   assert.equal(Helios.Collision.hasCollisionAt({ x: 145, y: 126, room, player, isItemHidden: () => false }), true);
 });
+
+run("findNearestDoor uses closest-point-on-rect (no dead zone past anchor)", () => {
+  const doors = [
+    { id: "bottom_door", x: 100, y: 200, width: 64, height: 80, orientation: "bottom" },
+    { id: "top_door", x: 400, y: 0, width: 64, height: 80, orientation: "top" }
+  ];
+  const playerPastBottomAnchor = { x: 132, y: 286 };
+  const bottomDoor = Helios.Proximity.findNearestDoor({ doors, actor: playerPastBottomAnchor, threshold: 60 });
+  assert.equal(bottomDoor && bottomDoor.id, "bottom_door");
+  assert.equal(Helios.Proximity.distanceToDoorRect(doors[0], { x: 132, y: 280 }), 0);
+  assert.equal(Helios.Proximity.distanceToDoorRect(doors[0], { x: 200, y: 240 }), 36);
+  const topDoorAnchor = { x: 432, y: 80 };
+  assert.equal(Helios.Proximity.distanceToDoorRect(doors[1], topDoorAnchor), 0);
+  const farActor = { x: 800, y: 800 };
+  assert.equal(Helios.Proximity.findNearestDoor({ doors, actor: farActor, threshold: 60 }), null);
+});

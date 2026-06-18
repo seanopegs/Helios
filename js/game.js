@@ -23,7 +23,7 @@ const dialoguePrompt = document.getElementById("dialogue-prompt");
  * Game state
  * ------------------------------------------------------------------- */
 const VOLUME_STEP = 0.1;
-const MASTER_VOLUME_BOOST = 1.45;
+const MASTER_VOLUME_BOOST = 8.7;
 const USER_ZOOM_MIN = 0.5;
 const USER_ZOOM_MAX = 3.0;
 const USER_ZOOM_STEP = 0.15;
@@ -56,7 +56,7 @@ let screenShake = 0;
 let checkpointBeforeLecture = null;
 let checkpointBeforeOfficeRush = null;
 const officeTimer = {
-  active: false, framesLeft: 0, durationFrames: 30 * 60, flashed: false, hidden: true
+  active: false, framesLeft: 0, durationFrames: 60 * 60, flashed: false, hidden: true
 };
 let deathSequence = null;
 let activePadlockId = null;
@@ -524,8 +524,8 @@ function loadLevel(name, targetDoorId) {
   if (!levels[name]) return;
   currentLevelName = name;
   room = levels[name];
+  applyRoomState(name);
   if (!isDeveloperMode) {
-    applyRoomState(name);
     playData.player.room = name;
   }
   let spawned = false;
@@ -616,6 +616,8 @@ function clearOfficeRushState() {
 }
 function updateOfficeTimer() {
   if (!officeTimer.active) return;
+  const dialogueHeld = dialogueBox.classList.contains("dialogue--active") && !isHintActive;
+  if (dialogueHeld || (cutscene && cutscene.active) || (deathSequence && deathSequence.active) || player.isSitting || isModalBlockingInput()) return;
   officeTimer.framesLeft -= 1;
   if (officeTimer.framesLeft <= 0) { officeTimer.framesLeft = 0; triggerDeath("office_rush_timeout"); return; }
   officeTimer.flashed = officeTimer.framesLeft <= 10 * 60;

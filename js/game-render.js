@@ -143,6 +143,50 @@ function drawRoom() {
     }
     ctx.restore();
   }
+
+  if (room.blastHole) drawBlastHole(room.blastHole);
+}
+
+function drawBlastHole(hole) {
+  ctx.save();
+  const cx = hole.x + hole.width / 2;
+  ctx.beginPath();
+  ctx.moveTo(hole.x, hole.y);
+  let px = hole.x, py = 0;
+  const teeth = 10;
+  for (let i = 0; i <= teeth; i++) {
+    px = hole.x + (hole.width * i) / teeth;
+    py = (i % 2 === 0) ? hole.height - 14 : hole.height;
+    ctx.lineTo(px, py);
+  }
+  ctx.lineTo(hole.x + hole.width, hole.y);
+  ctx.closePath();
+  ctx.fillStyle = "#050505";
+  ctx.fill();
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(hole.x - 14, hole.y, hole.width + 28, 10);
+  ctx.fillStyle = "#1a0c08";
+  ctx.beginPath();
+  ctx.moveTo(hole.x + 6, hole.height);
+  for (let i = 0; i <= teeth; i++) {
+    px = hole.x + 6 + ((hole.width - 12) * i) / teeth;
+    py = (i % 2 === 0) ? hole.height - 22 : hole.height - 8;
+    ctx.lineTo(px, py);
+  }
+  ctx.lineTo(hole.x + hole.width - 6, hole.height);
+  ctx.closePath();
+  ctx.fill();
+  for (let i = 0; i < 14; i++) {
+    const sx = hole.x + 6 + ((hole.width - 12) * (i + 0.5)) / 14;
+    ctx.fillStyle = "rgba(40,20,14,0.5)";
+    ctx.fillRect(sx, hole.height - 8, 3, 8);
+  }
+  const glow = ctx.createRadialGradient(cx, hole.height * 0.5, 4, cx, hole.height * 0.5, hole.width * 0.7);
+  glow.addColorStop(0, "rgba(120,40,20,0.18)");
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(hole.x - 30, 0, hole.width + 60, hole.height + 20);
+  ctx.restore();
 }
 
 function drawFurnitureShadow(item, targetCtx = ctx) {
@@ -611,9 +655,40 @@ function drawRug(item, t = ctx) {
   t.beginPath();
   for (let i = 4; i < item.width; i += 4) { t.moveTo(item.x + i, item.y); t.lineTo(item.x + i, item.y + item.height); }
   t.stroke();
+  if (item.scorched) {
+    t.fillStyle = "rgba(10,5,4,0.55)";
+    t.fillRect(item.x, item.y, item.width, item.height);
+    t.fillStyle = "rgba(40,16,10,0.4)";
+    t.beginPath();
+    t.ellipse(item.x + item.width * 0.5, item.y + item.height * 0.4, item.width * 0.28, item.height * 0.22, 0, 0, Math.PI * 2);
+    t.fill();
+  }
 }
 
 function drawSofa(item, t = ctx) {
+  if (item.overturned) {
+    t.save();
+    t.fillStyle = "rgba(0,0,0,0.35)";
+    t.fillRect(item.x - 2, item.y + item.height - 6, item.width + 4, 8);
+    t.translate(item.x + item.width / 2, item.y + item.height / 2);
+    t.rotate(Math.PI);
+    t.translate(-(item.x + item.width / 2), -(item.y + item.height / 2));
+    const color = "#2a1a16";
+    const highlight = "#3a241e";
+    t.fillStyle = "#1d1210";
+    t.fillRect(item.x, item.y, item.width, item.height / 2);
+    t.fillStyle = highlight;
+    t.fillRect(item.x + 8, item.y + item.height / 2, item.width - 16, item.height / 2 - 4);
+    t.fillStyle = color;
+    t.fillRect(item.x, item.y + 10, 8, item.height - 10);
+    t.fillRect(item.x + item.width - 8, item.y + 10, 8, item.height - 10);
+    t.fillStyle = "rgba(0,0,0,0.5)";
+    if (item.width > 60) t.fillRect(item.x + item.width / 2 - 1, item.y + item.height / 2, 2, item.height / 2);
+    t.fillStyle = "rgba(20,8,4,0.5)";
+    t.fillRect(item.x + 4, item.y + 4, item.width - 8, 6);
+    t.restore();
+    return;
+  }
   const color = item.color || "#4e342e";
   const highlight = "#5d4037";
   const shadow = "#2d1e19";
@@ -645,6 +720,40 @@ function drawSofa(item, t = ctx) {
 }
 
 function drawBookshelf(item, t = ctx) {
+  if (item.damaged) {
+    t.save();
+    t.fillStyle = "rgba(0,0,0,0.3)";
+    t.fillRect(item.x - 2, item.y + item.height - 4, item.width + 4, 8);
+    t.fillStyle = "#1a100c";
+    t.fillRect(item.x, item.y, item.width, item.height);
+    t.fillStyle = "#0c0604";
+    t.fillRect(item.x + 6, item.y + 6, item.width - 12, item.height - 12);
+    t.strokeStyle = "#2a1812";
+    t.lineWidth = 3;
+    t.beginPath();
+    t.moveTo(item.x + 4, item.y + 6);
+    t.lineTo(item.x + item.width - 10, item.y + item.height - 6);
+    t.stroke();
+    t.beginPath();
+    t.moveTo(item.x + item.width - 6, item.y + 8);
+    t.lineTo(item.x + 12, item.y + item.height - 10);
+    t.stroke();
+    const bookColors = ["#5d1414", "#1a3a5a", "#3a2010", "#4e342e"];
+    for (let i = 0; i < 6; i++) {
+      const bx = item.x + 8 + ((item.width - 16) * (i + 0.5)) / 6;
+      const by = item.y + item.height - 10 - (i % 2) * 6;
+      t.save();
+      t.translate(bx, by);
+      t.rotate((i % 2 === 0 ? 1 : -1) * 0.5);
+      t.fillStyle = bookColors[i % bookColors.length];
+      t.fillRect(-3, -10, 6, 10);
+      t.restore();
+    }
+    t.fillStyle = "rgba(40,18,12,0.5)";
+    t.fillRect(item.x + 4, item.y + 2, item.width - 8, 5);
+    t.restore();
+    return;
+  }
   const woodColor = "#3e2723";
   const woodHighlight = "#4e342e";
   const shelves = 4;
@@ -701,6 +810,37 @@ function drawBookshelf(item, t = ctx) {
 }
 
 function drawBossDesk(item, t = ctx) {
+  if (item.damaged) {
+    t.save();
+    t.fillStyle = "rgba(0,0,0,0.45)";
+    t.fillRect(item.x - 4, item.y + item.height - 4, item.width + 8, 12);
+    t.translate(item.x + item.width / 2, item.y + item.height);
+    t.rotate(0.06);
+    t.translate(-(item.x + item.width / 2), -(item.y + item.height));
+    t.fillStyle = "#160b08";
+    t.fillRect(item.x, item.y + 14, item.width, item.height - 14);
+    t.fillStyle = "#241311";
+    t.fillRect(item.x - 4, item.y, item.width + 8, 16);
+    t.fillStyle = "#0a0504";
+    t.fillRect(item.x + item.width * 0.18, item.y + 3, item.width * 0.64, 8);
+    t.strokeStyle = "#000";
+    t.lineWidth = 2;
+    t.beginPath();
+    t.moveTo(item.x + 10, item.y + 22);
+    t.lineTo(item.x + item.width - 16, item.y + item.height - 6);
+    t.stroke();
+    t.beginPath();
+    t.moveTo(item.x + item.width * 0.6, item.y + 18);
+    t.lineTo(item.x + item.width * 0.3, item.y + item.height - 10);
+    t.stroke();
+    t.fillStyle = "rgba(20,8,4,0.55)";
+    t.fillRect(item.x - 8, item.y + item.height - 8, item.width + 16, 10);
+    t.fillStyle = "rgba(60,28,16,0.4)";
+    t.fillRect(item.x + 6, item.y + 6, 14, 6);
+    t.fillRect(item.x + item.width - 24, item.y + 8, 18, 5);
+    t.restore();
+    return;
+  }
   const woodWood = "#3e2723";
   const woodHighlight = "#4e342e";
   const woodTrim = "#d4af37";
@@ -763,6 +903,37 @@ function drawBossDesk(item, t = ctx) {
 }
 
 function drawPlant(item, t = ctx) {
+  if (item.knockedOver) {
+    t.save();
+    const potColor = item.potColor || "#eceff1";
+    t.fillStyle = "rgba(0,0,0,0.3)";
+    t.beginPath();
+    t.ellipse(item.x + item.width / 2, item.y + item.height, item.width / 2 + 4, 5, 0, 0, Math.PI * 2);
+    t.fill();
+    t.translate(item.x + item.width / 2, item.y + item.height - 6);
+    t.rotate(-1.1);
+    t.translate(-(item.x + item.width / 2), -(item.y + item.height - 6));
+    const pw = item.width * 0.8;
+    const px = item.x + (item.width - pw) / 2;
+    const py = item.y + item.height - item.height * 0.4;
+    t.fillStyle = potColor;
+    t.fillRect(px, py, pw, item.height * 0.4);
+    t.fillStyle = "rgba(0,0,0,0.25)";
+    t.fillRect(px, py + item.height * 0.4 - 4, pw, 4);
+    t.fillStyle = "#3e2723";
+    t.beginPath();
+    t.ellipse(item.x + item.width / 2, py, pw / 2, 3, 0, 0, Math.PI * 2);
+    t.fill();
+    t.fillStyle = "#2e7d32";
+    t.beginPath();
+    t.ellipse(item.x + item.width / 2 - 6, py - 8, 7, 12, -0.6, 0, Math.PI * 2);
+    t.ellipse(item.x + item.width / 2 + 6, py - 6, 6, 10, 0.5, 0, Math.PI * 2);
+    t.fill();
+    t.fillStyle = "rgba(0,0,0,0.4)";
+    t.fillRect(px - 6, py + item.height * 0.4 - 2, 10, 4);
+    t.restore();
+    return;
+  }
   const potColor = item.potColor || "#eceff1";
   const potHeight = item.height * 0.4;
   const potWidth = item.width * 0.8;
@@ -1123,6 +1294,45 @@ function drawDebris(item, t = ctx) {
 }
 
 function drawVent(item, t = ctx) {
+  if (item.open) {
+    t.save();
+    t.fillStyle = "#050505";
+    t.fillRect(item.x, item.y, item.width, item.height);
+    const depth = ctx.createLinearGradient(item.x, item.y, item.x, item.y + item.height);
+    depth.addColorStop(0, "rgba(20,12,10,0.9)");
+    depth.addColorStop(0.5, "rgba(0,0,0,1)");
+    depth.addColorStop(1, "rgba(10,6,5,0.8)");
+    t.fillStyle = depth;
+    t.fillRect(item.x + 2, item.y + 2, item.width - 4, item.height - 4);
+    t.strokeStyle = "#1a2226";
+    t.lineWidth = 2;
+    t.strokeRect(item.x, item.y, item.width, item.height);
+    t.strokeStyle = "#37474f";
+    t.lineWidth = 3;
+    t.beginPath();
+    t.moveTo(item.x + 5, item.y + 8);
+    t.lineTo(item.x + item.width * 0.4, item.y + 12);
+    t.lineTo(item.x + item.width - 6, item.y + 6);
+    t.stroke();
+    t.beginPath();
+    t.moveTo(item.x + 6, item.y + item.height - 8);
+    t.lineTo(item.x + item.width * 0.6, item.y + item.height - 14);
+    t.lineTo(item.x + item.width - 4, item.y + item.height - 6);
+    t.stroke();
+    t.strokeStyle = "#263238";
+    t.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      const yy = item.y + 12 + i * 7;
+      t.beginPath();
+      t.moveTo(item.x + 4, yy);
+      t.lineTo(item.x + item.width - 4, yy + (i % 2 ? 3 : -2));
+      t.stroke();
+    }
+    t.fillStyle = "rgba(120,40,20,0.16)";
+    t.fillRect(item.x - 4, item.y - 4, item.width + 8, 6);
+    t.restore();
+    return;
+  }
   t.fillStyle = "#7b8b94";
   t.fillRect(item.x, item.y, item.width, item.height);
   t.fillStyle = "#455a64";
@@ -1579,6 +1789,11 @@ function getNearestDoor(threshold = Infinity) {
   return Helios.Proximity.findNearestDoor({ doors: room.doors || [], actor: player, threshold });
 }
 
+function isRealDialogueActive() {
+  if (typeof tempDialogueTimeout !== "undefined" && tempDialogueTimeout) return true;
+  return Array.isArray(dialogue) && dialogue.length > 0 && stage < dialogue.length;
+}
+
 function drawHints() {
   if (deathSequence && deathSequence.active) return;
   ctx.save();
@@ -1594,8 +1809,13 @@ function drawHints() {
   ctx.fillStyle = "rgba(255,255,255,0.45)";
   ctx.fillText("Press I for Help", canvas.width - 12, 18);
   ctx.restore();
+  if (isRealDialogueActive()) {
+    if (isHintActive) { isHintActive = false; updateDialogue(); }
+    return;
+  }
   let showingHint = false;
   const showHint = (target) => {
+    if (typeof clearTypewriter === "function") clearTypewriter();
     Helios.Dialogue.apply(getDialogueElements(), Helios.Dialogue.createHint(target));
     isHintActive = true;
   };
@@ -1618,7 +1838,7 @@ function drawHints() {
     }
   }
   if (!showingHint) {
-    const door = getNearestDoor(56);
+    const door = getNearestDoor(60);
     if (door) {
       showingHint = true;
       if (!isHintActive) showHint({ type: "door", prompt: door.prompt || "to open" });

@@ -827,6 +827,7 @@ Helios.EditorObjects = Object.freeze([
         Helios.Overlay.isVisible(documentRef, "note-overlay") ||
         Helios.Overlay.isVisible(documentRef, "padlock-overlay") ||
         Helios.Overlay.isVisible(documentRef, "pause-overlay") ||
+        Helios.Overlay.isVisible(documentRef, "confirm-overlay") ||
         Helios.Overlay.isVisible(documentRef, "texture-editor") ||
         Helios.Overlay.isVisible(documentRef, "object-picker")
       );
@@ -925,14 +926,23 @@ Helios.EditorObjects = Object.freeze([
       let best = null;
       let bestDist = threshold;
       for (const door of doors || []) {
-        const anchor = Helios.Proximity.getDoorAnchor(door);
-        const dist = Math.hypot(actor.x - anchor.x, actor.y - anchor.y);
+        const dist = Helios.Proximity.distanceToDoorRect(door, actor);
         if (dist <= bestDist) {
           best = door;
           bestDist = dist;
         }
       }
       return best;
+    },
+    distanceToDoorRect(door, actor) {
+      if (!door || !actor) return Infinity;
+      const left = door.x;
+      const right = door.x + (door.width || 0);
+      const top = door.y;
+      const bottom = door.y + (door.height || 0);
+      const cx = Math.max(left, Math.min(actor.x, right));
+      const cy = Math.max(top, Math.min(actor.y, bottom));
+      return Math.hypot(actor.x - cx, actor.y - cy);
     },
     findNearestPromptFurniture({ furniture, actor, threshold = 82, isHidden }) {
       let best = null;
@@ -1016,17 +1026,32 @@ Helios.EditorObjects = Object.freeze([
   Helios.RoomState = {
     applyPrincipalOffice(room, worldState) {
       if (!room || !worldState?.horrorActive) return;
-      const hasVent = (room.furniture || []).some((item) => item.id === "principal_office_vent");
-      if (!hasVent) {
-        room.furniture.push({
-          type: "vent", id: "principal_office_vent", x: 520, y: 32, width: 48, height: 28,
-          interaction: {
-            enabled: true, type: "sequence", priority: 12, prompt: "to crawl into the vent",
-            conversations: [[{ speaker: "LUKE", text: "That vent is loose enough to climb through." }]],
-            area: { x: -24, y: -16, width: 96, height: 86 }
-          }
-        });
-      }
+      const furniture = room.furniture || [];
+      if (furniture.some((item) => item.id === "principal_office_vent")) return;
+      furniture.forEach((item) => {
+        if (item.type === "boss_desk") { item.damaged = true; item.scorched = true; }
+        else if (item.type === "sofa") { item.damaged = true; item.overturned = true; }
+        else if (item.type === "plant") { item.damaged = true; item.knockedOver = true; }
+        else if (item.type === "bookshelf") { item.damaged = true; item.scorched = true; }
+        else if (item.type === "rug") { item.scorched = true; }
+      });
+      furniture.push(
+        { type: "debris", id: "office_debris_desk", x: 196, y: 236, width: 72, height: 22 },
+        { type: "debris", id: "office_debris_floor_l", x: 120, y: 312, width: 50, height: 18 },
+        { type: "debris", id: "office_debris_floor_r", x: 432, y: 312, width: 54, height: 20 },
+        { type: "debris", id: "office_debris_vent", x: 416, y: 104, width: 64, height: 16 },
+        { type: "debris", id: "office_debris_corner", x: 64, y: 472, width: 46, height: 18 },
+        { type: "debris", id: "office_debris_corner2", x: 486, y: 472, width: 48, height: 18 }
+      );
+      room.blastHole = { x: 432, y: 0, width: 72, height: 96 };
+      furniture.push({
+        type: "vent", id: "principal_office_vent", x: 440, y: 60, width: 56, height: 32, open: true,
+        interaction: {
+          enabled: true, type: "sequence", priority: 12, prompt: "to crawl into the vent",
+          conversations: [[{ speaker: "LUKE", text: "The blast ripped the wall open. I can climb through the vent." }]],
+          area: { x: -24, y: -8, width: 104, height: 120 }
+        }
+      });
     },
     applyHallwayHorror(room) {
       if (!room) return;
